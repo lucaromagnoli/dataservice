@@ -7,6 +7,7 @@ import uuid
 from abc import ABC, abstractmethod
 import multiprocessing
 from multiprocessing import Process
+from pprint import pprint
 from typing import Iterator, Coroutine, Callable, Awaitable, AsyncIterator, Iterable, Generator
 from uuid import UUID
 
@@ -15,7 +16,7 @@ from uuid import UUID
 class Client:
     async def make_request(self, request: Request) -> Response:
         print(f"Requesting URL: {request.url}")
-        delay = random.randint(0, 100) / 10
+        delay = random.randint(0, 2) / 100
         print(f"Waiting for {delay}")
         await asyncio.sleep(delay)
         print(f"Returning {request.url}")
@@ -75,42 +76,44 @@ async def process_requests_async(client, requests_queue, responses_queue):
 def async_to_sync(coro, *args, **kwargs):
     return asyncio.run(coro(*args, **kwargs))
 
-def process_response(_resp, _req_queue, _resp_queue, _data_queue):
-    print(f'Processing response {_resp.request.url}')
-    parsed = _resp.request.callback(_resp)
+def process_response(response, requests_queue: multiprocessing.Queue, responses_queue: multiprocessing.Queue, data_queue: multiprocessing.Queue):
+    print(f'Processing response {response.request.url}')
+    parsed = response.request.callback(response)
     if isinstance(parsed, Generator):
         for item in parsed:
             if isinstance(item, Request):
-                _req_queue.put(item)
+                print(f"Putting request {item.url} in request queue")
+                requests_queue.put(item)
             elif isinstance(item, dict):
-                _resp_queue.put(item)
+                print("Putting data item in data queue")
+                data_queue.put(item)
     else:
         if isinstance(parsed, Request):
-            _req_queue.put(parsed)
+            print(f"Putting request {parsed.url} in request queue")
+            requests_queue.put(parsed)
         elif isinstance(parsed, dict):
-            _data_queue.put(parsed)
+            print(f"Putting data item {parsed} in data queue")
+            data_queue.put(parsed)
+
 
 def process_responses(requests_queue: multiprocessing.Queue, responses_queue: multiprocessing.Queue, data_queue: multiprocessing.Queue):
     """"""
     has_responses = True
     while has_responses:
-        response = responses_queue.get(block=True)
-        p = Process(target=process_response, args=(response, requests_queue, responses_queue, data_queue))
-        p.start()
-        p.join()
+        response = responses_queue.get()
+        responses_process = Process(target=process_response, args=(response, requests_queue, responses_queue, data_queue))
+        responses_process.start()
+        responses_process.join()
         has_responses = not responses_queue.empty()
 
-
-def foofunc(x):
-    print(f'Returning {x}')
-    return x
 
 def main():
     client = Client()
     with multiprocessing.Manager() as mg:
         requests_queue, responses_queue, data_queue = mg.Queue(), mg.Queue(), mg.Queue()
         enqueue_requests(requests_queue, start_requests())
-        while not requests_queue.empty():
+        has_jobs = True
+        while has_jobs:
             requests_process = Process(target=async_to_sync, args=(process_requests_async, client, requests_queue, responses_queue))
             responses_process = Process(target=process_responses, args=(requests_queue, responses_queue, data_queue))
             requests_process.start()
@@ -118,10 +121,17 @@ def main():
             requests_process.join()
             responses_process.join()
 
-            if responses_queue.empty():
-                print("No more jobs")
+            has_jobs = not requests_queue.empty() or not responses_queue.empty()
+            if has_jobs:
+                print(f"More Jobs. requests_queue size: {requests_queue.qsize()}, responses_queue size: {responses_queue.qsize()}")
             else:
-                print("More jobs")
+                print(f"No more jobs requests_queue size: {requests_queue.qsize()}, responses_queue size: {responses_queue.qsize()}")
+
+        print(f"Data queue size {data_queue.qsize()}")
+        while not data_queue.empty():
+            data_item = data_queue.get()
+            print(f"Data item {data_item}")
+
 
 
 if __name__ == "__main__":
