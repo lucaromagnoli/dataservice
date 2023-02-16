@@ -16,7 +16,7 @@ from uuid import UUID
 class Client:
     async def make_request(self, request: Request) -> Response:
         print(f"Requesting URL: {request.url}")
-        delay = random.randint(0, 2) / 100
+        delay = random.randint(0, 500) / 100
         print(f"Waiting for {delay}")
         await asyncio.sleep(delay)
         print(f"Returning {request.url}")
@@ -115,7 +115,7 @@ def main():
     with multiprocessing.Manager() as mg:
         requests_queue, responses_queue, data_queue = mg.Queue(), mg.Queue(), mg.Queue()
         enqueue_requests(requests_queue, start_requests())
-        has_jobs = True
+        has_jobs = not requests_queue.empty()
         while has_jobs:
             requests_process = Process(target=process_requests, args=(client, requests_queue, responses_queue))
             responses_process = Process(target=process_responses, args=(requests_queue, responses_queue, data_queue))
