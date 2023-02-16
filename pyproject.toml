@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "dataworker"
+name = "dataservice"
 version = "0.1.0"
 description = ""
 authors = ["lucaromagnoli <romagnoli.luca@gmail.com>"]
@@ -7,7 +7,12 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
+aiojobs = "^1.1.0"
 
+
+[tool.poetry.group.dev.dependencies]
+mypy = "^0.991"
+aiojobs-stubs = "^1.0.0.post0"
 
 [build-system]
 requires = ["poetry-core"]
