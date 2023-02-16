@@ -76,6 +76,9 @@ async def process_requests_async(client, requests_queue, responses_queue):
 def async_to_sync(coro, *args, **kwargs):
     return asyncio.run(coro(*args, **kwargs))
 
+def process_requests(client, requests_queue, responses_queue):
+    return async_to_sync(process_requests_async, client, requests_queue, responses_queue)
+
 def process_response(response, requests_queue: multiprocessing.Queue, responses_queue: multiprocessing.Queue, data_queue: multiprocessing.Queue):
     print(f'Processing response {response.request.url}')
     parsed = response.request.callback(response)
@@ -114,7 +117,7 @@ def main():
         enqueue_requests(requests_queue, start_requests())
         has_jobs = True
         while has_jobs:
-            requests_process = Process(target=async_to_sync, args=(process_requests_async, client, requests_queue, responses_queue))
+            requests_process = Process(target=process_requests, args=(client, requests_queue, responses_queue))
             responses_process = Process(target=process_responses, args=(requests_queue, responses_queue, data_queue))
             requests_process.start()
             responses_process.start()
