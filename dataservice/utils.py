@@ -1,6 +1,5 @@
 import asyncio
-
-from typing import Callable, Any, Coroutine, TypeVar
+from typing import Any, Callable, Coroutine, TypeVar
 
 Nothing = TypeVar("Nothing")
 

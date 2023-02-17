@@ -1,30 +1,22 @@
 from __future__ import annotations
 
 import asyncio
-
-import uuid
 import multiprocessing
 from logging import getLogger
 from multiprocessing import Process
-from typing import Iterable, Generator, Callable
+from typing import Callable, Generator, Iterable
 
 from dataservice.client import Client
 from dataservice.http import Request, Response
-from dataservice.logger import DataServiceLoggerAdapter
 from dataservice.utils import async_to_sync
 
 
 class BaseWorker:
     def __init__(self):
-        self.logger = self.init_logger()
-
-    def init_logger(self):
-        logger = getLogger(__name__)
-        logger = DataServiceLoggerAdapter(logger, {"module": self.__class__.__name__})
-        return logger
+        self.logger = getLogger(__name__)
 
     def start_process(
-            self, target: Callable, args: tuple[Client | multiprocessing.Queue]
+        self, target: Callable, args: tuple[Client | multiprocessing.Queue]
     ):
         p = Process(
             target=target,
@@ -119,7 +111,9 @@ class ResponsesWorker(BaseWorker):
         has_responses = True
         while has_responses:
             response = responses_queue.get(block=True)
-            self.start_process(self.process_response, (response, requests_queue, data_queue))
+            self.start_process(
+                self.process_response, (response, requests_queue, data_queue)
+            )
             has_responses = not responses_queue.empty()
 
 

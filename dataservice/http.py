@@ -1,11 +1,11 @@
 import inspect
 import typing
+from typing import Callable, Iterator, Literal, TypeVar, Union
 
-from pydantic import AnyUrl
-from pydantic.dataclasses import dataclass
-from typing import Callable, Iterator, TypeVar, Union, Literal
 from bs4 import BeautifulSoup
 from furl import furl
+from pydantic import AnyUrl
+from pydantic.dataclasses import dataclass
 
 DataItemGeneric = TypeVar("DataItemGeneric")
 RequestOrData = Union["Request", DataItemGeneric]

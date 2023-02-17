@@ -1,4 +1,5 @@
 from contextlib import nullcontext as should_not_raise
+
 import pytest
 from pydantic import ValidationError
 
