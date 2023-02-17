@@ -1,44 +1,27 @@
 from __future__ import annotations
 
 import asyncio
-import queue
+
 import uuid
 import multiprocessing
+from logging import getLogger
 from multiprocessing import Process
 from typing import Iterable, Generator, Callable
 
 from dataservice.client import Client
 from dataservice.http import Request, Response
+from dataservice.logger import DataServiceLoggerAdapter
 from dataservice.utils import async_to_sync
 
 
-def parse_items(response: Response):
-    """Mock function that parses a list of items from a response and makes a request for each item"""
-    for i in range(1, 6):
-        url = f"{response.request.url}/item_{i}"
-        yield Request(url=url, callback=parse_item)
-
-
-def parse_item(response: Response):
-    """Mock function that returns a data item from the response"""
-    return {"url": response.request.url, "item_id": uuid.uuid4()}
-
-
-def start_requests():
-    urls = [
-        "http://www.idontknow.com",
-        "http://www.youdontknow.com",
-        "http://www.hedontknow.com",
-        "http://www.shedontknow.com",
-        "http://www.wedontknow.com",
-        "http://www.theydontknow.com",
-    ]
-    for url in urls:
-        yield Request(url, parse_items)
-
-
 class BaseWorker:
-    pass
+    def __init__(self):
+        self.logger = self.init_logger()
+
+    def init_logger(self):
+        logger = getLogger(__name__)
+        logger = DataServiceLoggerAdapter(logger, {"function_name": self.__class__.__name__})
+        return logger
 
 
 class RequestsWorker(BaseWorker):
@@ -90,23 +73,27 @@ class ResponsesWorker(BaseWorker):
         requests_queue: multiprocessing.Queue,
         data_queue: multiprocessing.Queue,
     ):
-        print(f"Processing response {response.request.url}")
+        self.logger.debug(f"Processing response {response.request.url}")
         parsed = response.request.callback(response)
         if isinstance(parsed, Generator):
             for item in parsed:
                 if isinstance(item, Request):
-                    print(f"Putting request {item.url} in request queue")
+                    self.logger.debug(f"Putting request {item.url} in request queue")
                     requests_queue.put(item)
                 elif isinstance(item, dict):
-                    print("Putting data item in data queue")
+                    self.logger.debug("Putting data item in data queue")
                     data_queue.put(item)
+                else:
+                    raise ValueError(f"Unknown type: {type(item)}. You should yield Data or Request.")
         else:
             if isinstance(parsed, Request):
-                print(f"Putting request {parsed.url} in request queue")
+                self.logger.debug(f"Putting request {parsed.url} in request queue")
                 requests_queue.put(parsed)
             elif isinstance(parsed, dict):
-                print(f"Putting data item {parsed} in data queue")
+                self.logger.debug(f"Putting data item {parsed} in data queue")
                 data_queue.put(parsed)
+            else:
+                raise ValueError(f"Unknown type: {type(parsed)}. You should return Data or Request.")
 
     def process_responses(
         self,
@@ -122,8 +109,10 @@ class ResponsesWorker(BaseWorker):
             has_responses = not responses_queue.empty()
 
 
-class Supervisor:
+class DataService(BaseWorker):
+
     def __init__(self):
+        super().__init__()
         self.client = Client()
         self.requests_worker = RequestsWorker()
         self.responses_worker = ResponsesWorker()
@@ -134,7 +123,7 @@ class Supervisor:
         requests_iterable: Iterable[Request],
     ):
         for request in requests_iterable:
-            print(f"Enqueueing request {request}")
+            self.logger.debug(f"Enqueueing request {request}")
             requests_queue.put(request)
 
     def run_process(
@@ -164,7 +153,7 @@ class Supervisor:
         for process in processes:
             process.join()
 
-    def work(self, requests_iterable: Iterable[Request]):
+    def fetch(self, requests_iterable: Iterable[Request]):
         with multiprocessing.Manager() as mg:
             requests_queue, responses_queue, data_queue = (
                 mg.Queue(),
@@ -177,20 +166,15 @@ class Supervisor:
                 self.run_processes(requests_queue, responses_queue, data_queue)
                 has_jobs = not requests_queue.empty() or not responses_queue.empty()
                 if has_jobs:
-                    print(
+                    self.logger.debug(
                         f"More Jobs. requests_queue size: {requests_queue.qsize()}, responses_queue size: {responses_queue.qsize()}"
                     )
                 else:
-                    print(
+                    self.logger.debug(
                         f"No more jobs requests_queue size: {requests_queue.qsize()}, responses_queue size: {responses_queue.qsize()}"
                     )
 
-            print(f"Data queue size {data_queue.qsize()}")
+            self.logger.debug(f"Data queue size {data_queue.qsize()}")
             while not data_queue.empty():
                 data_item = data_queue.get()
-                print(f"Data item {data_item}")
-
-
-if __name__ == "__main__":
-    supervisor = Supervisor()
-    supervisor.work(start_requests())
+                self.logger.debug(f"Data item {data_item}")
