@@ -23,6 +23,16 @@ class BaseWorker:
         logger = DataServiceLoggerAdapter(logger, {"module": self.__class__.__name__})
         return logger
 
+    def start_process(
+            self, target: Callable, args: tuple[Client | multiprocessing.Queue]
+    ):
+        p = Process(
+            target=target,
+            args=args,
+        )
+        p.start()
+        return p
+
 
 class RequestsWorker(BaseWorker):
     def __call__(
@@ -84,7 +94,9 @@ class ResponsesWorker(BaseWorker):
                     self.logger.debug("Putting data item in data queue")
                     data_queue.put(item)
                 else:
-                    raise ValueError(f"Unknown type: {type(item)}. You should yield Data or Request.")
+                    raise ValueError(
+                        f"Unknown type: {type(item)}. You should yield Data or Request."
+                    )
         else:
             if isinstance(parsed, Request):
                 self.logger.debug(f"Putting request {parsed.url} in request queue")
@@ -93,7 +105,9 @@ class ResponsesWorker(BaseWorker):
                 self.logger.debug(f"Putting data item {parsed} in data queue")
                 data_queue.put(parsed)
             else:
-                raise ValueError(f"Unknown type: {type(parsed)}. You should return Data or Request.")
+                raise ValueError(
+                    f"Unknown type: {type(parsed)}. You should return Data or Request."
+                )
 
     def process_responses(
         self,
@@ -104,13 +118,12 @@ class ResponsesWorker(BaseWorker):
         """"""
         has_responses = True
         while has_responses:
-            response = responses_queue.get()
-            self.process_response(response, requests_queue, data_queue)
+            response = responses_queue.get(block=True)
+            self.start_process(self.process_response, (response, requests_queue, data_queue))
             has_responses = not responses_queue.empty()
 
 
 class DataService(BaseWorker):
-
     def __init__(self):
         super().__init__()
         self.client = Client()
@@ -126,14 +139,6 @@ class DataService(BaseWorker):
             self.logger.debug(f"Enqueueing request {request}")
             requests_queue.put(request)
 
-    def run_process(
-        self, target: Callable, args: tuple[Client | multiprocessing.Queue]
-    ):
-        return Process(
-            target=target,
-            args=args,
-        )
-
     def run_processes(
         self,
         requests_queue: multiprocessing.Queue,
@@ -141,15 +146,13 @@ class DataService(BaseWorker):
         data_queue: multiprocessing.Queue,
     ):
         processes = (
-            self.run_process(
+            self.start_process(
                 self.requests_worker, (self.client, requests_queue, responses_queue)
             ),
-            self.run_process(
+            self.start_process(
                 self.responses_worker, (requests_queue, responses_queue, data_queue)
             ),
         )
-        for process in processes:
-            process.start()
         for process in processes:
             process.join()
 
