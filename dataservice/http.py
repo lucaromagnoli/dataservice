@@ -1,9 +1,11 @@
 import inspect
 import typing
+
+from pydantic import AnyUrl
+from pydantic.dataclasses import dataclass
 from typing import Callable, Iterator, TypeVar, Union, Literal
 from bs4 import BeautifulSoup
-
-from pydantic import BaseModel, AnyUrl, validator
+from furl import furl
 
 DataItemGeneric = TypeVar("DataItemGeneric")
 RequestOrData = Union["Request", DataItemGeneric]
@@ -12,13 +14,20 @@ CallbackType = Callable[["Response"], CallbackReturn]
 ResponseData = str | dict
 
 
-class Request(BaseModel):
+@dataclass
+class Request:
     url: AnyUrl
     callback: CallbackType
     method: Literal["GET", "POST"] = "GET"
     content_type: Literal["text", "data"] = "text"
 
-class Response(BaseModel):
+
+@dataclass
+class Response:
     request: Request
     data: ResponseData
-    soup: BeautifulSoup
+    parser: str = "html5lib"
+
+    @property
+    def soup(self):
+        return BeautifulSoup(self.data, self.parser)
