@@ -7,4 +7,4 @@ class DataServiceLoggerAdapter(logging.LoggerAdapter):
     'connid' key, whose value in brackets is prepended to the log message.
     """
     def process(self, msg, kwargs):
-        return '[%s] %s' % (self.extra['function_name'], msg), kwargs
+        return '[%s] %s' % (self.extra['module'], msg), kwargs

@@ -20,7 +20,7 @@ class BaseWorker:
 
     def init_logger(self):
         logger = getLogger(__name__)
-        logger = DataServiceLoggerAdapter(logger, {"function_name": self.__class__.__name__})
+        logger = DataServiceLoggerAdapter(logger, {"module": self.__class__.__name__})
         return logger
 
 
@@ -171,7 +171,7 @@ class DataService(BaseWorker):
                     )
                 else:
                     self.logger.debug(
-                        f"No more jobs requests_queue size: {requests_queue.qsize()}, responses_queue size: {responses_queue.qsize()}"
+                        f"No more jobs. requests_queue size: {requests_queue.qsize()}, responses_queue size: {responses_queue.qsize()}"
                     )
 
             self.logger.debug(f"Data queue size {data_queue.qsize()}")
