@@ -8,11 +8,8 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.11"
 bs4 = "^0.0.1"
-furl = "^2.1.3"
 pydantic = "^1.10.5"
 html5lib = "^1.1"
-joblib = "^1.2.0"
-loky = "^3.3.0"
 
 
 [tool.poetry.group.dev.dependencies]
