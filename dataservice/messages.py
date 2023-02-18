@@ -1,9 +1,6 @@
-import inspect
-import typing
 from typing import Callable, Iterator, Literal, TypeVar, Union
 
 from bs4 import BeautifulSoup
-from furl import furl
 from pydantic import AnyUrl
 from pydantic.dataclasses import dataclass
 
@@ -30,4 +27,4 @@ class Response:
 
     @property
     def soup(self):
-        return BeautifulSoup(self.data, self.parser)
+        return BeautifulSoup(self.data, "html5lib")
