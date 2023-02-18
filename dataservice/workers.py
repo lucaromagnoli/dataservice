@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import multiprocessing
+from concurrent.futures import ProcessPoolExecutor
 from logging import getLogger
 from multiprocessing import Process
-from typing import Callable, Generator, Iterable
+from typing import Callable, Generator, Iterable, Type
 
 from dataservice.client import Client
 from dataservice.messages import Request, Response
@@ -15,9 +16,10 @@ class BaseWorker:
     def __init__(self):
         self.logger = getLogger(__name__)
 
-    def start_process(
+    def _start_process(
         self, target: Callable, args: tuple[Client | multiprocessing.Queue]
     ):
+        """Call `target` with `args` and start a new process"""
         p = Process(
             target=target,
             args=args,
@@ -27,36 +29,56 @@ class BaseWorker:
 
 
 class RequestsWorker(BaseWorker):
+    def __init__(self, clients: tuple[Client]):
+        super().__init__()
+        self._clients: dict[str, Client] = self._map_clients(clients)
+        self._main_client = None
+
     def __call__(
         self,
-        client: Client,
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
     ):
-        return self.process_requests(client, requests_queue, responses_queue)
+        return self._process_requests(requests_queue, responses_queue)
 
-    async def process_requests_async(
+    def _map_clients(self, clients) -> dict[str, Client]:
+        return {c.get_name(): c for c in clients}
+
+    def _get_main_client(self):
+        if self._main_client is None:
+            self._main_client = next(iter(self._clients.values()))
+        return self._main_client
+
+    def _get_client(self, request: Request) -> Client:
+        if request.client is not None:
+            if request.client not in self._clients:
+                client = self._get_main_client()
+                self.logger.warning(f"No client with name {request.client} found. Fall-back to {client.get_name()}.")
+            return self._clients[request.client]
+        else:
+            return self._get_main_client()
+
+    async def _process_requests_async(
         self,
-        client: Client,
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
     ):
         tasks = []
         while not requests_queue.empty():
             request = requests_queue.get()
+            client = self._get_client(request)
             tasks.append(asyncio.create_task(client.make_request(request)))
         for task in tasks:
             response = await task
             responses_queue.put(response)
 
-    def process_requests(
+    def _process_requests(
         self,
-        client: Client,
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
     ):
         return async_to_sync(
-            self.process_requests_async, client, requests_queue, responses_queue
+            self._process_requests_async, requests_queue, responses_queue
         )
 
 
@@ -67,9 +89,9 @@ class ResponsesWorker(BaseWorker):
         responses_queue: multiprocessing.Queue,
         data_queue: multiprocessing.Queue,
     ):
-        return self.process_responses(requests_queue, responses_queue, data_queue)
+        return self._process_responses(requests_queue, responses_queue, data_queue)
 
-    def process_response(
+    def _process_response(
         self,
         response: Response,
         requests_queue: multiprocessing.Queue,
@@ -101,7 +123,7 @@ class ResponsesWorker(BaseWorker):
                     f"Unknown type: {type(parsed)}. You should return Data or Request."
                 )
 
-    def process_responses(
+    def _process_responses(
         self,
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
@@ -111,17 +133,17 @@ class ResponsesWorker(BaseWorker):
         has_responses = True
         while has_responses:
             response = responses_queue.get(block=True)
-            self.start_process(self.process_response, (response, requests_queue, data_queue))
+            self._start_process(self._process_response, (response, requests_queue, data_queue))
             has_responses = not responses_queue.empty()
 
 
 class DataService(BaseWorker):
-    def __init__(self):
+    def __init__(self, clients: tuple[Type[Client]]):
         super().__init__()
-        self.requests_worker = RequestsWorker()
+        self.requests_worker = RequestsWorker(clients)
         self.responses_worker = ResponsesWorker()
 
-    def enqueue_requests(
+    def _enqueue_requests(
         self,
         requests_queue: multiprocessing.Queue,
         requests_iterable: Iterable[Request],
@@ -130,35 +152,34 @@ class DataService(BaseWorker):
             self.logger.debug(f"Enqueueing request {request}")
             requests_queue.put(request)
 
-    def run_processes(
+    def _run_processes(
         self,
-        client: Client,
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
         data_queue: multiprocessing.Queue,
     ):
-        processes = (
-            self.start_process(
-                self.requests_worker, (client, requests_queue, responses_queue)
-            ),
-            self.start_process(
-                self.responses_worker, (requests_queue, responses_queue, data_queue)
-            ),
-        )
-        for process in processes:
-            process.join()
 
-    def fetch(self, client, requests_iterable: Iterable[Request]):
+        with ProcessPoolExecutor(max_workers=2) as pool:
+            pool.submit(self.requests_worker, requests_queue, responses_queue)
+            pool.submit(self.responses_worker, requests_queue, responses_queue, data_queue)
+
+    def fetch(self, requests_iterable: Iterable[Request]):
+        """
+        The main Data Service entry point. Passes initial requests iterable to client
+        and start the Request - Response data flow until there are no more Requests and Responses to process.
+        :param requests_iterable: an Iterable of `Request` objects
+        :return: None
+        """
         with multiprocessing.Manager() as mg:
             requests_queue, responses_queue, data_queue = (
                 mg.Queue(),
                 mg.Queue(),
                 mg.Queue(),
             )
-            self.enqueue_requests(requests_queue, requests_iterable)
+            self._enqueue_requests(requests_queue, requests_iterable)
             has_jobs = not requests_queue.empty()
             while has_jobs:
-                self.run_processes(client, requests_queue, responses_queue, data_queue)
+                self._run_processes(requests_queue, responses_queue, data_queue)
                 has_jobs = not requests_queue.empty() or not responses_queue.empty()
                 if has_jobs:
                     self.logger.debug(

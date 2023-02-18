@@ -1,4 +1,4 @@
-from typing import Callable, Iterator, Literal, TypeVar, Union
+from typing import Callable, Iterator, Literal, TypeVar, Union, Optional
 
 from bs4 import BeautifulSoup
 from pydantic import AnyUrl
@@ -17,6 +17,7 @@ class Request:
     callback: CallbackType
     method: Literal["GET", "POST"] = "GET"
     content_type: Literal["text", "data"] = "text"
+    client: Optional[str] = None
 
 
 @dataclass

@@ -9,6 +9,9 @@ class Client:
     def __init__(self):
         self.logger = getLogger(__name__)
 
+    def get_name(self):
+        return self.__class__.__name__
+
     async def make_request(self, request: Request) -> Response:
         raise NotImplementedError
 
