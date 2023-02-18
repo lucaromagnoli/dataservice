@@ -64,10 +64,12 @@ class RequestsWorker(BaseWorker):
         responses_queue: multiprocessing.Queue,
     ):
         tasks = []
-        while not requests_queue.empty():
+        has_requests = not requests_queue.empty()
+        while has_requests:
             request = requests_queue.get()
             client = self._get_client(request)
             tasks.append(asyncio.create_task(client.make_request(request)))
+            has_requests = not requests_queue.empty() or len(tasks) == 10
         for task in tasks:
             response = await task
             responses_queue.put(response)
@@ -160,12 +162,12 @@ class DataService(BaseWorker):
         responses_queue: multiprocessing.Queue,
         data_queue: multiprocessing.Queue,
     ):
-
+        futures = []
         with ProcessPoolExecutor(max_workers=2) as pool:
-            requests_future = pool.submit(self.requests_worker, requests_queue, responses_queue)
-            response_future = pool.submit(self.responses_worker, requests_queue, responses_queue, data_queue)
-        requests_future.result()
-        response_future.result()
+            futures.append(pool.submit(self.requests_worker, requests_queue, responses_queue))
+            futures.append(pool.submit(self.responses_worker, requests_queue, responses_queue, data_queue))
+        for future in futures:
+            future.result()
 
     def fetch(self, requests_iterable: Iterable[Request]):
         """
