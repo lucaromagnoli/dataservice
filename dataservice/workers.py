@@ -7,7 +7,7 @@ from multiprocessing import Process
 from typing import Callable, Generator, Iterable
 
 from dataservice.client import Client
-from dataservice.http import Request, Response
+from dataservice.messages import Request, Response
 from dataservice.utils import async_to_sync
 
 
@@ -111,16 +111,13 @@ class ResponsesWorker(BaseWorker):
         has_responses = True
         while has_responses:
             response = responses_queue.get(block=True)
-            self.start_process(
-                self.process_response, (response, requests_queue, data_queue)
-            )
+            self.start_process(self.process_response, (response, requests_queue, data_queue))
             has_responses = not responses_queue.empty()
 
 
 class DataService(BaseWorker):
     def __init__(self):
         super().__init__()
-        self.client = Client()
         self.requests_worker = RequestsWorker()
         self.responses_worker = ResponsesWorker()
 
@@ -135,13 +132,14 @@ class DataService(BaseWorker):
 
     def run_processes(
         self,
+        client: Client,
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
         data_queue: multiprocessing.Queue,
     ):
         processes = (
             self.start_process(
-                self.requests_worker, (self.client, requests_queue, responses_queue)
+                self.requests_worker, (client, requests_queue, responses_queue)
             ),
             self.start_process(
                 self.responses_worker, (requests_queue, responses_queue, data_queue)
@@ -150,7 +148,7 @@ class DataService(BaseWorker):
         for process in processes:
             process.join()
 
-    def fetch(self, requests_iterable: Iterable[Request]):
+    def fetch(self, client, requests_iterable: Iterable[Request]):
         with multiprocessing.Manager() as mg:
             requests_queue, responses_queue, data_queue = (
                 mg.Queue(),
@@ -160,7 +158,7 @@ class DataService(BaseWorker):
             self.enqueue_requests(requests_queue, requests_iterable)
             has_jobs = not requests_queue.empty()
             while has_jobs:
-                self.run_processes(requests_queue, responses_queue, data_queue)
+                self.run_processes(client, requests_queue, responses_queue, data_queue)
                 has_jobs = not requests_queue.empty() or not responses_queue.empty()
                 if has_jobs:
                     self.logger.debug(
