@@ -11,6 +11,7 @@ from dataservice.client import Client
 from dataservice.messages import Request, Response
 from dataservice.utils import async_to_sync
 
+MAX_ASYNC_TASKS = 10
 
 class BaseWorker:
     def __init__(self):
@@ -63,16 +64,22 @@ class RequestsWorker(BaseWorker):
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
     ):
+        async def _await_tasks():
+            for task in tasks:
+                response = await task
+                responses_queue.put(response)
+
         tasks = []
         has_requests = not requests_queue.empty()
         while has_requests:
             request = requests_queue.get()
             client = self._get_client(request)
             tasks.append(asyncio.create_task(client.make_request(request)))
-            has_requests = not requests_queue.empty() or len(tasks) == 10
-        for task in tasks:
-            response = await task
-            responses_queue.put(response)
+            has_requests = not requests_queue.empty()
+            if len(tasks) == MAX_ASYNC_TASKS:
+                await _await_tasks()
+                tasks = []
+        await _await_tasks()
 
     def _process_requests(
         self,
