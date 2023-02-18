@@ -1,26 +1,4 @@
 [[package]]
-name = "aiojobs"
-version = "1.1.0"
-description = "Job scheduler for managing background tasks (asyncio)"
-category = "main"
-optional = false
-python-versions = ">=3.7"
-
-[package.dependencies]
-async-timeout = ">=4.0.0"
-
-[package.extras]
-aiohttp = ["aiohttp (>=3.8.0)"]
-
-[[package]]
-name = "async-timeout"
-version = "4.0.2"
-description = "Timeout context manager for asyncio programs"
-category = "main"
-optional = false
-python-versions = ">=3.6"
-
-[[package]]
 name = "attrs"
 version = "22.2.0"
 description = "Classes Without Boilerplate"
@@ -299,17 +277,9 @@ python-versions = "*"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.11"
-content-hash = "38d24428d0e065834b1660ce7b6ef649eadb0e017a4c8ec5ec424ea017a95d26"
+content-hash = "d7e899b409eaafac860519f7db3d2408149a90ee60c76e63a5208c8fa99286b7"
 
 [metadata.files]
-aiojobs = [
-    {file = "aiojobs-1.1.0-py3-none-any.whl", hash = "sha256:2080af76fda924bf2a60446f9b4435b11bb2418315c82664b07c2bb369b595d3"},
-    {file = "aiojobs-1.1.0.tar.gz", hash = "sha256:f0c43dfc4de359052a67df309b593732c32028deef1bb787c7a363da29accde3"},
-]
-async-timeout = [
-    {file = "async-timeout-4.0.2.tar.gz", hash = "sha256:2163e1640ddb52b7a8c80d0a67a08587e5d245cc9c553a74a847056bc2976b15"},
-    {file = "async_timeout-4.0.2-py3-none-any.whl", hash = "sha256:8ca1e4fcf50d07413d66d1a5e416e42cfdf5851c981d679a09851a6853383b3c"},
-]
 attrs = [
     {file = "attrs-22.2.0-py3-none-any.whl", hash = "sha256:29e95c7f6778868dbd49170f98f8818f78f3dc5e0e37c0b1f474e3561b240836"},
     {file = "attrs-22.2.0.tar.gz", hash = "sha256:c9227bfc2f01993c03f68db37d1d15c9690188323c067c641f1a35ca58185f99"},
