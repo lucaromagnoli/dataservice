@@ -132,9 +132,11 @@ class ResponsesWorker(BaseWorker):
         """"""
         has_responses = True
         while has_responses:
-            response = responses_queue.get(block=True)
-            self._start_process(self._process_response, (response, requests_queue, data_queue))
-            has_responses = not responses_queue.empty()
+            with ProcessPoolExecutor(max_workers=10) as pool:
+                response = responses_queue.get(block=True)
+                r = pool.submit(self._process_response, response, requests_queue, data_queue)
+                r.result()
+                has_responses = not responses_queue.empty()
 
 
 class DataService(BaseWorker):
@@ -160,8 +162,10 @@ class DataService(BaseWorker):
     ):
 
         with ProcessPoolExecutor(max_workers=2) as pool:
-            pool.submit(self.requests_worker, requests_queue, responses_queue)
-            pool.submit(self.responses_worker, requests_queue, responses_queue, data_queue)
+            requests_future = pool.submit(self.requests_worker, requests_queue, responses_queue)
+            response_future = pool.submit(self.responses_worker, requests_queue, responses_queue, data_queue)
+        requests_future.result()
+        response_future.result()
 
     def fetch(self, requests_iterable: Iterable[Request]):
         """
