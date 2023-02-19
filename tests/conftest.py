@@ -6,17 +6,13 @@ import pytest
 from dataservice.client import Client
 from dataservice.messages import Request, Response
 from dataservice.workers import RequestsWorker, ResponsesWorker
-
-
-class ToyClient(Client):
-    async def make_request(self, request: Request) -> Response:
-        data = f"<html><head></head><body>This is content for URL: {request.url}</body></html>"
-        return Response(request=request, data=data)
+from tests.clients import ToyClient
 
 
 @pytest.fixture
 def clients() -> tuple[Client]:
-    return ToyClient(),
+    return (ToyClient(),)
+
 
 @pytest.fixture
 def requests_worker(clients):
