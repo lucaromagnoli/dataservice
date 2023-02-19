@@ -66,8 +66,8 @@ class BaseWorker:
     async def _await_tasks(tasks: list[asyncio.Future]):
         return [await task for task in tasks]
 
-    @staticmethod
     def run_callables_in_pool_executor(
+        self,
         callables_and_args: tuple[tuple[Callable, Any]],
         max_workers: Optional[int] = None,
     ):
@@ -76,8 +76,8 @@ class BaseWorker:
         with ProcessPoolExecutor(max_workers=max_workers) as pool:
             for callable_and_args in callables_and_args:
                 futures.append(pool.submit(*callable_and_args))
-        for future in futures:
-            future.result()
+            for future in futures:
+                future.result()
 
 
 class RequestsWorker(BaseWorker):
@@ -111,22 +111,20 @@ class RequestsWorker(BaseWorker):
         """Return the first client in the list of clients passed at init time."""
         return self._get_main_client()
 
-    def get_client_by_name(self, client_name: str) -> Client:
+    def get_client_by_name(self, client_name: Optional[str]) -> Client:
         """
         Return the instance of `Client` mapped to client_name.
         If client_name is not a known client, fall back to main client.
         :param client_name: The client classname as a string
         :return: an instance of client_name if found, main_client otherwise.
         """
-        if client_name is not None:
-            if client_name in self.clients:
-                return self.clients[client_name]
-            else:
+        if client_name in self.clients:
+            return self.clients[client_name]
+        else:
+            if client_name is not None:
                 self.logger.warning(
                     f"No client with name {client_name} found. Fall-back to {client_name}."
                 )
-                return self.get_main_client()
-        else:
             return self.get_main_client()
 
     async def _process_requests_async(
@@ -145,7 +143,7 @@ class RequestsWorker(BaseWorker):
         has_requests = not requests_queue.empty()
         while has_requests:
             request = requests_queue.get()
-            client = self.get_client_by_name(request.client.get_name())
+            client = self.get_client_by_name(request.client)
             tasks.append(asyncio.create_task(client.make_request(request)))
             has_requests = not requests_queue.empty()
             if len(tasks) == MAX_ASYNC_TASKS:
@@ -223,10 +221,12 @@ class ResponsesWorker(BaseWorker):
         while has_responses:
             response = responses_queue.get(block=True)
             callables_and_args = (
-                self._process_response,
-                response,
-                requests_queue,
-                data_queue,
+                (
+                    self._process_response,
+                    response,
+                    requests_queue,
+                    data_queue,
+                ),
             )
             self.run_callables_in_pool_executor(callables_and_args)
             has_responses = not responses_queue.empty()
@@ -263,7 +263,7 @@ class DataSupervisor(BaseWorker):
                 mg.Queue(),
                 mg.Queue(),
             )
-            self._enqueue_requests(requests_queue, requests_iterable)
+            self._enqueue_requests(requests_iterable, requests_queue)
             has_jobs = not requests_queue.empty()
             while has_jobs:
                 self._run_processes(requests_queue, responses_queue, data_queue)

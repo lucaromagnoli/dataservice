@@ -61,9 +61,18 @@ def do_z(results):
         print(f"Doing z on result {result}")
 
 
+def do_w(results):
+    print("DO W")
+    for result in results:
+        time.sleep(random.randint(0, 200) / 100)
+        print(f"Doing w on result {result}")
+
+
 results = list(f"Result {i}" for i in range(10))
 
 
 if __name__ == "__main__":
     with Pipeline(results) as pipeline:
-        pipeline.add_node(do_x).add_node(do_y).add_node(do_z, parallel=False)
+        pipeline.add_node(do_x).add_node(do_y).add_node(do_z, parallel=False).add_node(
+            do_w
+        )

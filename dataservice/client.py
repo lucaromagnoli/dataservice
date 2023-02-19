@@ -17,7 +17,6 @@ class Client:
 
 
 class ToyClient(Client):
-
     async def make_request(self, request: Request) -> Response:
         self.logger.info(f"Requesting {request.url}")
         await asyncio.sleep(random.randint(0, 200) / 100)
