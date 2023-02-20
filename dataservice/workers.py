@@ -13,17 +13,14 @@ from dataservice.utils import async_to_sync
 
 MAX_ASYNC_TASKS = 10
 
+logger = getLogger(__name__)
 
-class BaseWorker:
-    """Base class for Worker.
-    Provides common functionalities and a logger."""
 
-    def __init__(self):
-        self.logger = getLogger(__name__)
+class SchedulerMixin:
+    """Provide functionalities to schedule tasks"""
 
-    def _enqueue_items(
-        self, items: Iterable[Request | Response], items_queue: multiprocessing.Queue
-    ):
+    @staticmethod
+    def _enqueue_items(items: Iterable[Request | Response], items_queue: multiprocessing.Queue):
         """
         Add items iterable to `message_queue`
         :param items: An iterable of items of the type `Request` or `Response`
@@ -31,7 +28,7 @@ class BaseWorker:
         :return: None
         """
         for message in items:
-            self.logger.debug(
+            logger.debug(
                 f"Enqueueing {message.__class__.__name__.lower()} {message}"
             )
             items_queue.put(message)
@@ -66,8 +63,8 @@ class BaseWorker:
     async def _await_tasks(tasks: list[asyncio.Future]):
         return [await task for task in tasks]
 
+    @staticmethod
     def run_callables_in_pool_executor(
-        self,
         callables_and_args: tuple[tuple[Callable, Any]],
         max_workers: Optional[int] = None,
     ):
@@ -80,7 +77,7 @@ class BaseWorker:
                 future.result()
 
 
-class RequestsWorker(BaseWorker):
+class RequestsWorker(SchedulerMixin):
     """Abstraction of a worker responsible for consuming Requests form the requests_queue
     and appending Responses to response_queue."""
 
@@ -122,7 +119,7 @@ class RequestsWorker(BaseWorker):
             return self.clients[client_name]
         else:
             if client_name is not None:
-                self.logger.warning(
+                logger.warning(
                     f"No client with name {client_name} found. Fall-back to {client_name}."
                 )
             return self.get_main_client()
@@ -169,7 +166,7 @@ class RequestsWorker(BaseWorker):
         )
 
 
-class ResponsesWorker(BaseWorker):
+class ResponsesWorker(SchedulerMixin):
     def __call__(
         self,
         requests_queue: multiprocessing.Queue,
@@ -184,15 +181,15 @@ class ResponsesWorker(BaseWorker):
         requests_queue: multiprocessing.Queue,
         data_queue: multiprocessing.Queue,
     ):
-        self.logger.debug(f"Processing response {response.request.url}")
+        logger.debug(f"Processing response {response.request.url}")
         parsed = response.request.callback(response)
         if isinstance(parsed, Generator):
             for item in parsed:
                 if isinstance(item, Request):
-                    self.logger.debug(f"Putting request {item.url} in request queue")
+                    logger.debug(f"Putting request {item.url} in request queue")
                     requests_queue.put(item)
                 elif isinstance(item, dict):
-                    self.logger.debug("Putting data item in data queue")
+                    logger.debug("Putting data item in data queue")
                     data_queue.put(item)
                 else:
                     raise ValueError(
@@ -200,10 +197,10 @@ class ResponsesWorker(BaseWorker):
                     )
         else:
             if isinstance(parsed, Request):
-                self.logger.debug(f"Putting request {parsed.url} in request queue")
+                logger.debug(f"Putting request {parsed.url} in request queue")
                 requests_queue.put(parsed)
             elif isinstance(parsed, dict):
-                self.logger.debug(f"Putting data item {parsed} in data queue")
+                logger.debug(f"Putting data item {parsed} in data queue")
                 data_queue.put(parsed)
             else:
                 raise ValueError(
@@ -232,7 +229,7 @@ class ResponsesWorker(BaseWorker):
             has_responses = not responses_queue.empty()
 
 
-class DataSupervisor(BaseWorker):
+class DataSupervisor(SchedulerMixin):
     def __init__(self, clients: tuple[Type[Client]]):
         super().__init__()
         self.requests_worker = RequestsWorker(clients)
@@ -269,15 +266,17 @@ class DataSupervisor(BaseWorker):
                 self._run_processes(requests_queue, responses_queue, data_queue)
                 has_jobs = not requests_queue.empty() or not responses_queue.empty()
                 if has_jobs:
-                    self.logger.debug(
-                        f"More Jobs. requests_queue size: {requests_queue.qsize()}, responses_queue size: {responses_queue.qsize()}"
+                    logger.debug(
+                        f"More Jobs. requests_queue size: {requests_queue.qsize()}, "
+                        f"responses_queue size: {responses_queue.qsize()}"
                     )
                 else:
-                    self.logger.debug(
-                        f"No more jobs. requests_queue size: {requests_queue.qsize()}, responses_queue size: {responses_queue.qsize()}"
+                    logger.debug(
+                        f"No more jobs. requests_queue size: {requests_queue.qsize()}, "
+                        f"responses_queue size: {responses_queue.qsize()}"
                     )
 
-            self.logger.debug(f"Data queue size {data_queue.qsize()}")
+            logger.debug(f"Data queue size {data_queue.qsize()}")
             while not data_queue.empty():
                 data_item = data_queue.get()
-                self.logger.debug(f"Data item {data_item}")
+                logger.debug(f"Data item {data_item}")
