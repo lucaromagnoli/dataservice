@@ -1,11 +1,8 @@
-from __future__ import annotations
-
 import asyncio
 import multiprocessing
 from concurrent.futures import ProcessPoolExecutor
 from logging import getLogger
-from multiprocessing import Process
-from typing import Callable, Generator, Iterable, Type, NewType, Generic, Any, Optional
+from typing import Callable, Generator, Iterable, Type, Any, Optional
 
 from dataservice.client import Client
 from dataservice.messages import Request, Response
