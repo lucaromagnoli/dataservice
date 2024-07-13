@@ -116,7 +116,6 @@ class RequestWorker(SchedulerMixin):
             results = await asyncio.gather(*tasks)
             self._enqueue_responses(results, responses_queue)
 
-
     def __process_requests(
         self,
         requests_queue: multiprocessing.Queue,
@@ -145,6 +144,7 @@ class ResponseWorker(SchedulerMixin):
         data_queue: multiprocessing.Queue,
     ):
         """Process a single response and put the result in the appropriate queue."""
+
         def process_item(req_or_dict: Request | dict):
             if isinstance(req_or_dict, Request):
                 logger.debug(f"Putting request {req_or_dict.url} in request queue")
@@ -165,8 +165,6 @@ class ResponseWorker(SchedulerMixin):
                 process_item(item)
         else:
             process_item(callback_result)
-
-
 
     def __process_responses(
         self,
