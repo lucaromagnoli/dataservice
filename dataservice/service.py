@@ -14,10 +14,12 @@ logger = getLogger(__name__)
 
 
 class SchedulerMixin:
-    """Provide functionalities to schedule tasks"""
+    """Scheduler Mixin class that provides common methods for the RequestWorker and ResponseWorker classes."""
 
     @staticmethod
-    def _enqueue_items(items: Iterable[Request | Response], items_queue: multiprocessing.Queue):
+    def _enqueue_items(
+        items: Iterable[Request | Response], items_queue: multiprocessing.Queue
+    ):
         """
         Add items iterable to `message_queue`
         :param items: An iterable of items of the type `Request` or `Response`
@@ -25,9 +27,7 @@ class SchedulerMixin:
         :return: None
         """
         for message in items:
-            logger.debug(
-                f"Enqueueing {message.__class__.__name__.lower()} {message}"
-            )
+            logger.debug(f"Enqueueing {message.__class__.__name__.lower()} {message}")
             items_queue.put(message)
 
     def _enqueue_requests(
@@ -50,21 +50,20 @@ class SchedulerMixin:
     ):
         """
         Add `messages` iterable to `message_queue.`
-        :param responses_iterable:
-        :param responses_queue:
+        :param responses_iterable: An iterable of `Response` objects
+        :param responses_queue: The queue where the Responses will be added to.
         :return: None
         """
         self._enqueue_items(responses_iterable, responses_queue)
-
-    @staticmethod
-    async def _await_tasks(tasks: list[asyncio.Future]):
-        return [await task for task in tasks]
 
     @staticmethod
     def run_callables_in_pool_executor(
         callables_and_args: tuple[tuple[Callable, Any]],
         max_workers: Optional[int] = None,
     ):
+        """Run callables in a ProcessPoolExecutor.
+        :param callables_and_args: A tuple of tuples where each tuple contains a callable and its arguments.
+        :param max_workers: The number of workers to use in the ProcessPoolExecutor."""
         futures = []
         max_workers = max_workers or len(callables_and_args)
         with ProcessPoolExecutor(max_workers=max_workers) as pool:
@@ -76,7 +75,8 @@ class SchedulerMixin:
 
 class RequestWorker(SchedulerMixin):
     """Abstraction of a worker responsible for consuming Requests form the requests_queue
-    and appending Responses to response_queue."""
+    and appending Responses to response_queue.
+    :param clients: A tuple of `Client` instances."""
 
     def __init__(self, clients: tuple[Client]):
         super().__init__()
@@ -88,11 +88,14 @@ class RequestWorker(SchedulerMixin):
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
     ):
-        """Main entry point. This method is called by the Supervisor"""
-        return self._process_requests(requests_queue, responses_queue)
+        """Main entry point. This method is called by the DataService.
+        :param requests_queue: The queue where requests are added to.
+        :param responses_queue: The queue where responses are added to."""
+        return self.__process_requests(requests_queue, responses_queue)
 
-    def __map_clients(self, clients) -> dict[str, Client]:
-        """Return a dictionary of client_name/client instance key/value pairs."""
+    def __map_clients(self, clients: tuple[Client]) -> dict[str, Client]:
+        """Return a dictionary of client_name/client instance key/value pairs.
+        :param clients: A tuple of `Client` instances"""
         return {c.get_name(): c for c in clients}
 
     def __get_main_client(self) -> Client:
@@ -105,7 +108,7 @@ class RequestWorker(SchedulerMixin):
         """Return the first client in the list of clients passed at init time."""
         return self.__get_main_client()
 
-    def get_client_by_name(self, client_name: Optional[str]) -> Client:
+    def get_client_by_name(self, client_name: str | None = None) -> Client:
         """
         Return the instance of `Client` mapped to client_name.
         If client_name is not a known client, fall back to main client.
@@ -121,7 +124,7 @@ class RequestWorker(SchedulerMixin):
                 )
             return self.get_main_client()
 
-    async def _process_requests_async(
+    async def __process_requests_async(
         self,
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
@@ -148,7 +151,7 @@ class RequestWorker(SchedulerMixin):
             results = await asyncio.gather(*tasks)
             self._enqueue_responses(results, responses_queue)
 
-    def _process_requests(
+    def __process_requests(
         self,
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
@@ -161,7 +164,7 @@ class RequestWorker(SchedulerMixin):
         :return: None
         """
         return async_to_sync(
-            self._process_requests_async, requests_queue, responses_queue
+            self.__process_requests_async, requests_queue, responses_queue
         )
 
 
@@ -172,7 +175,12 @@ class ResponseWorker(SchedulerMixin):
         responses_queue: multiprocessing.Queue,
         data_queue: multiprocessing.Queue,
     ):
-        return self._process_responses(requests_queue, responses_queue, data_queue)
+        """Main entry point. This method is called by the DataService.
+        :param requests_queue: The queue where requests are added to.
+        :param responses_queue: The queue where responses are added to.
+        :param data_queue: The queue where data items are added to."""
+
+        return self.__process_responses(requests_queue, responses_queue, data_queue)
 
     def _process_response(
         self,
@@ -180,6 +188,11 @@ class ResponseWorker(SchedulerMixin):
         requests_queue: multiprocessing.Queue,
         data_queue: multiprocessing.Queue,
     ):
+        """Process a single response and put the result in the appropriate queue.
+        :param response: A `Response` object
+        :param requests_queue: The queue where requests are added to.
+        :param data_queue: The queue where data items are added to."""
+
         logger.debug(f"Processing response {response.request.url}")
         parsed = response.request.callback(response)
         if isinstance(parsed, Generator):
@@ -206,13 +219,16 @@ class ResponseWorker(SchedulerMixin):
                     f"Unknown type: {type(parsed)}. You should return dict or Request."
                 )
 
-    def _process_responses(
+    def __process_responses(
         self,
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
         data_queue: multiprocessing.Queue,
     ):
-        """"""
+        """Process responses from the responses_queue.
+        :param requests_queue: The queue where requests are added to.
+        :param responses_queue: The queue where responses are added to.
+        :param data_queue: The queue where data items are added to."""
         has_responses = True
         while has_responses:
             response = responses_queue.get(block=True)
@@ -230,6 +246,7 @@ class ResponseWorker(SchedulerMixin):
 
 class DataService(SchedulerMixin):
     """Data Service class that orchestrates the Request - Response data flow."""
+
     def __init__(self, clients: tuple[Type[Client]]):
         super().__init__()
         self.requests_worker = RequestWorker(clients)
@@ -245,6 +262,10 @@ class DataService(SchedulerMixin):
         responses_queue: multiprocessing.Queue,
         data_queue: multiprocessing.Queue,
     ):
+        """Run the Request and Response workers in parallel.
+        :param requests_queue: The queue where requests are added to.
+        :param responses_queue: The queue where responses are added to.
+        :param data_queue: The queue where data items are added to."""
         callables_and_args = (
             (self.requests_worker, requests_queue, responses_queue),
             (self.responses_worker, requests_queue, responses_queue, data_queue),
@@ -253,10 +274,9 @@ class DataService(SchedulerMixin):
 
     def __fetch(self, requests_iterable: Iterable[Request]):
         """
-        The main Data Service entry point. Passes initial requests iterable to client
+        The main Data Service logic. Passes initial requests iterable to client
         and start the Request - Response data flow until there are no more Requests and Responses to process.
         :param requests_iterable: an Iterable of `Request` objects
-        :return: None
         """
         with multiprocessing.Manager() as mg:
             requests_queue, responses_queue, data_queue = (

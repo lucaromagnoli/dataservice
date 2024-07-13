@@ -37,5 +37,3 @@ class HTTPXClient(Client):
                     data = response.json()
         self.logger.info(f"Returning response for {request.url}")
         return Response(request=request, data=data)
-
-
