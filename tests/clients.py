@@ -2,7 +2,7 @@ import asyncio
 import random
 
 from dataservice.client import Client
-from dataservice.messages import Request, Response
+from dataservice.models import Request, Response
 
 
 class ToyClient(Client):

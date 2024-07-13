@@ -3,7 +3,7 @@ from contextlib import nullcontext as should_not_raise
 import pytest
 from pydantic import ValidationError
 
-from dataservice.messages import Request, Response
+from dataservice.models import Request, Response
 
 
 @pytest.mark.parametrize(

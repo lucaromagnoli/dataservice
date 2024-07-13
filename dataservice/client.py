@@ -5,7 +5,7 @@ from logging import getLogger
 
 import httpx
 
-from dataservice.messages import Request, Response
+from dataservice.models import Request, Response
 
 
 class Client(ABC):

@@ -5,7 +5,7 @@ from logging import getLogger
 from typing import Callable, Generator, Iterable, Type, Any, Optional
 
 from dataservice.client import Client
-from dataservice.messages import Request, Response
+from dataservice.models import Request, Response
 from dataservice.utils import async_to_sync
 
 MAX_ASYNC_TASKS = 10
