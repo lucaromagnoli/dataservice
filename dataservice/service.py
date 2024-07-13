@@ -74,13 +74,13 @@ class SchedulerMixin:
                 future.result()
 
 
-class RequestsWorker(SchedulerMixin):
+class RequestWorker(SchedulerMixin):
     """Abstraction of a worker responsible for consuming Requests form the requests_queue
     and appending Responses to response_queue."""
 
     def __init__(self, clients: tuple[Client]):
         super().__init__()
-        self.clients: dict[str, Client] = self._map_clients(clients)
+        self.clients: dict[str, Client] = self.__map_clients(clients)
         self._main_client = None
 
     def __call__(
@@ -91,11 +91,11 @@ class RequestsWorker(SchedulerMixin):
         """Main entry point. This method is called by the Supervisor"""
         return self._process_requests(requests_queue, responses_queue)
 
-    def _map_clients(self, clients) -> dict[str, Client]:
+    def __map_clients(self, clients) -> dict[str, Client]:
         """Return a dictionary of client_name/client instance key/value pairs."""
         return {c.get_name(): c for c in clients}
 
-    def _get_main_client(self) -> Client:
+    def __get_main_client(self) -> Client:
         """Return the first client in the list of clients passed at init time. Private method."""
         if self._main_client is None:
             self._main_client = next(iter(self.clients.values()))
@@ -103,7 +103,7 @@ class RequestsWorker(SchedulerMixin):
 
     def get_main_client(self) -> Client:
         """Return the first client in the list of clients passed at init time."""
-        return self._get_main_client()
+        return self.__get_main_client()
 
     def get_client_by_name(self, client_name: Optional[str]) -> Client:
         """
@@ -135,16 +135,18 @@ class RequestsWorker(SchedulerMixin):
 
         tasks = []
         has_requests = not requests_queue.empty()
-        while has_requests:
-            request = requests_queue.get()
-            client = self.get_client_by_name(request.client)
-            tasks.append(asyncio.create_task(client.make_request(request)))
-            has_requests = not requests_queue.empty()
-            if len(tasks) == MAX_ASYNC_TASKS:
-                results = await self._await_tasks(tasks)
-                self._enqueue_responses(results, responses_queue)
-        results = await self._await_tasks(tasks)
-        self._enqueue_responses(results, responses_queue)
+        async with asyncio.Semaphore(MAX_ASYNC_TASKS):
+            while has_requests:
+                request = requests_queue.get()
+                client = self.get_client_by_name(request.client)
+                tasks.append(asyncio.create_task(client.make_request(request)))
+                has_requests = not requests_queue.empty()
+                if len(tasks) == MAX_ASYNC_TASKS:
+                    results = await asyncio.gather(*tasks)
+                    self._enqueue_responses(results, responses_queue)
+                    tasks = []
+            results = await asyncio.gather(*tasks)
+            self._enqueue_responses(results, responses_queue)
 
     def _process_requests(
         self,
@@ -163,7 +165,7 @@ class RequestsWorker(SchedulerMixin):
         )
 
 
-class ResponsesWorker(SchedulerMixin):
+class ResponseWorker(SchedulerMixin):
     def __call__(
         self,
         requests_queue: multiprocessing.Queue,
@@ -201,7 +203,7 @@ class ResponsesWorker(SchedulerMixin):
                 data_queue.put(parsed)
             else:
                 raise ValueError(
-                    f"Unknown type: {type(parsed)}. You should return Data or Request."
+                    f"Unknown type: {type(parsed)}. You should return dict or Request."
                 )
 
     def _process_responses(
@@ -226,13 +228,18 @@ class ResponsesWorker(SchedulerMixin):
             has_responses = not responses_queue.empty()
 
 
-class DataSupervisor(SchedulerMixin):
+class DataService(SchedulerMixin):
+    """Data Service class that orchestrates the Request - Response data flow."""
     def __init__(self, clients: tuple[Type[Client]]):
         super().__init__()
-        self.requests_worker = RequestsWorker(clients)
-        self.responses_worker = ResponsesWorker()
+        self.requests_worker = RequestWorker(clients)
+        self.responses_worker = ResponseWorker()
 
-    def _run_processes(
+    def __call__(self, requests_iterable: Iterable[Request]):
+        """Main entry point. This method is called by the client."""
+        self.__fetch(requests_iterable)
+
+    def __run_processes(
         self,
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
@@ -244,7 +251,7 @@ class DataSupervisor(SchedulerMixin):
         )
         return self.run_callables_in_pool_executor(callables_and_args, max_workers=2)
 
-    def fetch(self, requests_iterable: Iterable[Request]):
+    def __fetch(self, requests_iterable: Iterable[Request]):
         """
         The main Data Service entry point. Passes initial requests iterable to client
         and start the Request - Response data flow until there are no more Requests and Responses to process.
@@ -260,7 +267,7 @@ class DataSupervisor(SchedulerMixin):
             self._enqueue_requests(requests_iterable, requests_queue)
             has_jobs = not requests_queue.empty()
             while has_jobs:
-                self._run_processes(requests_queue, responses_queue, data_queue)
+                self.__run_processes(requests_queue, responses_queue, data_queue)
                 has_jobs = not requests_queue.empty() or not responses_queue.empty()
                 if has_jobs:
                     logger.debug(
