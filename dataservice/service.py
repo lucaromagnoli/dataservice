@@ -44,7 +44,7 @@ class SchedulerMixin:
     @staticmethod
     def run_callables_in_pool_executor(
         callables_and_args: Iterable[tuple[Callable, Any]],
-        max_workers: Optional[int] = None,
+        max_workers: Optional[int] = 2,
     ):
         """Run callables in a ProcessPoolExecutor."""
         max_workers = max_workers or len(callables_and_args)
