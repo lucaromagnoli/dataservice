@@ -1,50 +1,68 @@
 import pytest
+from multiprocessing import Queue
+from dataservice.models import Request, Response
+from dataservice.service import SchedulerMixin, DataService
 
-from dataservice.service import RequestWorker
-from tests.clients import ToyClient, AnotherToyClient
+class TestSchedulerMixin:
+    @pytest.fixture
+    def scheduler_mixin(self):
+        return SchedulerMixin()
 
+    def test_enqueue_items(self, scheduler_mixin, mocker):
+        mock_queue = mocker.MagicMock()
+        items = [mocker.MagicMock(spec=Request), mocker.MagicMock(spec=Response)]
+        scheduler_mixin._enqueue_items(items, mock_queue)
+        mock_queue.put.assert_has_calls([mocker.call(items[0]), mocker.call(items[1])])
 
-def test_requests_worker_init(requests_worker, clients):
-    """Test init method in RequestsWorker maps clients correctly"""
-    client_name, client = next(iter(requests_worker.clients.items()))
-    assert client_name == clients[0].get_name()
-    assert client == clients[0]
+    def test_enqueue_requests(self, scheduler_mixin, mocker):
+        mock_queue = mocker.MagicMock()
+        requests = [mocker.MagicMock(spec=Request)]
+        scheduler_mixin._enqueue_requests(requests, mock_queue)
+        mock_queue.put.assert_called_once_with(requests[0])
 
+    def test_enqueue_responses(self, scheduler_mixin, mocker):
+        mock_queue = mocker.MagicMock()
+        responses = [mocker.MagicMock(spec=Response)]
+        scheduler_mixin._enqueue_responses(responses, mock_queue)
+        mock_queue.put.assert_called_once_with(responses[0])
 
-@pytest.mark.parametrize(
-    "clients",
-    [
-        pytest.param((ToyClient(),), id="One single client"),
-        pytest.param((ToyClient(), AnotherToyClient()), id="Two clients"),
-    ],
-)
-def test_requests_worker_main_client(requests_worker, clients):
-    """Test RequestsWorker get_main_client"""
-    assert requests_worker.get_main_client() == clients[0]
+    def test_run_callables_in_pool_executor(self, scheduler_mixin, mocker):
+        mock_executor = mocker.patch('dataservice.service.ProcessPoolExecutor')
+        mock_callable = mocker.MagicMock()
+        callables_and_args = [(mock_callable,)]
+        scheduler_mixin.run_callables_in_pool_executor(callables_and_args, max_workers=1)
+        mock_executor.assert_called_once_with(max_workers=1)
+        mock_callable.assert_called_once()
 
+class TestDataService:
+    @pytest.fixture
+    def data_service(self, clients):
+        return DataService(clients)
 
-@pytest.mark.parametrize(
-    "clients, client_name, expected",
-    [
-        pytest.param((ToyClient(),), "ToyClient", ToyClient, id="One Single Client"),
-        pytest.param(
-            (ToyClient(), AnotherToyClient()), "ToyClient", ToyClient, id="Two clients"
-        ),
-        pytest.param(
-            (ToyClient(), AnotherToyClient()),
-            "AnotherToyClient",
-            AnotherToyClient,
-            id="Two clients",
-        ),
-        pytest.param(
-            (ToyClient(), AnotherToyClient()),
-            "HTPPXClient",
-            ToyClient,
-            id="Two clients, the requested clients doesn't exists. Fallback to ToyClient",
-        ),
-    ],
-)
-def test_requests_worker_get_client_by_name(clients, client_name, expected):
-    requests_worker = RequestWorker(clients)
-    client = requests_worker.get_client_by_name(client_name)
-    assert isinstance(client, expected)
+    def test_run_processes(self, mocker, data_service):
+        data_service.request_worker = mocker.MagicMock()
+        data_service.response_worker = mocker.MagicMock()
+        requests_queue = Queue()
+        responses_queue = Queue()
+        data_queue = Queue()
+        data_service.run_callables_in_pool_executor = mocker.MagicMock()
+
+        data_service._DataService__run_processes(requests_queue, responses_queue, data_queue)
+
+        data_service.run_callables_in_pool_executor.assert_called_once()
+        call_args = data_service.run_callables_in_pool_executor.call_args[0][0]
+        assert call_args[0][0] == data_service.request_worker
+        assert call_args[1][0] == data_service.response_worker
+
+    def test_fetch(self, mocker, data_service):
+        mock_manager = mocker.patch('dataservice.service.multiprocessing.Manager')
+        mock_manager.return_value.__enter__.return_value.Queue.side_effect = [Queue(), Queue(), Queue()]
+        requests = [mocker.MagicMock(spec=Request)]
+
+        data_service._enqueue_requests = mocker.MagicMock()
+        data_service._DataService__run_processes = mocker.MagicMock()
+
+        data_service._DataService__fetch(requests)
+
+        data_service._enqueue_requests.assert_called_once_with(requests, mock_manager.return_value.__enter__.return_value.Queue())
+        data_service._DataService__run_processes.assert_called()
