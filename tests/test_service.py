@@ -3,6 +3,7 @@ from multiprocessing import Queue
 from dataservice.models import Request, Response
 from dataservice.service import SchedulerMixin, DataService
 
+
 class TestSchedulerMixin:
     @pytest.fixture
     def scheduler_mixin(self):
@@ -27,12 +28,15 @@ class TestSchedulerMixin:
         mock_queue.put.assert_called_once_with(responses[0])
 
     def test_run_callables_in_pool_executor(self, scheduler_mixin, mocker):
-        mock_executor = mocker.patch('dataservice.service.ProcessPoolExecutor')
+        mock_executor = mocker.patch("dataservice.service.ProcessPoolExecutor")
         mock_callable = mocker.MagicMock()
         callables_and_args = [(mock_callable,)]
-        scheduler_mixin.run_callables_in_pool_executor(callables_and_args, max_workers=1)
+        scheduler_mixin.run_callables_in_pool_executor(
+            callables_and_args, max_workers=1
+        )
         mock_executor.assert_called_once_with(max_workers=1)
         mock_callable.assert_called_once()
+
 
 class TestDataService:
     @pytest.fixture
@@ -47,7 +51,9 @@ class TestDataService:
         data_queue = Queue()
         data_service.run_callables_in_pool_executor = mocker.MagicMock()
 
-        data_service._DataService__run_processes(requests_queue, responses_queue, data_queue)
+        data_service._DataService__run_processes(
+            requests_queue, responses_queue, data_queue
+        )
 
         data_service.run_callables_in_pool_executor.assert_called_once()
         call_args = data_service.run_callables_in_pool_executor.call_args[0][0]
@@ -55,8 +61,12 @@ class TestDataService:
         assert call_args[1][0] == data_service.response_worker
 
     def test_fetch(self, mocker, data_service):
-        mock_manager = mocker.patch('dataservice.service.multiprocessing.Manager')
-        mock_manager.return_value.__enter__.return_value.Queue.side_effect = [Queue(), Queue(), Queue()]
+        mock_manager = mocker.patch("dataservice.service.multiprocessing.Manager")
+        mock_manager.return_value.__enter__.return_value.Queue.side_effect = [
+            Queue(),
+            Queue(),
+            Queue(),
+        ]
         requests = [mocker.MagicMock(spec=Request)]
 
         data_service._enqueue_requests = mocker.MagicMock()
@@ -64,5 +74,7 @@ class TestDataService:
 
         data_service._DataService__fetch(requests)
 
-        data_service._enqueue_requests.assert_called_once_with(requests, mock_manager.return_value.__enter__.return_value.Queue())
+        data_service._enqueue_requests.assert_called_once_with(
+            requests, mock_manager.return_value.__enter__.return_value.Queue()
+        )
         data_service._DataService__run_processes.assert_called()

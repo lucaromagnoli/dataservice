@@ -14,7 +14,9 @@ class ToyClient(Client):
         self.logger.info(f"Requesting {request.url}")
         block_time = random.randint(0, self.random_sleep) / 100
         await asyncio.sleep(block_time)
-        self.logger.info(f"Returning response for {request.url}. Blocked for {block_time} seconds.")
+        self.logger.info(
+            f"Returning response for {request.url}. Blocked for {block_time} seconds."
+        )
         data = f"<html><head></head><body>This is content for URL: {request.url}</body></html>"
         return Response(request=request, data=data)
 

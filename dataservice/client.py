@@ -22,6 +22,7 @@ class Client(ABC):
 
 class HTTPXClient(Client):
     """Client that uses HTTPX to make requests."""
+
     def __init__(self):
         super().__init__()
         self.async_client = httpx.AsyncClient
@@ -35,7 +36,12 @@ class HTTPXClient(Client):
                 case "GET":
                     response = await client.get(request.url, params=request.params)
                 case "POST":
-                    response = await client.post(request.url, params=request.params, data=request.data, json=request.json)
+                    response = await client.post(
+                        request.url,
+                        params=request.params,
+                        data=request.data,
+                        json=request.json,
+                    )
             response.raise_for_status()
             match request.content_type:
                 case "text":

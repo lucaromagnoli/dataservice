@@ -11,9 +11,11 @@ CallbackReturn = Iterator[RequestOrData] | RequestOrData
 CallbackType = Callable[["Response"], CallbackReturn]
 StrOrDict = str | dict
 
+
 @dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class Request:
     """Request model."""
+
     url: AnyUrl
     callback: CallbackType
     method: Literal["GET", "POST"] = "GET"
@@ -24,9 +26,11 @@ class Request:
     content_type: Literal["text", "json"] = "text"
     client: Optional[str] = None
 
+
 @dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class Response:
     """Response model."""
+
     request: Request
     data: StrOrDict
     __soup: BeautifulSoup | None = None
