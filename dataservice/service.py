@@ -103,21 +103,19 @@ class RequestWorker(SchedulerMixin):
         tasks = []
         semaphore = asyncio.Semaphore(MAX_ASYNC_TASKS)
 
-        async def worker():
-            while not requests_queue.empty():
-                request = requests_queue.get()
-                client = self.get_client_by_name(request.client)
-                async with semaphore:
-                    tasks.append(asyncio.create_task(client.make_request(request)))
-                if len(tasks) == MAX_ASYNC_TASKS:
-                    results = await asyncio.gather(*tasks)
-                    self._enqueue_responses(results, responses_queue)
-                    tasks.clear()
-            if tasks:
+        while not requests_queue.empty():
+            request = requests_queue.get()
+            client = self.get_client_by_name(request.client)
+            async with semaphore:
+                tasks.append(asyncio.create_task(client.make_request(request)))
+            if len(tasks) == MAX_ASYNC_TASKS:
                 results = await asyncio.gather(*tasks)
                 self._enqueue_responses(results, responses_queue)
+                tasks.clear()
+        if tasks:
+            results = await asyncio.gather(*tasks)
+            self._enqueue_responses(results, responses_queue)
 
-        await worker()
 
     def __process_requests(
         self,
