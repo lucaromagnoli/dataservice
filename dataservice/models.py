@@ -1,8 +1,9 @@
 from typing import Callable, Iterator, Literal, TypeVar, Union, Optional
 
 from bs4 import BeautifulSoup
-from pydantic import AnyUrl, ConfigDict
+from pydantic import AnyUrl, ConfigDict, BaseModel
 from pydantic.dataclasses import dataclass
+
 
 DataItemGeneric = TypeVar("DataItemGeneric")
 RequestOrData = Union["Request", DataItemGeneric]
@@ -10,19 +11,20 @@ CallbackReturn = Iterator[RequestOrData] | RequestOrData
 CallbackType = Callable[["Response"], CallbackReturn]
 StrOrDict = str | dict
 
-
-@dataclass
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class Request:
     """Request model."""
     url: AnyUrl
     callback: CallbackType
     method: Literal["GET", "POST"] = "GET"
+    headers: Optional[dict] = None
+    params: Optional[dict] = None
+    data: Optional[dict] = None
+    json: Optional[dict] = None
     content_type: Literal["text", "json"] = "text"
     client: Optional[str] = None
 
-class Config:
-    arbitrary_types_allowed = True
-@dataclass(config=Config)
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class Response:
     """Response model."""
     request: Request
