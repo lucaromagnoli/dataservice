@@ -37,7 +37,7 @@ def start_requests():
         "https://www.barbaz.com",
     ]
     for url in urls:
-        yield Request(url, parse_items)
+        yield Request(url=url, callback=parse_items)
 
 
 if __name__ == "__main__":

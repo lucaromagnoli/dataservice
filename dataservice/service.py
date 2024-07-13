@@ -12,7 +12,6 @@ MAX_ASYNC_TASKS = 10
 
 logger = getLogger(__name__)
 
-
 class SchedulerMixin:
     """Scheduler Mixin class that provides common methods for the RequestWorker and ResponseWorker classes."""
 
@@ -72,9 +71,9 @@ class RequestWorker(SchedulerMixin):
         responses_queue: multiprocessing.Queue,
     ):
         """Main entry point. This method is called by the DataService."""
-        self.__process_requests(requests_queue, responses_queue)
+        self._process_requests(requests_queue, responses_queue)
 
-    def __get_main_client(self) -> Client:
+    def _get_main_client(self) -> Client:
         """Return the first client in the list of clients passed at init time."""
         if self._main_client is None:
             self._main_client = next(iter(self.clients.values()))
@@ -82,7 +81,7 @@ class RequestWorker(SchedulerMixin):
 
     def get_main_client(self) -> Client:
         """Return the first client in the list of clients passed at init time."""
-        return self.__get_main_client()
+        return self._get_main_client()
 
     def get_client_by_name(self, client_name: str | None = None) -> Client:
         """Return the instance of `Client` mapped to client_name."""
@@ -94,7 +93,7 @@ class RequestWorker(SchedulerMixin):
             )
         return self.get_main_client()
 
-    async def __process_requests_async(
+    async def _process_requests_async(
         self,
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
@@ -116,14 +115,14 @@ class RequestWorker(SchedulerMixin):
             results = await asyncio.gather(*tasks)
             self._enqueue_responses(results, responses_queue)
 
-    def __process_requests(
+    def _process_requests(
         self,
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
     ):
         """Sync wrapper around `__process_requests_async`."""
         return async_to_sync(
-            self.__process_requests_async, requests_queue, responses_queue
+            self._process_requests_async, requests_queue, responses_queue
         )
 
 
@@ -135,7 +134,7 @@ class ResponseWorker(SchedulerMixin):
         data_queue: multiprocessing.Queue,
     ):
         """Main entry point. This method is called by the DataService."""
-        self.__process_responses(requests_queue, responses_queue, data_queue)
+        self._process_responses(requests_queue, responses_queue, data_queue)
 
     def _process_response(
         self,
@@ -166,7 +165,7 @@ class ResponseWorker(SchedulerMixin):
         else:
             process_item(callback_result)
 
-    def __process_responses(
+    def _process_responses(
         self,
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
@@ -186,14 +185,14 @@ class DataService(SchedulerMixin):
 
     def __init__(self, clients: tuple[Type[Client]]):
         super().__init__()
-        self.requests_worker = RequestWorker(clients)
-        self.responses_worker = ResponseWorker()
+        self.request_worker = RequestWorker(clients)
+        self.response_worker = ResponseWorker()
 
     def __call__(self, requests_iterable: Iterable[Request]):
         """Main entry point. This method is called by the client."""
-        self.__fetch(requests_iterable)
+        self._fetch(requests_iterable)
 
-    def __run_processes(
+    def _run_processes(
         self,
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
@@ -201,12 +200,12 @@ class DataService(SchedulerMixin):
     ):
         """Run the Request and Response workers in parallel."""
         callables_and_args = (
-            (self.requests_worker, requests_queue, responses_queue),
-            (self.responses_worker, requests_queue, responses_queue, data_queue),
+            (self.request_worker, requests_queue, responses_queue),
+            (self.response_worker, requests_queue, responses_queue, data_queue),
         )
         return self.run_callables_in_pool_executor(callables_and_args, max_workers=2)
 
-    def __fetch(self, requests_iterable: Iterable[Request]):
+    def _fetch(self, requests_iterable: Iterable[Request]):
         """
         The main Data Service logic. Passes initial requests iterable to client
         and starts the Request - Response data flow until there are no more Requests and Responses to process.
@@ -220,7 +219,7 @@ class DataService(SchedulerMixin):
             self._enqueue_requests(requests_iterable, requests_queue)
 
             while not requests_queue.empty() or not responses_queue.empty():
-                self.__run_processes(requests_queue, responses_queue, data_queue)
+                self._run_processes(requests_queue, responses_queue, data_queue)
 
                 logger.debug(
                     f"Queue sizes - requests: {requests_queue.qsize()}, responses: {responses_queue.qsize()}"
