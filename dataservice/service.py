@@ -12,6 +12,7 @@ MAX_ASYNC_TASKS = 10
 
 logger = getLogger(__name__)
 
+
 class SchedulerMixin:
     """Scheduler Mixin class that provides common methods for the RequestWorker and ResponseWorker classes."""
 
@@ -23,6 +24,12 @@ class SchedulerMixin:
         for message in items:
             logger.debug(f"Enqueueing {message.__class__.__name__.lower()} {message}")
             items_queue.put(message)
+
+    @staticmethod
+    def _items_from_queue(items_queue: multiprocessing.Queue):
+        """Add items iterable to `items_queue`."""
+        while not items_queue.empty():
+            yield items_queue.get()
 
     def _enqueue_requests(
         self,
@@ -46,7 +53,6 @@ class SchedulerMixin:
         max_workers: Optional[int] = 2,
     ):
         """Run callables in a ProcessPoolExecutor."""
-        max_workers = max_workers or len(callables_and_args)
         with ProcessPoolExecutor(max_workers=max_workers) as pool:
             futures = [
                 pool.submit(*callable_and_args)
@@ -183,34 +189,41 @@ class ResponseWorker(SchedulerMixin):
 class DataService(SchedulerMixin):
     """Data Service class that orchestrates the Request - Response data flow."""
 
-    def __init__(self, clients: tuple[Type[Client]]):
+    def __init__(
+        self,
+        clients: tuple[Type[Client]],
+        pipeline: Optional[Callable[[list], None]] = None,
+    ):
         super().__init__()
         self.request_worker = RequestWorker(clients)
         self.response_worker = ResponseWorker()
+        self.pipeline = pipeline
 
     def __call__(self, requests_iterable: Iterable[Request]):
         """Main entry point. This method is called by the client."""
-        self._fetch(requests_iterable)
+        return self._fetch(requests_iterable)
 
-    def _run_processes(
+    def _request_response_flow(
         self,
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
         data_queue: multiprocessing.Queue,
+        manager: multiprocessing.Manager,
     ):
         """Run the Request and Response workers in parallel."""
         callables_and_args = (
             (self.request_worker, requests_queue, responses_queue),
             (self.response_worker, requests_queue, responses_queue, data_queue),
         )
-        return self.run_callables_in_pool_executor(callables_and_args, max_workers=2)
+        return self.run_callables_in_pool_executor(callables_and_args)
 
     def _fetch(self, requests_iterable: Iterable[Request]):
         """
-        The main Data Service logic. Passes initial requests iterable to client
+        The main Data Service data gathering logic. Passes initial requests iterable to client
         and starts the Request - Response data flow until there are no more Requests and Responses to process.
         """
         with multiprocessing.Manager() as mg:
+
             requests_queue, responses_queue, data_queue = (
                 mg.Queue(),
                 mg.Queue(),
@@ -219,13 +232,18 @@ class DataService(SchedulerMixin):
             self._enqueue_requests(requests_iterable, requests_queue)
 
             while not requests_queue.empty() or not responses_queue.empty():
-                self._run_processes(requests_queue, responses_queue, data_queue)
+                self._request_response_flow(
+                    requests_queue, responses_queue, data_queue
+                )
 
                 logger.debug(
                     f"Queue sizes - requests: {requests_queue.qsize()}, responses: {responses_queue.qsize()}"
                 )
+            return self._process_data(data_queue)
 
-            logger.debug(f"Data queue size {data_queue.qsize()}")
-            while not data_queue.empty():
-                data_item = data_queue.get()
-                logger.debug(f"Data item {data_item}")
+    def _process_data(self, data_queue: multiprocessing.Queue):
+        """Process data items from the data queue."""
+        data_items = list(self._items_from_queue(data_queue))
+        if self.pipeline is not None:
+            return self.pipeline(data_items)
+        return data_items

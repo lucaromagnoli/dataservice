@@ -11,9 +11,11 @@ class PickableMock(Mock):
     def __reduce__(self):
         return Mock, ()
 
+
 @pytest.fixture
 def pickable_mock():
     return PickableMock()
+
 
 class TestSchedulerMixin:
     @pytest.fixture
@@ -62,31 +64,41 @@ class TestDataService:
         return Queue()
 
     @pytest.fixture
-    def data_queue(self):
+    def data_storage(self):
         return Queue()
 
-    def test_run_processes(self, mocker, data_service, requests_queue, responses_queue, data_queue):
+    def test_run_processes(
+        self, mocker, data_service, requests_queue, responses_queue, data_storage
+    ):
         data_service.request_worker = mocker.MagicMock()
         data_service.response_worker = mocker.MagicMock()
         data_service.run_callables_in_pool_executor = mocker.MagicMock()
 
-        data_service._run_processes(requests_queue, responses_queue, data_queue)
+        data_service._request_response_flow(
+            requests_queue, responses_queue, data_storage
+        )
 
         data_service.run_callables_in_pool_executor.assert_called_once()
         call_args = data_service.run_callables_in_pool_executor.call_args[0][0]
         assert call_args[0][0] == data_service.request_worker
         assert call_args[1][0] == data_service.response_worker
 
-    def test_fetch(self, mocker, data_service, requests_queue, responses_queue, data_queue):
+    def test_fetch(
+        self, mocker, data_service, requests_queue, responses_queue, data_storage
+    ):
         mock_manager = mocker.patch("dataservice.service.multiprocessing.Manager")
         requests_queue.put(Request(url="https://www.foobar.com", callback=lambda x: x))
         mock_manager.return_value.__enter__.return_value.Queue.side_effect = [
-            requests_queue, responses_queue, data_queue
+            requests_queue,
+            responses_queue,
+            data_storage,
         ]
         requests = [mocker.MagicMock(spec=Request)]
         data_service._enqueue_requests = mocker.MagicMock()
-        data_service._run_processes = mocker.MagicMock()
-        data_service._run_processes.side_effect = lambda x, y, z: requests_queue.get()
+        data_service._request_response_flow = mocker.MagicMock()
+        data_service._request_response_flow.side_effect = (
+            lambda x, y, z: requests_queue.get()
+        )
         data_service._fetch(requests)
         data_service._enqueue_requests.assert_called()
-        data_service._run_processes.assert_called()
+        data_service._request_response_flow.assert_called()

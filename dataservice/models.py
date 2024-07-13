@@ -1,7 +1,7 @@
 from typing import Callable, Iterator, Literal, TypeVar, Union, Optional
 
 from bs4 import BeautifulSoup
-from pydantic import AnyUrl, ConfigDict, BaseModel
+from pydantic import AnyUrl, ConfigDict
 from pydantic.dataclasses import dataclass
 
 
@@ -45,3 +45,4 @@ class Response:
         if self.__soup is None:
             self.__soup = self.__get_soup()
         return self.__soup
+
