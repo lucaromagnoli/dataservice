@@ -1,6 +1,6 @@
 import pytest
 
-from dataservice.workers import RequestsWorker
+from dataservice.service import RequestWorker
 from tests.clients import ToyClient, AnotherToyClient
 
 
@@ -45,6 +45,6 @@ def test_requests_worker_main_client(requests_worker, clients):
     ],
 )
 def test_requests_worker_get_client_by_name(clients, client_name, expected):
-    requests_worker = RequestsWorker(clients)
+    requests_worker = RequestWorker(clients)
     client = requests_worker.get_client_by_name(client_name)
     assert isinstance(client, expected)
