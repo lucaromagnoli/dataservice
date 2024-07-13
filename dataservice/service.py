@@ -145,32 +145,28 @@ class ResponseWorker(SchedulerMixin):
         data_queue: multiprocessing.Queue,
     ):
         """Process a single response and put the result in the appropriate queue."""
+        def process_item(req_or_dict: Request | dict):
+            if isinstance(req_or_dict, Request):
+                logger.debug(f"Putting request {req_or_dict.url} in request queue")
+                requests_queue.put(req_or_dict)
+            elif isinstance(req_or_dict, dict):
+                logger.debug("Putting data item in data queue")
+                data_queue.put(req_or_dict)
+            else:
+                raise ValueError(
+                    f"Unknown type: {type(req_or_dict)}. Expected dict or Request."
+                )
+
         logger.debug(f"Processing response {response.request.url}")
         callback_result = response.request.callback(response)
 
         if isinstance(callback_result, Generator):
             for item in callback_result:
-                if isinstance(item, Request):
-                    logger.debug(f"Putting request {item.url} in request queue")
-                    requests_queue.put(item)
-                elif isinstance(item, dict):
-                    logger.debug("Putting data item in data queue")
-                    data_queue.put(item)
-                else:
-                    raise ValueError(
-                        f"Unknown type: {type(item)}. Expected Data or Request."
-                    )
+                process_item(item)
         else:
-            if isinstance(callback_result, Request):
-                logger.debug(f"Putting request {callback_result.url} in request queue")
-                requests_queue.put(callback_result)
-            elif isinstance(callback_result, dict):
-                logger.debug(f"Putting data item {callback_result} in data queue")
-                data_queue.put(callback_result)
-            else:
-                raise ValueError(
-                    f"Unknown type: {type(callback_result)}. Expected dict or Request."
-                )
+            process_item(callback_result)
+
+
 
     def __process_responses(
         self,
