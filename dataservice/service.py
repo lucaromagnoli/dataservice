@@ -194,9 +194,9 @@ class ResponseWorker(SchedulerMixin):
         :param data_queue: The queue where data items are added to."""
 
         logger.debug(f"Processing response {response.request.url}")
-        parsed = response.request.callback(response)
-        if isinstance(parsed, Generator):
-            for item in parsed:
+        callback_result = response.request.callback(response)
+        if isinstance(callback_result, Generator):
+            for item in callback_result:
                 if isinstance(item, Request):
                     logger.debug(f"Putting request {item.url} in request queue")
                     requests_queue.put(item)
@@ -208,15 +208,15 @@ class ResponseWorker(SchedulerMixin):
                         f"Unknown type: {type(item)}. You should yield Data or Request."
                     )
         else:
-            if isinstance(parsed, Request):
-                logger.debug(f"Putting request {parsed.url} in request queue")
-                requests_queue.put(parsed)
-            elif isinstance(parsed, dict):
-                logger.debug(f"Putting data item {parsed} in data queue")
-                data_queue.put(parsed)
+            if isinstance(callback_result, Request):
+                logger.debug(f"Putting request {callback_result.url} in request queue")
+                requests_queue.put(callback_result)
+            elif isinstance(callback_result, dict):
+                logger.debug(f"Putting data item {callback_result} in data queue")
+                data_queue.put(callback_result)
             else:
                 raise ValueError(
-                    f"Unknown type: {type(parsed)}. You should return dict or Request."
+                    f"Unknown type: {type(callback_result)}. You should return dict or Request."
                 )
 
     def __process_responses(
