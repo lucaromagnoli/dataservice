@@ -1,6 +1,6 @@
 import asyncio
 from logging import getLogger
-from typing import Callable, Generator, Iterable, Optional, AsyncGenerator
+from typing import Generator, Iterable, Optional, AsyncGenerator
 
 from dataservice.client import Client
 from dataservice.models import Request

@@ -1,23 +1,24 @@
-import asyncio
-import random
-
 import pytest
 
 from dataservice.client import Client
-from dataservice.service import RequestWorker, ResponseWorker
-from tests.clients import ToyClient, AnotherToyClient
+from dataservice.models import Request
+from dataservice.service import DataService
 
 
 @pytest.fixture
-def clients() -> tuple[Client]:
-    return ToyClient(), AnotherToyClient()
+def mock_client(mocker):
+    client = mocker.Mock(spec=Client)
+    client.make_request = mocker.AsyncMock(return_value={"data": "response"})
+    return client
 
 
 @pytest.fixture
-def requests_worker(clients):
-    return RequestWorker(clients)
+def data_service(mock_client):
+    return DataService(clients=(mock_client,))
 
 
 @pytest.fixture
-def responses_worker():
-    return ResponseWorker()
+def mock_request(mocker):
+    return Request(
+        url="http://example.com", callback=mocker.Mock(return_value={"parsed": "data"})
+    )
