@@ -22,7 +22,7 @@ logger.addHandler(c_handler)
 
 def parse_items(response: Response):
     """Mock function that parses a list of items from a response and makes a request for each item"""
-    for i in range(1, 11):
+    for i in range(1, 21):
         soup = response.soup
         soup.find("home")
         url = f"{response.request.url}item_{i}"
@@ -41,6 +41,7 @@ def start_requests():
     ]
     for url in urls:
         yield Request(url=url, callback=parse_items)
+
 
 def do_something(results, something):
     new_results = []
@@ -67,16 +68,14 @@ def do_z(results):
 def do_w(results):
     return do_something(results, "w")
 
+
 def data_pipeline(results: list[str]):
     pipeline = Pipeline()
     (pipeline.add_node(do_x).add_node(do_y).add_nodes((do_w, do_z)))
     return pipeline(results)
 
 
-
-
 if __name__ == "__main__":
     client = ToyClient(random_sleep=1000)
     service = DataService(clients=(client,))
     data = service(start_requests())
-

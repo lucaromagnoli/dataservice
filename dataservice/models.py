@@ -45,4 +45,3 @@ class Response:
         if self.__soup is None:
             self.__soup = self.__get_soup()
         return self.__soup
-

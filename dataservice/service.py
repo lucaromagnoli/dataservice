@@ -71,7 +71,11 @@ class DataService:
         while not self.queue.empty():
             async with semaphore:
                 items = await self.get_batch_items_from_queue()
-                tasks = [processed_item for item in items async for processed_item in self._process_item(item)]
+                tasks = [
+                    processed_item
+                    for item in items
+                    async for processed_item in self._process_item(item)
+                ]
                 await asyncio.gather(*tasks)
                 data = [*data, *[t.result() for t in tasks if t.result() is not None]]
         return data
@@ -85,5 +89,3 @@ class DataService:
                 yield asyncio.create_task(self.handle_queue_item(i))
         else:
             yield asyncio.create_task(self.handle_queue_item(item))
-
-

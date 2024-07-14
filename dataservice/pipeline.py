@@ -46,4 +46,3 @@ class Pipeline:
                     ]
                     results = [task.result() for task in tasks]
         return results
-
