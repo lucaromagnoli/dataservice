@@ -16,20 +16,23 @@ class DataService:
     def __init__(
         self,
         clients: tuple[Client],
+        max_async_tasks: Optional[int] = MAX_ASYNC_TASKS,
     ):
         self.clients = clients
         self.queue = asyncio.Queue()
-        self.MAX_ASYNC_TASKS = MAX_ASYNC_TASKS
+        self.max_async_tasks = max_async_tasks
 
     def __call__(self, requests_iterable: Iterable[Request]):
         """Main entry point. This method is called by the client."""
         return asyncio.run(self._fetch(requests_iterable))
 
     @property
-    def client(self):
+    def client(self) -> Client:
+        """Return the primary client."""
         return self.clients[0]
 
-    async def handle_queue_item(self, item: Request):
+    async def handle_queue_item(self, item: Request) -> Optional[dict]:
+        """Handle a single item from the queue."""
         if isinstance(item, Request):
             response = await self.client.make_request(item)
             parsed = item.callback(response)
@@ -41,14 +44,15 @@ class DataService:
         else:
             raise ValueError(f"Unknown item type: {type(item)}")
 
-    async def get_batch_items_from_queue(self, max_items: int = MAX_ASYNC_TASKS):
+    async def get_batch_items_from_queue(
+        self, max_items: int = MAX_ASYNC_TASKS
+    ) -> list:
+        """Get a batch of items from the queue."""
         items = []
-        while not self.queue.empty():
+        while not self.queue.empty() and len(items) < max_items:
             item = await self.queue.get()
             items.append(item)
-            if len(items) == max_items:
-                return items
-        return
+        return items
 
     async def _process_item(
         self, item: Request | Generator
@@ -77,7 +81,7 @@ class DataService:
             await self.queue.put(request)
 
         while not self.queue.empty():
-            async with asyncio.Semaphore(self.MAX_ASYNC_TASKS):
+            async with asyncio.Semaphore(self.max_async_tasks):
                 items = await self.get_batch_items_from_queue()
                 tasks = [
                     processed_item
@@ -85,5 +89,6 @@ class DataService:
                     async for processed_item in self._process_item(item)
                 ]
                 await asyncio.gather(*tasks)
-                data = [*data, *[t.result() for t in tasks if t.result() is not None]]
+                data.extend([t.result() for t in tasks if t.result() is not None])
+
         return data
