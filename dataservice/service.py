@@ -34,13 +34,15 @@ class DataService:
     def client(self):
         return self.clients[0]
 
-    async def handle_queue_item(self, item: Request, data: list):
+    async def handle_queue_item(self, item: Request):
         if isinstance(item, Request):
             response = await self.client.make_request(item)
             parsed = item.callback(response)
+            if isinstance(parsed, dict):
+                return parsed
             await self.queue.put(parsed)
         elif isinstance(item, dict):
-            data.append(item)
+            return item
         else:
             raise ValueError(f"Unknown item type: {type(item)}")
 
@@ -67,22 +69,21 @@ class DataService:
         semaphore = asyncio.Semaphore(self.MAX_ASYNC_TASKS)
 
         while not self.queue.empty():
-            items = await self.get_batch_items_from_queue()
-            tasks = [self._process_item(item, data, semaphore) for item in items]
-            await asyncio.gather(*tasks)
-
+            async with semaphore:
+                items = await self.get_batch_items_from_queue()
+                tasks = [processed_item for item in items async for processed_item in self._process_item(item)]
+                await asyncio.gather(*tasks)
+                data = [*data, *[t.result() for t in tasks if t.result() is not None]]
         return data
 
-    async def _process_item(self, item: Request | Generator, data: list[Response], semaphore: asyncio.Semaphore):
+    async def _process_item(self, item: Request | Generator):
         """
         Process a single item from the queue, handling generators appropriately.
         """
         if isinstance(item, Generator):
-            async with semaphore:
-                for i in item:
-                    await self.handle_queue_item(i, data)
+            for i in item:
+                yield asyncio.create_task(self.handle_queue_item(i))
         else:
-            async with semaphore:
-                await self.handle_queue_item(item, data)
+            yield asyncio.create_task(self.handle_queue_item(item))
 
 
