@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from dataservice.client import Client
@@ -13,8 +15,10 @@ def mock_client(mocker):
 
 
 @pytest.fixture
-def data_service(mock_client):
-    return DataService(clients=(mock_client,))
+def data_service(mock_client, mocker):
+    ds = DataService(clients=(mock_client,))
+    ds.queue = mocker.Mock(spec=asyncio.Queue)
+    return ds
 
 
 @pytest.fixture

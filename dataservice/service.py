@@ -31,7 +31,7 @@ class DataService:
         """Return the primary client."""
         return self.clients[0]
 
-    async def handle_queue_item(self, item: Request) -> Optional[dict]:
+    async def handle_queue_item(self, item: Request | dict) -> Optional[dict]:
         """Handle a single item from the queue."""
         if isinstance(item, Request):
             response = await self.client.make_request(item)

@@ -1,24 +1,62 @@
 import pytest
-
-from models import Request
-
-
-@pytest.mark.asyncio
-async def test_handle_queue_item(data_service, mock_request):
-    response = await data_service.handle_queue_item(mock_request)
-    assert response == {"parsed": "data"}
-    mock_request.callback.assert_called_once()
+from contextlib import nullcontext as does_not_raise
+from dataservice.models import Request
 
 
 @pytest.mark.asyncio
-async def test_get_batch_items_from_queue(data_service, mock_request):
-    await data_service.queue.put(mock_request)
-    await data_service.queue.put(mock_request)
+@pytest.mark.parametrize(
+    "item, queue_put_call_count, response, context",
+    [
+        pytest.param(
+            Request(url="http://example.com", callback=lambda x: {"parsed": "data"}),
+            0,
+            {"parsed": "data"},
+            does_not_raise(),
+            id="Single request. Returns parsed data but no items in queue",
+        ),
+        pytest.param(
+            Request(
+                url="http://example.com",
+                callback=lambda x: (
+                    Request(
+                        url=f"http://example.com/item{i}",
+                        callback=lambda y: {"data_item": f"item{i}"},
+                    )
+                    for i in range(10)
+                ),
+            ),
+            1,
+            None,
+            does_not_raise(),
+            id="Generator request. Does not return but put items in queue",
+        ),
+    ],
+)
+async def test_handle_queue_item(data_service, item, queue_put_call_count, response, context):
+    with context:
+        assert await data_service.handle_queue_item(item) == response
+        assert data_service.client.make_request.call_count == 1
+        assert data_service.queue.put.call_count == queue_put_call_count
 
-    items = await data_service.get_batch_items_from_queue(1)
-    assert len(items) == 1
-    items = await data_service.get_batch_items_from_queue(1)
-    assert len(items) == 1
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "items_in_queue, max_items, expected",
+    [
+        pytest.param(10, 10, 10, id="Max items is equal to items in queue"),
+        pytest.param(10, 5, 5, id="Max items is less than items in queue"),
+        pytest.param(2, 5, 2, id="Max items is greater than items in queue"),
+        pytest.param(0, 5, 0, id="No items in queue"),
+    ],
+)
+async def test_get_batch_items_from_queue(
+    data_service, mock_request, items_in_queue, max_items, expected
+):
+    for _ in range(items_in_queue):
+        await data_service.queue.put(mock_request)
+
+    items = await data_service.get_batch_items_from_queue(max_items)
+    assert len(items) == expected
 
 
 @pytest.mark.asyncio
