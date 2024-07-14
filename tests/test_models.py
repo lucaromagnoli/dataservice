@@ -65,7 +65,7 @@ def test_response_creation(valid_request):
     data = "<html></html>"
     response = Response(request=valid_request, data=data)
     assert response.request == valid_request
-    assert response.__data == data
+    assert response.data == data
 
 
 def test_response_soup_property(valid_request):

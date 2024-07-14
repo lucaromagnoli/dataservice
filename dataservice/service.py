@@ -24,14 +24,14 @@ class DataService:
 
     def __call__(self, requests_iterable: Iterable[Request]):
         """Main entry point. This method is called by the client."""
-        return asyncio.run(self._fetch(requests_iterable))
+        return asyncio.run(self.fetch(requests_iterable))
 
     @property
     def client(self) -> Client:
         """Return the primary client."""
         return self.clients[0]
 
-    async def handle_queue_item(self, item: Request | dict) -> Optional[dict]:
+    async def _handle_queue_item(self, item: Request | dict) -> Optional[dict]:
         """Handle a single item from the queue."""
         if isinstance(item, Request):
             response = await self.client.make_request(item)
@@ -44,7 +44,7 @@ class DataService:
         else:
             raise ValueError(f"Unknown item type: {type(item)}")
 
-    async def get_batch_items_from_queue(
+    async def _get_batch_items_from_queue(
         self, max_items: int = MAX_ASYNC_TASKS
     ) -> list:
         """Get a batch of items from the queue."""
@@ -62,14 +62,14 @@ class DataService:
         """
         if isinstance(item, Generator):
             for i in item:
-                yield asyncio.create_task(self.handle_queue_item(i))
+                yield asyncio.create_task(self._handle_queue_item(i))
         elif isinstance(item, AsyncGenerator):
             async for i in item:
-                yield asyncio.create_task(self.handle_queue_item(i))
+                yield asyncio.create_task(self._handle_queue_item(i))
         else:
-            yield asyncio.create_task(self.handle_queue_item(item))
+            yield asyncio.create_task(self._handle_queue_item(item))
 
-    async def _fetch(self, requests_iterable: Iterable[Request]) -> list[dict]:
+    async def fetch(self, requests_iterable: Iterable[Request]) -> list[dict]:
         """
         The main Data Service data gathering logic. Passes initial requests iterable to client
         and starts the Request-Response data flow until there are no more Requests and Responses to process.
@@ -82,7 +82,7 @@ class DataService:
 
         while not self.queue.empty():
             async with asyncio.Semaphore(self.max_async_tasks):
-                items = await self.get_batch_items_from_queue()
+                items = await self._get_batch_items_from_queue()
                 tasks = [
                     processed_item
                     for item in items
