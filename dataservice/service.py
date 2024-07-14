@@ -208,7 +208,6 @@ class DataService(SchedulerMixin):
         requests_queue: multiprocessing.Queue,
         responses_queue: multiprocessing.Queue,
         data_queue: multiprocessing.Queue,
-        manager: multiprocessing.Manager,
     ):
         """Run the Request and Response workers in parallel."""
         callables_and_args = (
