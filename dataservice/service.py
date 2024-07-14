@@ -1,11 +1,9 @@
 import asyncio
-import multiprocessing
-from concurrent.futures import ProcessPoolExecutor
 from logging import getLogger
-from typing import Callable, Generator, Iterable, Type, Any, Optional
+from typing import Callable, Generator, Iterable, Optional, AsyncGenerator
 
 from dataservice.client import Client
-from dataservice.models import Request, Response
+from dataservice.models import Request
 
 MAX_ASYNC_TASKS = 10
 
@@ -18,12 +16,9 @@ class DataService:
     def __init__(
         self,
         clients: tuple[Client],
-        pipeline: Optional[Callable[[list], None]] = None,
     ):
         self.clients = clients
-        self.pipeline = pipeline
         self.queue = asyncio.Queue()
-        self.data = []
         self.MAX_ASYNC_TASKS = MAX_ASYNC_TASKS
 
     def __call__(self, requests_iterable: Iterable[Request]):
@@ -53,7 +48,22 @@ class DataService:
             items.append(item)
             if len(items) == max_items:
                 return items
-        return items
+        return
+
+    async def _process_item(
+        self, item: Request | Generator
+    ) -> AsyncGenerator[asyncio.Task, None]:
+        """
+        Process a single item from the queue, handling generators appropriately.
+        """
+        if isinstance(item, Generator):
+            for i in item:
+                yield asyncio.create_task(self.handle_queue_item(i))
+        elif isinstance(item, AsyncGenerator):
+            async for i in item:
+                yield asyncio.create_task(self.handle_queue_item(i))
+        else:
+            yield asyncio.create_task(self.handle_queue_item(item))
 
     async def _fetch(self, requests_iterable: Iterable[Request]) -> list[dict]:
         """
@@ -66,10 +76,8 @@ class DataService:
         for request in requests_iterable:
             await self.queue.put(request)
 
-        semaphore = asyncio.Semaphore(self.MAX_ASYNC_TASKS)
-
         while not self.queue.empty():
-            async with semaphore:
+            async with asyncio.Semaphore(self.MAX_ASYNC_TASKS):
                 items = await self.get_batch_items_from_queue()
                 tasks = [
                     processed_item
@@ -79,13 +87,3 @@ class DataService:
                 await asyncio.gather(*tasks)
                 data = [*data, *[t.result() for t in tasks if t.result() is not None]]
         return data
-
-    async def _process_item(self, item: Request | Generator):
-        """
-        Process a single item from the queue, handling generators appropriately.
-        """
-        if isinstance(item, Generator):
-            for i in item:
-                yield asyncio.create_task(self.handle_queue_item(i))
-        else:
-            yield asyncio.create_task(self.handle_queue_item(item))

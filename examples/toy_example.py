@@ -20,7 +20,7 @@ c_handler.setFormatter(c_format)
 logger.addHandler(c_handler)
 
 
-def parse_items(response: Response):
+async def parse_items(response: Response):
     """Mock function that parses a list of items from a response and makes a request for each item"""
     for i in range(1, 21):
         soup = response.soup
