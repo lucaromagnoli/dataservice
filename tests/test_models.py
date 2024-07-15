@@ -1,7 +1,8 @@
 import pytest
-from pydantic import AnyUrl
+from pydantic import ValidationError
 from bs4 import BeautifulSoup
 from dataservice.models import Request, Response
+from contextlib import nullcontext as does_not_raise
 
 
 @pytest.fixture
@@ -80,3 +81,92 @@ def test_response_soup_property_with_dict(valid_request):
     response = Response(request=valid_request, data=json_data)
     with pytest.raises(Warning, match="Cannot create BeautifulSoup from dict."):
         _ = response.soup
+
+
+@pytest.mark.parametrize(
+    "url, method, content_type, headers, params, form_data, json_data, client, context",
+    [
+        (
+            "http://example.com",
+            "GET",
+            "text",
+            None,
+            None,
+            None,
+            None,
+            None,
+            does_not_raise(),
+        ),
+        (
+            "http://example.com",
+            "GET",
+            "text",
+            None,
+            None,
+            {"key": "value"},
+            None,
+            None,
+            pytest.raises(ValidationError),
+        ),
+        (
+            "http://example.com",
+            "POST",
+            "text",
+            None,
+            None,
+            {"key": "value"},
+            None,
+            None,
+            does_not_raise(),
+        ),
+        (
+            "http://example.com",
+            "POST",
+            "text",
+            None,
+            None,
+            None,
+            {"key": "value"},
+            None,
+            does_not_raise(),
+        ),
+        (
+            "http://example.com",
+            "POST",
+            "text",
+            None,
+            None,
+            None,
+            None,
+            None,
+            pytest.raises(ValidationError),
+        ),
+        (
+            "http://example.com",
+            "POST",
+            "json",
+            None,
+            None,
+            None,
+            None,
+            None,
+            pytest.raises(ValidationError),
+        ),
+    ],
+)
+def test_request_validation(
+    url, method, content_type, headers, params, form_data, json_data, client, context
+):
+    with context:
+        request = Request(
+            url=url,
+            callback=lambda x: x,
+            method=method,
+            content_type=content_type,
+            headers=headers,
+            params=params,
+            form_data=form_data,
+            json_data=json_data,
+            client=client,
+        )
+        assert request
