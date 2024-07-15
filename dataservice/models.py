@@ -39,10 +39,6 @@ class Request(BaseModel):
             raise ValueError("POST requests require either form data or json data.")
         if self.method == "GET" and (self.form_data or self.json_data):
             raise ValueError("GET requests cannot have form data or json data.")
-        if self.content_type == "json" and not self.json_data and not self.form_data:
-            raise ValueError(
-                "Content type is json but no form data or json data provided."
-            )
         return self
 
 
