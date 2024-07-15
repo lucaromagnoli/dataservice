@@ -32,7 +32,9 @@ from dataservice.models import Request
         ),
     ],
 )
-async def test_handle_queue_item(data_service_mock_queue, item, queue_put_call_count, response, context):
+async def test_handle_queue_item(
+    data_service_mock_queue, item, queue_put_call_count, response, context
+):
     with context:
         assert await data_service_mock_queue._handle_queue_item(item) == response
         assert data_service_mock_queue.client.make_request.call_count == 1

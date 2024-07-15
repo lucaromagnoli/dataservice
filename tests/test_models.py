@@ -1,7 +1,7 @@
 import pytest
 from pydantic import AnyUrl
 from bs4 import BeautifulSoup
-from models import Request, Response
+from dataservice.models import Request, Response
 
 
 @pytest.fixture
@@ -14,7 +14,7 @@ def dummy_callback() -> None:
 
 @pytest.fixture
 def valid_url():
-    return "https://example.com"
+    return "https://example.com/"
 
 
 @pytest.fixture
@@ -24,13 +24,13 @@ def valid_request(valid_url, dummy_callback):
 
 def test_request_creation(valid_url, dummy_callback):
     request = Request(url=valid_url, callback=dummy_callback)
-    assert request.url == AnyUrl(valid_url)
+    assert request.url == valid_url
     assert request.callback == dummy_callback
     assert request.method == "GET"
     assert request.headers is None
     assert request.params is None
-    assert request.data is None
-    assert request.json is None
+    assert request.form_data is None
+    assert request.json_data is None
     assert request.content_type == "text"
     assert request.client is None
 
@@ -47,16 +47,16 @@ def test_request_optional_fields(valid_url, dummy_callback):
         method="POST",
         headers=headers,
         params=params,
-        data=data,
-        json=json_data,
+        form_data=data,
+        json_data=json_data,
         content_type="json",
         client=client,
     )
     assert request.method == "POST"
     assert request.headers == headers
     assert request.params == params
-    assert request.data == data
-    assert request.json == json_data
+    assert request.form_data == data
+    assert request.json_data == json_data
     assert request.content_type == "json"
     assert request.client == client
 

@@ -18,10 +18,10 @@ class ToyClient(Client):
             f"Returning response for {request.url}. Blocked for {block_time} seconds."
         )
         data = f"<html><head></head><body>This is content for URL: {request.url}</body></html>"
-        return Response(request=request, data=data)
+        return Response(request=request, form_data=data)
 
 
 class AnotherToyClient(Client):
     async def make_request(self, request: Request) -> Response:
         data = f"<html><head></head><body>This is content for URL: {request.url}</body></html>"
-        return Response(request=request, data=data)
+        return Response(request=request, form_data=data)

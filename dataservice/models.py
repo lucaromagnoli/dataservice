@@ -1,9 +1,14 @@
-from typing import Callable, Iterator, Literal, TypeVar, Union, Optional
+from typing import Callable, Iterator, Literal, TypeVar, Union, Optional, Annotated
 
 from bs4 import BeautifulSoup
-from pydantic import AnyUrl, ConfigDict
-from pydantic.dataclasses import dataclass
-
+from pydantic import (
+    AnyUrl,
+    ConfigDict,
+    HttpUrl,
+    AfterValidator,
+    model_validator,
+    BaseModel,
+)
 
 DataItemGeneric = TypeVar("DataItemGeneric")
 RequestOrData = Union["Request", DataItemGeneric]
@@ -12,24 +17,40 @@ CallbackType = Callable[["Response"], CallbackReturn]
 StrOrDict = str | dict
 
 
-@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
-class Request:
+class Request(BaseModel):
     """Request model."""
 
-    url: AnyUrl
+    class Config:
+        arbitrary_types_allowed = True
+
+    url: Annotated[HttpUrl, AfterValidator(str)]
     callback: CallbackType
     method: Literal["GET", "POST"] = "GET"
+    content_type: Literal["text", "json"] = "text"
     headers: Optional[dict] = None
     params: Optional[dict] = None
-    data: Optional[dict] = None
-    json: Optional[dict] = None
-    content_type: Literal["text", "json"] = "text"
+    form_data: Optional[dict] = None
+    json_data: Optional[dict] = None
     client: Optional[str] = None
 
+    @model_validator(mode="after")
+    def validate(self):
+        if self.method == "POST" and not self.form_data and not self.json_data:
+            raise ValueError("POST requests require either form data or json data.")
+        if self.method == "GET" and (self.form_data or self.json_data):
+            raise ValueError("GET requests cannot have form data or json data.")
+        if self.content_type == "json" and not self.json_data and not self.form_data:
+            raise ValueError(
+                "Content type is json but no form data or json data provided."
+            )
+        return self
 
-@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
-class Response:
+
+class Response(BaseModel):
     """Response model."""
+
+    class Config:
+        arbitrary_types_allowed = True
 
     request: Request
     data: StrOrDict
