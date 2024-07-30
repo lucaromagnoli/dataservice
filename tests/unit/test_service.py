@@ -38,7 +38,7 @@ async def test_handle_queue_item(
     with context:
         assert await data_service_mock_queue._handle_queue_item(item) == response
         assert data_service_mock_queue.client.make_request.call_count == 1
-        assert data_service_mock_queue.queue.put.call_count == queue_put_call_count
+        assert data_service_mock_queue._queue.put.call_count == queue_put_call_count
 
 
 @pytest.mark.asyncio
@@ -55,7 +55,7 @@ async def test_get_batch_items_from_queue(
     data_service, mock_request, items_in_queue, max_items, expected
 ):
     for _ in range(items_in_queue):
-        await data_service.queue.put(mock_request)
+        await data_service._queue.put(mock_request)
 
     items = await data_service._get_batch_items_from_queue(max_items)
     assert len(items) == expected
@@ -64,13 +64,13 @@ async def test_get_batch_items_from_queue(
 @pytest.mark.asyncio
 async def test_fetch(data_service, mock_request, mocker):
     requests_iterable = [mock_request, mock_request]
-
+    data_service.start_requests = requests_iterable
     data_service.client.make_request = mocker.AsyncMock(
         return_value={"data": "response"}
     )
     mock_request.callback = mocker.Mock(return_value={"parsed": "data"})
 
-    result = await data_service.fetch(requests_iterable)
+    result = [i async for i in data_service.fetch()]
     assert result == [{"parsed": "data"}, {"parsed": "data"}]
     assert data_service.client.make_request.call_count == 2
     assert mock_request.callback.call_count == 2

@@ -2,8 +2,6 @@ from typing import Callable, Iterator, Literal, TypeVar, Union, Optional, Annota
 
 from bs4 import BeautifulSoup
 from pydantic import (
-    AnyUrl,
-    ConfigDict,
     HttpUrl,
     AfterValidator,
     model_validator,

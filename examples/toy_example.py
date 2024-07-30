@@ -1,4 +1,5 @@
 # Create a custom logger
+import asyncio
 import logging
 import uuid
 import time
@@ -7,7 +8,7 @@ import random
 from dataservice.models import Request, Response
 from dataservice.service import DataService
 from pipeline import Pipeline
-from tests.clients import ToyClient
+from tests.unit.clients import ToyClient
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -74,8 +75,12 @@ def data_pipeline(results: list[str]):
     (pipeline.add_node(do_x).add_node(do_y).add_nodes((do_w, do_z)))
     return pipeline(results)
 
+async def main():
+    client = ToyClient(random_sleep=1000)
+    service = DataService(requests=start_requests(), clients=(client,))
+    async for datum in service:
+        print(datum)
+
 
 if __name__ == "__main__":
-    client = ToyClient(random_sleep=1000)
-    service = DataService(clients=(client,))
-    data = service(start_requests())
+    asyncio.run(main())

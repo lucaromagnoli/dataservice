@@ -1,6 +1,8 @@
 import asyncio
 from logging import getLogger
-from typing import Generator, Iterable, Optional, AsyncGenerator
+from typing import Generator, Iterable, Optional, AsyncGenerator, AsyncIterator
+
+from tenacity import retry
 
 from dataservice.client import Client
 from dataservice.models import Request
@@ -9,57 +11,59 @@ MAX_ASYNC_TASKS = 10
 
 logger = getLogger(__name__)
 
-
 class DataService:
-    """Data Service class that orchestrates the Request - Response data flow."""
-
-    def __init__(
-        self,
-        clients: tuple[Client],
-        max_async_tasks: Optional[int] = MAX_ASYNC_TASKS,
-    ):
+    def __init__(self, requests: Iterable[Request], clients: tuple[Client], max_async_tasks: Optional[int] = MAX_ASYNC_TASKS):
         self.clients = clients
-        self.queue = asyncio.Queue()
+        self.__queue = asyncio.Queue()
+        self.__data = asyncio.Queue()
         self.max_async_tasks = max_async_tasks
-
-    def __call__(self, requests_iterable: Iterable[Request]):
-        """Main entry point. This method is called by the client."""
-        return asyncio.run(self.fetch(requests_iterable))
+        self._start_requests = iter(requests)
 
     @property
     def client(self) -> Client:
-        """Return the primary client."""
         return self.clients[0]
 
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self) -> AsyncIterator[dict]:
+        # this will only run once
+        for request in self._start_requests:
+            await self.__queue.put(request)
+
+        async with asyncio.Semaphore(self.max_async_tasks):
+            items = []
+            while not self.__queue.empty() and len(items) < MAX_ASYNC_TASKS:
+                items.append(await self.__queue.get())
+            tasks = [processed_item for item in items async for processed_item in self._process_item(item)]
+            await asyncio.gather(*tasks)
+            for t in tasks:
+                if t.result() is not None:
+                    await self.__data.put(t.result())
+            if not self.__data.empty():
+                return await self.__data.get()
+
+        if self.__queue.empty():
+            raise StopAsyncIteration
+
     async def _handle_queue_item(self, item: Request | dict) -> Optional[dict]:
-        """Handle a single item from the queue."""
         if isinstance(item, Request):
-            response = await self.client.make_request(item)
+            response = await self._handle_request(item)
             parsed = item.callback(response)
             if isinstance(parsed, dict):
                 return parsed
-            await self.queue.put(parsed)
+            await self.__queue.put(parsed)
         elif isinstance(item, dict):
             return item
         else:
             raise ValueError(f"Unknown item type: {type(item)}")
 
-    async def _get_batch_items_from_queue(
-        self, max_items: int = MAX_ASYNC_TASKS
-    ) -> list:
-        """Get a batch of items from the queue."""
-        items = []
-        while not self.queue.empty() and len(items) < max_items:
-            item = await self.queue.get()
-            items.append(item)
-        return items
+    @retry
+    async def _handle_request(self, item: Request):
+        """Make a request using the client and retry if necessary."""
+        return await self.client.make_request(item)
 
-    async def _process_item(
-        self, item: Request | Generator
-    ) -> AsyncGenerator[asyncio.Task, None]:
-        """
-        Process a single item from the queue, handling generators appropriately.
-        """
+    async def _process_item(self, item: Request | Generator | AsyncGenerator) -> AsyncGenerator[asyncio.Task, None]:
         if isinstance(item, Generator):
             for i in item:
                 yield asyncio.create_task(self._handle_queue_item(i))
@@ -69,26 +73,5 @@ class DataService:
         else:
             yield asyncio.create_task(self._handle_queue_item(item))
 
-    async def fetch(self, requests_iterable: Iterable[Request]) -> list[dict]:
-        """
-        The main Data Service data gathering logic. Passes initial requests iterable to client
-        and starts the Request-Response data flow until there are no more Requests and Responses to process.
-        """
-        data = []
 
-        # Enqueue initial requests
-        for request in requests_iterable:
-            await self.queue.put(request)
 
-        while not self.queue.empty():
-            async with asyncio.Semaphore(self.max_async_tasks):
-                items = await self._get_batch_items_from_queue()
-                tasks = [
-                    processed_item
-                    for item in items
-                    async for processed_item in self._process_item(item)
-                ]
-                await asyncio.gather(*tasks)
-                data.extend([t.result() for t in tasks if t.result() is not None])
-
-        return data
