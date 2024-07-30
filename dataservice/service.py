@@ -15,12 +15,24 @@ class DataService:
 
     def __init__(
         self,
+        requests: Iterable[Request],
         clients: tuple[Client],
         max_async_tasks: Optional[int] = MAX_ASYNC_TASKS,
     ):
         self.clients = clients
         self.queue = asyncio.Queue()
+        self.requests = iter(requests)
+        self.data = []
         self.max_async_tasks = max_async_tasks
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        await self.fetch()
+        if not self.data:
+            raise StopAsyncIteration
+        return self.data.pop(0)
 
 
     @property
@@ -66,14 +78,14 @@ class DataService:
         else:
             yield asyncio.create_task(self.handle_queue_item(item))
 
-    async def fetch(self, requests_iterable: Iterable[Request]) -> list[dict]:
+    async def fetch(self) -> list[dict]:
         """
         The main Data Service data gathering logic. Passes initial requests iterable to client
         and starts the Request-Response data flow until there are no more Requests and Responses to process.
         """
 
         # Enqueue initial requests
-        for request in requests_iterable:
+        for request in self.requests:
             await self.queue.put(request)
 
         while not self.queue.empty():
@@ -87,4 +99,4 @@ class DataService:
             await asyncio.gather(*tasks)
             for t in tasks:
                 if t.result() is not None:
-                    yield t.result()
+                    self.data.append(t.result())
