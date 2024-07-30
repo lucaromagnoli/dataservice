@@ -20,20 +20,20 @@ class DataService:
         max_async_tasks: Optional[int] = MAX_ASYNC_TASKS,
     ):
         self.clients = clients
-        self.queue = asyncio.Queue()
-        self.requests = iter(requests)
-        self.data = []
         self.max_async_tasks = max_async_tasks
+        self.__queue = asyncio.Queue()
+        self.__data = asyncio.Queue()
+        self.__started = False
+        self._requests = requests
 
     def __aiter__(self):
         return self
 
     async def __anext__(self):
         await self.fetch()
-        if not self.data:
+        if self.__data.empty():
             raise StopAsyncIteration
-        return self.data.pop(0)
-
+        return self.__data.get_nowait()
 
     @property
     def client(self) -> Client:
@@ -47,7 +47,7 @@ class DataService:
             parsed = item.callback(response)
             if isinstance(parsed, dict):
                 return parsed
-            await self.queue.put(parsed)
+            await self.__queue.put(parsed)
         elif isinstance(item, dict):
             return item
         else:
@@ -58,8 +58,8 @@ class DataService:
     ) -> list:
         """Get a batch of items from the queue."""
         items = []
-        while not self.queue.empty() and len(items) < max_items:
-            item = await self.queue.get()
+        while not self.__queue.empty() and len(items) < max_items:
+            item = await self.__queue.get()
             items.append(item)
         return items
 
@@ -78,17 +78,17 @@ class DataService:
         else:
             yield asyncio.create_task(self.handle_queue_item(item))
 
-    async def fetch(self) -> list[dict]:
+    async def fetch(self) -> None:
         """
         The main Data Service data gathering logic. Passes initial requests iterable to client
         and starts the Request-Response data flow until there are no more Requests and Responses to process.
         """
 
         # Enqueue initial requests
-        for request in self.requests:
-            await self.queue.put(request)
+        if not self.__started:
+            await self._enqueue_requests()
 
-        while not self.queue.empty():
+        while not self.__queue.empty():
             async with asyncio.Semaphore(self.max_async_tasks):
                 items = await self.get_batch_items_from_queue()
             tasks = [
@@ -99,4 +99,15 @@ class DataService:
             await asyncio.gather(*tasks)
             for t in tasks:
                 if t.result() is not None:
-                    self.data.append(t.result())
+                    self.__data.put_nowait(t.result())
+
+    async def _enqueue_requests(self):
+        if isinstance(self._requests, AsyncGenerator):
+            async for request in self._requests:
+                await self.__queue.put(request)
+        else:
+            for request in self._requests:
+                await self.__queue.put(request)
+        if self.__queue.empty():
+            raise ValueError("No requests to process.")
+        self.__started = True
