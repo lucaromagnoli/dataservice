@@ -22,9 +22,6 @@ class DataService:
         self.queue = asyncio.Queue()
         self.max_async_tasks = max_async_tasks
 
-    def __call__(self, requests_iterable: Iterable[Request]):
-        """Main entry point. This method is called by the client."""
-        return asyncio.run(self._fetch(requests_iterable))
 
     @property
     def client(self) -> Client:
@@ -69,12 +66,11 @@ class DataService:
         else:
             yield asyncio.create_task(self.handle_queue_item(item))
 
-    async def _fetch(self, requests_iterable: Iterable[Request]) -> list[dict]:
+    async def fetch(self, requests_iterable: Iterable[Request]) -> list[dict]:
         """
         The main Data Service data gathering logic. Passes initial requests iterable to client
         and starts the Request-Response data flow until there are no more Requests and Responses to process.
         """
-        data = []
 
         # Enqueue initial requests
         for request in requests_iterable:
@@ -83,12 +79,12 @@ class DataService:
         while not self.queue.empty():
             async with asyncio.Semaphore(self.max_async_tasks):
                 items = await self.get_batch_items_from_queue()
-                tasks = [
-                    processed_item
-                    for item in items
-                    async for processed_item in self._process_item(item)
-                ]
-                await asyncio.gather(*tasks)
-                data.extend([t.result() for t in tasks if t.result() is not None])
-
-        return data
+            tasks = [
+                processed_item
+                for item in items
+                async for processed_item in self._process_item(item)
+            ]
+            await asyncio.gather(*tasks)
+            for t in tasks:
+                if t.result() is not None:
+                    yield t.result()

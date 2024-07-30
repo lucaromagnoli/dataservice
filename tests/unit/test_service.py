@@ -68,7 +68,7 @@ async def test_fetch(data_service, mock_request, mocker):
     )
     mock_request.callback = mocker.Mock(return_value={"parsed": "data"})
 
-    result = await data_service._fetch(requests_iterable)
+    result = await data_service.fetch(requests_iterable)
     assert result == [{"parsed": "data"}, {"parsed": "data"}]
     assert data_service.client.make_request.call_count == 2
     assert mock_request.callback.call_count == 2
