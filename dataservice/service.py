@@ -40,7 +40,7 @@ class DataService:
         """Return the primary client."""
         return self.clients[0]
 
-    async def handle_queue_item(self, item: Request | dict) -> Optional[dict]:
+    async def _handle_queue_item(self, item: Request | dict) -> Optional[dict]:
         """Handle a single item from the queue."""
         if isinstance(item, Request):
             response = await self.client.make_request(item)
@@ -53,7 +53,7 @@ class DataService:
         else:
             raise ValueError(f"Unknown item type: {type(item)}")
 
-    async def get_batch_items_from_queue(
+    async def _get_batch_items_from_queue(
         self, max_items: int = MAX_ASYNC_TASKS
     ) -> list:
         """Get a batch of items from the queue."""
@@ -71,12 +71,12 @@ class DataService:
         """
         if isinstance(item, Generator):
             for i in item:
-                yield asyncio.create_task(self.handle_queue_item(i))
+                yield asyncio.create_task(self._handle_queue_item(i))
         elif isinstance(item, AsyncGenerator):
             async for i in item:
-                yield asyncio.create_task(self.handle_queue_item(i))
+                yield asyncio.create_task(self._handle_queue_item(i))
         else:
-            yield asyncio.create_task(self.handle_queue_item(item))
+            yield asyncio.create_task(self._handle_queue_item(item))
 
     async def _fetch(self) -> None:
         """
@@ -90,7 +90,7 @@ class DataService:
 
         while not self.__queue.empty():
             async with asyncio.Semaphore(self.max_async_tasks):
-                items = await self.get_batch_items_from_queue()
+                items = await self._get_batch_items_from_queue()
             tasks = [
                 processed_item
                 for item in items

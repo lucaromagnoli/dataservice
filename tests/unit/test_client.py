@@ -1,7 +1,10 @@
-import httpx
 import pytest
+from dataservice.client import HttpXClient
 from dataservice.models import Request, Response
 
+@pytest.fixture
+def httpx_client():
+    return HttpXClient()
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -40,7 +43,7 @@ async def test_httpx_client_get_request(
     )
     expected_response = Response(request=request, data=expected)
     response = await httpx_client.make_request(request)
-    assert response.__data == expected_response.data
+    assert response.data == expected_response.data
 
 
 @pytest.mark.asyncio
@@ -73,4 +76,4 @@ async def test_httpx_client_post_request(
     )
     expected_response = Response(request=request, data=response)
     response = await httpx_client.make_request(request)
-    assert response.__data == expected_response.data
+    assert response.data == expected_response.data

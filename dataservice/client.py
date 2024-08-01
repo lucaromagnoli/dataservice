@@ -20,7 +20,7 @@ class Client(ABC):
         raise NotImplementedError
 
 
-class HTTPXClient(Client):
+class HttpXClient(Client):
     """Client that uses HTTPX to make requests."""
 
     def __init__(self):
