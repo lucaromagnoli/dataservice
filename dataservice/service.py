@@ -3,11 +3,11 @@ import os
 from logging import getLogger
 from typing import TYPE_CHECKING
 from typing import Generator, Iterable, Optional, AsyncGenerator
-from dataservice.models import Request
+from dataservice.models import Request, Response
 from dataservice.client import Client
 
 
-MAX_ASYNC_TASKS = os.environ.get("MAX_ASYNC_TASKS", 10)
+MAX_ASYNC_TASKS = int(os.environ.get("MAX_ASYNC_TASKS", "10"))
 
 logger = getLogger(__name__)
 
@@ -23,8 +23,8 @@ class DataService:
     ):
         self.clients = clients
         self.max_async_tasks = max_async_tasks
-        self.__queue = asyncio.Queue()
-        self.__data = asyncio.Queue()
+        self.__work_queue: asyncio.Queue[Request | Response] = asyncio.Queue()
+        self.__data_queue: asyncio.Queue[dict] = asyncio.Queue()
         self.__started = False
         self._requests = requests
 
@@ -34,9 +34,9 @@ class DataService:
     async def __anext__(self):
         """Return the next item from the data queue."""
         await self._fetch()
-        if self.__data.empty():
+        if self.__data_queue.empty():
             raise StopAsyncIteration
-        return self.__data.get_nowait()
+        return self.__data_queue.get_nowait()
 
     @property
     def client(self) -> Client:
@@ -56,8 +56,8 @@ class DataService:
             response = await self._handle_request(item)
             parsed = item.callback(response)
             if isinstance(parsed, dict):
-                return parsed
-            await self.__queue.put(parsed)
+                await self.__data_queue.put(parsed)
+            await self.__work_queue.put(parsed)
         elif isinstance(item, dict):
             return item
         else:
@@ -73,8 +73,8 @@ class DataService:
     ) -> list:
         """Get a batch of items from the queue."""
         items = []
-        while not self.__queue.empty() and len(items) < max_items:
-            item = await self.__queue.get()
+        while not self.__work_queue.empty() and len(items) < max_items:
+            item = await self.__work_queue.get()
             items.append(item)
         return items
 
@@ -103,7 +103,7 @@ class DataService:
         if not self.__started:
             await self._enqueue_requests()
 
-        while not self.__queue.empty():
+        while not self.__work_queue.empty():
             async with asyncio.Semaphore(self.max_async_tasks):
                 items = await self._get_batch_items_from_queue()
             tasks = [
@@ -112,17 +112,14 @@ class DataService:
                 async for processed_item in self._process_item(item)
             ]
             await asyncio.gather(*tasks)
-            for t in tasks:
-                if t.result() is not None:
-                    self.__data.put_nowait(t.result())
 
     async def _enqueue_requests(self):
         if isinstance(self._requests, AsyncGenerator):
             async for request in self._requests:
-                await self.__queue.put(request)
+                await self.__work_queue.put(request)
         else:
             for request in self._requests:
-                await self.__queue.put(request)
-        if self.__queue.empty():
+                await self.__work_queue.put(request)
+        if self.__work_queue.empty():
             raise ValueError("No requests to process.")
         self.__started = True

@@ -1,5 +1,5 @@
 import pytest
-from dataservice.client import HttpXClient
+from httpx_client import HttpXClient
 from dataservice.models import Request, Response
 
 @pytest.fixture

@@ -21,7 +21,6 @@ def start_requests():
     return [Request(url=url, callback=parse_items, client="ToyClient") for url in urls]
 
 
-
 @pytest.fixture
 def toy_service(toy_client, start_requests):
     return DataService(requests=start_requests, clients=(toy_client,))
