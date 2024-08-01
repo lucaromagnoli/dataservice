@@ -43,3 +43,5 @@ def parse_item(response: Response):
 async def test_toy_service(toy_service):
     data = [item async for item in toy_service]
     assert len(data) == 40
+    assert [d['url'] for d in data[:20]] == [f"https://www.foobar.com/item_{i}" for i in range(1, 21)]
+    assert [d['url'] for d in data[20:]] == [f"https://www.barbaz.com/item_{i}" for i in range(1, 21)]

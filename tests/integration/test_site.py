@@ -38,5 +38,5 @@ def parse_book_details(response: Response):
 
 @pytest.mark.asyncio
 async def test_scrape_books(data_service):
-    data = [item async for item in data_service.fetch()]
+    data = [item async for item in data_service._fetch()]
     assert len(data) == 20

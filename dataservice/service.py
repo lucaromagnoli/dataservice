@@ -30,7 +30,7 @@ class DataService:
         return self
 
     async def __anext__(self):
-        await self.fetch()
+        await self._fetch()
         if self.__data.empty():
             raise StopAsyncIteration
         return self.__data.get_nowait()
@@ -78,7 +78,7 @@ class DataService:
         else:
             yield asyncio.create_task(self.handle_queue_item(item))
 
-    async def fetch(self) -> None:
+    async def _fetch(self) -> None:
         """
         The main Data Service data gathering logic. Passes initial requests iterable to client
         and starts the Request-Response data flow until there are no more Requests and Responses to process.

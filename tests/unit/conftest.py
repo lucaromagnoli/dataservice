@@ -17,7 +17,7 @@ def mock_client(mocker):
 @pytest.fixture
 def data_service(mock_client, mocker):
     ds = DataService(clients=(mock_client,))
-    ds.queue = mocker.Mock(spec=asyncio.Queue)
+    ds.__queue = mocker.Mock(spec=asyncio.Queue)
     return ds
 
 
