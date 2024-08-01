@@ -5,7 +5,6 @@ import pytest
 from httpx_client import HttpXClient
 from dataservice.models import Request, Response
 from dataservice.service import DataService
-import dataservice.logging_config
 
 
 @pytest.fixture
