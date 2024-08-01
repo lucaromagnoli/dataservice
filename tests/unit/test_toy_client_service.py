@@ -18,7 +18,7 @@ def start_requests():
         "https://www.foobar.com",
         "https://www.barbaz.com",
     ]
-    return [Request(url=url, callback=parse_items) for url in urls]
+    return [Request(url=url, callback=parse_items, client="ToyClient") for url in urls]
 
 
 
@@ -32,7 +32,7 @@ async def parse_items(response: Response):
         soup = response.soup
         soup.find("home")
         url = f"{response.request.url}item_{i}"
-        yield Request(url=url, callback=parse_item)
+        yield Request(url=url, callback=parse_item, client="ToyClient")
 
 
 def parse_item(response: Response):

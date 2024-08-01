@@ -65,7 +65,7 @@ class DataService:
 
     async def _handle_request(self, request: Request):
         client = self._get_client_by_name(request.client)
-        response = await self.client.make_request(request)
+        response = await client.make_request(request)
         return response
 
     async def _get_batch_items_from_queue(

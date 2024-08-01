@@ -7,12 +7,14 @@ from dataservice.models import Request
 def mock_client(mocker):
     client = mocker.MagicMock(spec=Client)
     client.make_request = mocker.AsyncMock(return_value={"data": "response"})
+    client.get_name = mocker.Mock(return_value="MockClient")
     return client
 
 @pytest.fixture
 def mock_request(mocker):
     r = mocker.MagicMock(spec=Request)
     r.callback = mocker.Mock(return_value={"parsed": "data"})
+    r.client = "MockClient"
     return r
 
 @pytest.fixture
