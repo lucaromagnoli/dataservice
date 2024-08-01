@@ -20,7 +20,7 @@ def start_requests():
         yield Request(url=url, callback=parse_books)
 @pytest.fixture
 def data_service(client):
-    return DataService(start_requests=start_requests(), clients=(client, ))
+    return DataService(requests=start_requests(), clients=(client, ))
 
 
 def parse_books(response: Response):
@@ -38,5 +38,5 @@ def parse_book_details(response: Response):
 
 @pytest.mark.asyncio
 async def test_scrape_books(data_service):
-    data = [item async for item in data_service._fetch()]
+    data = [item async for item in data_service]
     assert len(data) == 20
