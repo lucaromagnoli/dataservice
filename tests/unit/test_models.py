@@ -1,8 +1,8 @@
+from contextlib import nullcontext as does_not_raise
 import pytest
 from pydantic import ValidationError
 from bs4 import BeautifulSoup
 from dataservice.models import Request, Response
-from contextlib import nullcontext as does_not_raise
 
 
 @pytest.fixture
@@ -24,7 +24,7 @@ def valid_request(valid_url, dummy_callback):
 
 
 def test_request_creation(valid_url, dummy_callback):
-    request = Request(url=valid_url, callback=dummy_callback)
+    request = Request(url=valid_url, callback=dummy_callback, client="TestClient")
     assert request.url == valid_url
     assert request.callback == dummy_callback
     assert request.method == "GET"
@@ -33,7 +33,7 @@ def test_request_creation(valid_url, dummy_callback):
     assert request.form_data is None
     assert request.json_data is None
     assert request.content_type == "text"
-    assert request.client is None
+    assert request.client == "TestClient"
 
 
 def test_request_optional_fields(valid_url, dummy_callback):
@@ -94,7 +94,7 @@ def test_response_soup_property_with_dict(valid_request):
             None,
             None,
             None,
-            None,
+            "TestClient",
             does_not_raise(),
         ),
         (
@@ -105,7 +105,7 @@ def test_response_soup_property_with_dict(valid_request):
             None,
             {"key": "value"},
             None,
-            None,
+            "TestClient",
             pytest.raises(ValidationError),
         ),
         (
@@ -116,7 +116,7 @@ def test_response_soup_property_with_dict(valid_request):
             None,
             {"key": "value"},
             None,
-            None,
+            "TestClient",
             does_not_raise(),
         ),
         (
@@ -127,7 +127,7 @@ def test_response_soup_property_with_dict(valid_request):
             None,
             None,
             {"key": "value"},
-            None,
+            "TestClient",
             does_not_raise(),
         ),
         (
@@ -138,7 +138,7 @@ def test_response_soup_property_with_dict(valid_request):
             None,
             None,
             None,
-            None,
+            "TestClient",
             pytest.raises(ValidationError),
         ),
         (
@@ -149,7 +149,7 @@ def test_response_soup_property_with_dict(valid_request):
             None,
             None,
             None,
-            None,
+            "TestClient",
             pytest.raises(ValidationError),
         ),
     ],

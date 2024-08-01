@@ -1,11 +1,13 @@
 import asyncio
+import os
 from logging import getLogger
+from typing import TYPE_CHECKING
 from typing import Generator, Iterable, Optional, AsyncGenerator
-
-from dataservice.client import Client
 from dataservice.models import Request
+from dataservice.client import Client
 
-MAX_ASYNC_TASKS = 10
+
+MAX_ASYNC_TASKS = os.environ.get("MAX_ASYNC_TASKS", 10)
 
 logger = getLogger(__name__)
 
@@ -30,6 +32,7 @@ class DataService:
         return self
 
     async def __anext__(self):
+        """Return the next item from the data queue."""
         await self._fetch()
         if self.__data.empty():
             raise StopAsyncIteration
@@ -40,10 +43,17 @@ class DataService:
         """Return the primary client."""
         return self.clients[0]
 
+    def _get_client_by_name(self, name: str) -> Client:
+        """Return the client by name."""
+        for client in self.clients:
+            if client.get_name() == name:
+                return client
+        raise ValueError(f"Client not found: {name}")
+
     async def _handle_queue_item(self, item: Request | dict) -> Optional[dict]:
         """Handle a single item from the queue."""
         if isinstance(item, Request):
-            response = await self.client.make_request(item)
+            response = await self._handle_request(item)
             parsed = item.callback(response)
             if isinstance(parsed, dict):
                 return parsed
@@ -52,6 +62,11 @@ class DataService:
             return item
         else:
             raise ValueError(f"Unknown item type: {type(item)}")
+
+    async def _handle_request(self, request: Request):
+        client = self._get_client_by_name(request.client)
+        response = await self.client.make_request(request)
+        return response
 
     async def _get_batch_items_from_queue(
         self, max_items: int = MAX_ASYNC_TASKS

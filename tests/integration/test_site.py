@@ -2,7 +2,7 @@ from urllib.parse import urljoin
 
 import pytest
 
-from dataservice.client import Httpxclient
+from dataservice.client import HttpXClient
 from dataservice.models import Request, Response
 from dataservice.service import DataService
 import dataservice.logging_config
@@ -10,7 +10,7 @@ import dataservice.logging_config
 
 @pytest.fixture
 def client():
-    return Httpxclient()
+    return HttpXClient()
 
 def start_requests():
     urls = [
