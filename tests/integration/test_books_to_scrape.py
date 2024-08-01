@@ -1,8 +1,8 @@
 from urllib.parse import urljoin
 
 import pytest
-
 from httpx_client import HttpXClient
+
 from dataservice.models import Request, Response
 from dataservice.service import DataService
 
@@ -11,15 +11,18 @@ from dataservice.service import DataService
 def client():
     return HttpXClient()
 
+
 def start_requests():
     urls = [
         "https://books.toscrape.com/index.html",
     ]
     for url in urls:
         yield Request(url=url, callback=parse_books)
+
+
 @pytest.fixture
 def data_service(client):
-    return DataService(requests=start_requests(), clients=(client, ))
+    return DataService(requests=start_requests(), clients=(client,))
 
 
 def parse_books(response: Response):
@@ -28,6 +31,7 @@ def parse_books(response: Response):
         href = article.h3.a["href"]
         url = urljoin(response.request.url, href)
         yield Request(url=url, callback=parse_book_details)
+
 
 def parse_book_details(response: Response):
     title = response.soup.find("h1").text

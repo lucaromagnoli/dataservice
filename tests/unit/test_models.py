@@ -1,7 +1,9 @@
 from contextlib import nullcontext as does_not_raise
+
 import pytest
-from pydantic import ValidationError
 from bs4 import BeautifulSoup
+from pydantic import ValidationError
+
 from dataservice.models import Request, Response
 
 

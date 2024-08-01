@@ -1,15 +1,19 @@
 import asyncio
 import os
 from logging import getLogger
-from typing import TYPE_CHECKING
-from typing import Generator, Iterable, Optional, AsyncGenerator
-from dataservice.models import Request, Response
-from dataservice.client import Client
+from typing import AsyncGenerator, Generator, Iterable, Optional
 
+from tenacity import retry
+
+from dataservice.client import Client
+from dataservice.models import Request, Response
 
 MAX_ASYNC_TASKS = int(os.environ.get("MAX_ASYNC_TASKS", "10"))
-
 logger = getLogger(__name__)
+
+RequestsIterable = (
+    Iterable[Request] | Generator[Request, None, None] | AsyncGenerator[Request, None]
+)
 
 
 class DataService:
@@ -17,16 +21,16 @@ class DataService:
 
     def __init__(
         self,
-        requests: Iterable[Request],
-        clients: tuple[Client],
+        requests: RequestsIterable,
+        clients: list[Client] | tuple[Client],
         max_async_tasks: Optional[int] = MAX_ASYNC_TASKS,
     ):
         self.clients = clients
         self.max_async_tasks = max_async_tasks
         self.__work_queue: asyncio.Queue[Request | Response] = asyncio.Queue()
         self.__data_queue: asyncio.Queue[dict] = asyncio.Queue()
-        self.__started = False
-        self._requests = requests
+        self.__started: bool = False
+        self._requests: RequestsIterable = requests
 
     def __aiter__(self):
         return self
@@ -50,20 +54,18 @@ class DataService:
                 return client
         raise ValueError(f"Client not found: {name}")
 
-    async def _handle_queue_item(self, item: Request | dict) -> Optional[dict]:
-        """Handle a single item from the queue."""
-        if isinstance(item, Request):
-            response = await self._handle_request(item)
-            parsed = item.callback(response)
-            if isinstance(parsed, dict):
-                await self.__data_queue.put(parsed)
-            await self.__work_queue.put(parsed)
-        elif isinstance(item, dict):
-            return item
+    async def _handle_request_item(self, request: Request) -> None:
+        """Handle a single Request item from the queue and run callback over the response."""
+        response = await self._handle_request(request)
+        parsed = request.callback(response)
+        if isinstance(parsed, dict):
+            await self.__data_queue.put(parsed)
         else:
-            raise ValueError(f"Unknown item type: {type(item)}")
+            await self.__work_queue.put(parsed)
 
+    @retry
     async def _handle_request(self, request: Request):
+        """Handle a single Request with retry."""
         client = self._get_client_by_name(request.client)
         response = await client.make_request(request)
         return response
@@ -78,28 +80,26 @@ class DataService:
             items.append(item)
         return items
 
-    async def _process_item(
-        self, item: Request | Generator
+    async def _iter_callbacks(
+        self, item: Request | Generator | AsyncGenerator
     ) -> AsyncGenerator[asyncio.Task, None]:
         """
-        Process a single item from the queue, handling generators appropriately.
+        Iterates over the items yielded by the callback functions and handles them accordingly.
         """
         if isinstance(item, Generator):
             for i in item:
-                yield asyncio.create_task(self._handle_queue_item(i))
+                yield asyncio.create_task(self._handle_request_item(i))
         elif isinstance(item, AsyncGenerator):
             async for i in item:
-                yield asyncio.create_task(self._handle_queue_item(i))
+                yield asyncio.create_task(self._handle_request_item(i))
         else:
-            yield asyncio.create_task(self._handle_queue_item(item))
+            yield asyncio.create_task(self._handle_request_item(item))
 
     async def _fetch(self) -> None:
         """
-        The main Data Service data gathering logic. Passes initial requests iterable to client
-        and starts the Request-Response data flow until there are no more Requests and Responses to process.
+        The main Data Service data gathering logic. Enqueues the initial requests
+        and starts the Request-Response data flow until there are no more Requests to process.
         """
-
-        # Enqueue initial requests
         if not self.__started:
             await self._enqueue_requests()
 
@@ -107,13 +107,14 @@ class DataService:
             async with asyncio.Semaphore(self.max_async_tasks):
                 items = await self._get_batch_items_from_queue()
             tasks = [
-                processed_item
+                callback_item
                 for item in items
-                async for processed_item in self._process_item(item)
+                async for callback_item in self._iter_callbacks(item)
             ]
             await asyncio.gather(*tasks)
 
     async def _enqueue_requests(self):
+        """Enqueue the initial requests to the work queue."""
         if isinstance(self._requests, AsyncGenerator):
             async for request in self._requests:
                 await self.__work_queue.put(request)

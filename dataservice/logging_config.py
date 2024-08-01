@@ -16,12 +16,7 @@ LOGGING = {
         }
     },
     "loggers": {
-        "dataservice": {
-            "handlers": ["stdout"],
-            "level": "INFO",
-            "propagate": False
-        },
-
+        "dataservice": {"handlers": ["stdout"], "level": "INFO", "propagate": False},
     },
 }
 

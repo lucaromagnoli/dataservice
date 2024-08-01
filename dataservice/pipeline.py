@@ -1,8 +1,6 @@
-import random
-import time
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor
-from typing import Callable, NewType, Iterable
+from typing import Callable, Iterable, NewType
 
 ResultsType = NewType("ResultsType", tuple)
 

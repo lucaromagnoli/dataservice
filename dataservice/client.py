@@ -6,6 +6,7 @@ from dataservice.models import Request, Response
 
 class Client(ABC):
     """Abstract base class for clients."""
+
     def __init__(self):
         self.logger = getLogger(__name__)
 
@@ -15,5 +16,3 @@ class Client(ABC):
     @abstractmethod
     async def make_request(self, request: Request) -> Response:
         raise NotImplementedError
-
-

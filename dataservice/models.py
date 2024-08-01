@@ -1,12 +1,7 @@
-from typing import Callable, Iterator, Literal, TypeVar, Union, Optional, Annotated
+from typing import Annotated, Callable, Iterator, Literal, Optional, TypeVar, Union
 
 from bs4 import BeautifulSoup
-from pydantic import (
-    HttpUrl,
-    AfterValidator,
-    model_validator,
-    BaseModel,
-)
+from pydantic import AfterValidator, BaseModel, HttpUrl, model_validator
 
 DataItemGeneric = TypeVar("DataItemGeneric")
 RequestOrData = Union["Request", DataItemGeneric]

@@ -1,10 +1,13 @@
 import pytest
 from httpx_client import HttpXClient
+
 from dataservice.models import Request, Response
+
 
 @pytest.fixture
 def httpx_client():
     return HttpXClient()
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
