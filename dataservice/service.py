@@ -6,7 +6,7 @@ from typing import AsyncGenerator, Generator
 from tenacity import retry
 
 from dataservice.client import Client
-from dataservice.models import Request, Response, RequestOrData, RequestsIterable
+from dataservice.models import Request, RequestOrData, RequestsIterable
 
 MAX_ASYNC_TASKS = int(os.environ.get("MAX_ASYNC_TASKS", "10"))
 logger = getLogger(__name__)
@@ -29,6 +29,7 @@ class DataService:
         self.__started: bool = False
 
     def __aiter__(self):
+        logger.info("Starting Data Service")
         return self
 
     async def __anext__(self):
@@ -60,7 +61,15 @@ class DataService:
             items.append(item)
         return items
 
-    async def _enqueue_requests(self):
+    async def _add_to_work_queue(self, item: RequestsIterable | Request) -> None:
+        """Add an item to the work queue."""
+        await self.__work_queue.put(item)
+
+    async def _add_to_data_queue(self, item: dict) -> None:
+        """Add an item to the data queue."""
+        await self.__data_queue.put(item)
+
+    async def _enqueue_start_requests(self):
         """Enqueue the initial requests to the work queue."""
         if isinstance(self._requests, AsyncGenerator):
             async for request in self._requests:
@@ -71,14 +80,6 @@ class DataService:
         if self.__work_queue.empty():
             raise ValueError("No requests to process.")
         self.__started = True
-
-    async def _add_to_work_queue(self, item: RequestsIterable | Request) -> None:
-        """Add an item to the work queue."""
-        await self.__work_queue.put(item)
-
-    async def _add_to_data_queue(self, item: dict) -> None:
-        """Add an item to the data queue."""
-        await self.__data_queue.put(item)
 
     async def _handle_queue_item(self, item: RequestOrData) -> None:
         """Handle a single item from the queue and run callback over the response."""
@@ -91,18 +92,13 @@ class DataService:
 
     async def _handle_request_item(self, request: Request) -> None:
         """Handle a single Request and run callback over the response."""
-        response = await self._handle_request(request)
+        client = self._get_client_by_name(request.client)
+        response = await client.make_request(request)
         callback_result = request.callback(response)
         if isinstance(callback_result, dict):
             return await self._add_to_data_queue(callback_result)
         else:  # callback_result is a Request or a Generator or AsyncGenerator
             return await self._add_to_work_queue(callback_result)
-
-    @retry
-    async def _handle_request(self, request: Request) -> Response:
-        """Handle a single Request with retry."""
-        client = self._get_client_by_name(request.client)
-        return await client.make_request(request)
 
     async def _iter_callbacks(
         self, item: Generator | AsyncGenerator | RequestOrData
@@ -128,9 +124,10 @@ class DataService:
         and starts the Request-Response data flow until there are no more Requests to process.
         """
         if not self.__started:
-            await self._enqueue_requests()
+            await self._enqueue_start_requests()
 
         while not self.__work_queue.empty():
+            logger.debug(f"Work queue size: {self.__work_queue.qsize()}")
             async with asyncio.Semaphore(self.max_async_tasks):
                 items = await self._get_batch_items_from_queue()
                 tasks = [

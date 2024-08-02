@@ -1,14 +1,14 @@
 from typing import (
     Annotated,
+    AsyncGenerator,
     Callable,
+    Generator,
+    Iterable,
     Iterator,
     Literal,
     Optional,
     TypeVar,
     Union,
-    Iterable,
-    Generator,
-    AsyncGenerator,
 )
 
 from bs4 import BeautifulSoup
