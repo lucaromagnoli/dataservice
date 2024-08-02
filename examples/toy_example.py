@@ -73,7 +73,7 @@ def do_w(results):
 
 def data_pipeline(results: list[str]):
     pipeline = Pipeline()
-    (pipeline.add_node(do_x).add_node(do_y).add_nodes((do_w, do_z)))
+    (pipeline.add_step(do_x).add_step(do_y).add_nodes((do_w, do_z)))
     return pipeline(results)
 
 

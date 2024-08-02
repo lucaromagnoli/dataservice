@@ -1,6 +1,7 @@
 """Simple example of scraping books from a website with pagination argument."""
 import argparse
 import asyncio
+import json
 import logging
 from functools import partial
 from urllib.parse import urljoin
@@ -10,6 +11,7 @@ from logging_config import setup_logging
 
 from dataservice.models import Request, Response
 from dataservice.service import DataService
+from pipeline import Pipeline
 
 logger = logging.getLogger("books_scraper")
 setup_logging()
@@ -39,6 +41,19 @@ def parse_book_details(response: Response):
     return {"title": title, "price": price}
 
 
+def process_currency(results: list[dict]):
+    for result in results:
+        result["currency"] = "£"
+        result["price"] = result["price"].replace("£", "")
+    return results
+
+
+def write_to_file(results: list[dict], group_name: str):
+    with open(f"books_{group_name}.json", "w") as f:
+        json.dump(results, f, indent=4)
+    logger.info("Results written to books.json")
+
+
 async def main(args):
     client = HttpXClient()
     start_requests = iter(
@@ -50,10 +65,13 @@ async def main(args):
         ]
     )
     data_service = DataService(start_requests, clients=(client,))
-    # with Pipeline(data_service) as data_pipeline:
-    #     pipeline.add(do_x)
-    #     data = pipeline.run(data)
-    logger.info(f"Scraped {len(data)} books.")
+    pipeline = Pipeline(data_service)
+    for group_name, group in pipeline.group_by(type):
+        with group as group_pipeline:
+            group_pipeline.add_step(process_currency).add_final_step([partial(write_to_file, group_name=group_name)])
+    # data = [item async for item in data_service]
+    # with Pipeline(data) as pipeline:
+    #     pipeline.add_leaves([write_to_file])
 
 
 if __name__ == "__main__":
