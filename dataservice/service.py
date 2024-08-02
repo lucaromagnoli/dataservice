@@ -6,7 +6,7 @@ from typing import AsyncGenerator, Generator, Iterable, Optional
 from tenacity import retry
 
 from dataservice.client import Client
-from dataservice.models import Request, Response
+from dataservice.models import Request, Response, RequestOrData
 
 MAX_ASYNC_TASKS = int(os.environ.get("MAX_ASYNC_TASKS", "10"))
 logger = getLogger(__name__)
@@ -54,12 +54,10 @@ class DataService:
                 return client
         raise ValueError(f"Client not found: {name}")
 
-    async def _get_batch_items_from_queue(
-            self, max_items: int = MAX_ASYNC_TASKS
-    ) -> list[RequestsIterable | Request]:
+    async def _get_batch_items_from_queue(self) -> list[RequestsIterable | Request]:
         """Get a batch of items from the queue."""
         items: list[RequestsIterable | Request] = []
-        while not self.__work_queue.empty() and len(items) < max_items:
+        while not self.__work_queue.empty() and len(items) < self.max_async_tasks:
             item = await self.__work_queue.get()
             items.append(item)
         return items
@@ -68,33 +66,39 @@ class DataService:
         """Enqueue the initial requests to the work queue."""
         if isinstance(self._requests, AsyncGenerator):
             async for request in self._requests:
-                await self.__work_queue.put(request)
+                await self._add_to_work_queue(request)
         else:
             for request in self._requests:
-                await self.__work_queue.put(request)
+                await self._add_to_work_queue(request)
         if self.__work_queue.empty():
             raise ValueError("No requests to process.")
         self.__started = True
 
-    async def _handle_queue_item(self, request: Request | dict) -> None:
+    async def _add_to_work_queue(self, item: RequestsIterable | Request) -> None:
+        """Add an item to the work queue."""
+        await self.__work_queue.put(item)
+
+    async def _add_to_data_queue(self, item: dict) -> None:
+        """Add an item to the data queue."""
+        await self.__data_queue.put(item)
+
+    async def _handle_queue_item(self, item: RequestOrData) -> None:
         """Handle a single item from the queue and run callback over the response."""
-        if isinstance(request, Request):
-            return await self._handle_request_item(request)
-        elif isinstance(request, dict):
-            return await self.__data_queue.put(request)
+        if isinstance(item, Request):
+            return await self._handle_request_item(item)
+        elif isinstance(item, dict):
+            return await self._add_to_data_queue(item)
         else:
-            raise ValueError(f"Unknown item type {type(request)}")
+            raise ValueError(f"Unknown item type {type(item)}")
 
     async def _handle_request_item(self, request: Request) -> None:
         """Handle a single Request and run callback over the response."""
         response = await self._handle_request(request)
         callback_result = request.callback(response)
         if isinstance(callback_result, dict):
-            return await self.__data_queue.put(callback_result)
-        if isinstance(callback_result, Request):
-            return await self.__work_queue.put(callback_result)
-        elif isinstance(callback_result, (Iterable, Generator, AsyncGenerator)):
-            return await self.__work_queue.put(callback_result)
+            return await self._add_to_data_queue(callback_result)
+        else:  # callback_result is a Request or a Generator or AsyncGenerator
+            return await self._add_to_work_queue(callback_result)
 
     @retry
     async def _handle_request(self, request: Request) -> Response:
@@ -102,25 +106,21 @@ class DataService:
         client = self._get_client_by_name(request.client)
         return await client.make_request(request)
 
-
     async def _iter_callbacks(
-        self, item: RequestsIterable | Request
+        self, item: Generator | AsyncGenerator | RequestOrData
     ) -> AsyncGenerator[asyncio.Task, None]:
         """
         Iterates over the items yielded by the callback functions and handles them accordingly.
+        Returns an async iterator of asyncio Tasks.
         """
-        print(type(item))
         if isinstance(item, Generator):
             for i in item:
                 yield asyncio.create_task(self._handle_queue_item(i))
         elif isinstance(item, AsyncGenerator):
             async for i in item:
                 yield asyncio.create_task(self._handle_queue_item(i))
-        elif isinstance(item, Request):
+        elif isinstance(item, (Request, dict)):
             yield asyncio.create_task(self._handle_queue_item(item))
-        elif isinstance(item, dict):
-            yield await self.__data_queue.put(item)
-
         else:
             raise ValueError(f"Unknown item type {type(item)}")
 
@@ -136,9 +136,9 @@ class DataService:
             async with asyncio.Semaphore(self.max_async_tasks):
                 items = await self._get_batch_items_from_queue()
                 tasks = [
-                    callback_item
+                    task
                     for item in items
-                    async for callback_item in self._iter_callbacks(item)
+                    async for task in self._iter_callbacks(item)
                 ]
                 await asyncio.gather(*tasks)
 
