@@ -1,4 +1,15 @@
-from typing import Annotated, Callable, Iterator, Literal, Optional, TypeVar, Union
+from typing import (
+    Annotated,
+    Callable,
+    Iterator,
+    Literal,
+    Optional,
+    TypeVar,
+    Union,
+    Iterable,
+    Generator,
+    AsyncGenerator,
+)
 
 from bs4 import BeautifulSoup
 from pydantic import AfterValidator, BaseModel, HttpUrl, model_validator
@@ -8,6 +19,12 @@ RequestOrData = Union["Request", DataItemGeneric]
 CallbackReturn = Iterator[RequestOrData] | RequestOrData
 CallbackType = Callable[["Response"], CallbackReturn]
 StrOrDict = str | dict
+
+RequestsIterable = (
+    Iterable["Request"]
+    | Generator["Request", None, None]
+    | AsyncGenerator["Request", None]
+)
 
 
 class Request(BaseModel):

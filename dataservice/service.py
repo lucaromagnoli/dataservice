@@ -1,19 +1,15 @@
 import asyncio
 import os
 from logging import getLogger
-from typing import AsyncGenerator, Generator, Iterable, Optional
+from typing import AsyncGenerator, Generator
 
 from tenacity import retry
 
 from dataservice.client import Client
-from dataservice.models import Request, Response, RequestOrData
+from dataservice.models import Request, Response, RequestOrData, RequestsIterable
 
 MAX_ASYNC_TASKS = int(os.environ.get("MAX_ASYNC_TASKS", "10"))
 logger = getLogger(__name__)
-
-RequestsIterable = (
-    Iterable[Request] | Generator[Request, None, None] | AsyncGenerator[Request, None]
-)
 
 
 class DataService:
@@ -47,8 +43,10 @@ class DataService:
         """Return the primary client."""
         return self.clients[0]
 
-    def _get_client_by_name(self, name: str) -> Client:
+    def _get_client_by_name(self, name: str | None) -> Client:
         """Return the client by name."""
+        if name is None:
+            return self.client
         for client in self.clients:
             if client.get_name() == name:
                 return client
@@ -136,9 +134,6 @@ class DataService:
             async with asyncio.Semaphore(self.max_async_tasks):
                 items = await self._get_batch_items_from_queue()
                 tasks = [
-                    task
-                    for item in items
-                    async for task in self._iter_callbacks(item)
+                    task for item in items async for task in self._iter_callbacks(item)
                 ]
                 await asyncio.gather(*tasks)
-
