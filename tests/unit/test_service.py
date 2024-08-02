@@ -40,12 +40,39 @@ async def test_handles_empty_queue(data_service, mock_client):
             pass
 
 
-# @pytest.mark.asyncio
-# async def test_handles_invalid_item_type(data_service, mock_client):
-#     data_service = DataService(requests=[1,2,3], clients=(mock_client,))
-#     with pytest.raises(ValueError, match="Unknown item type"):
-#         async for _ in data_service:
-#             pass
+import pytest
+
+
+@pytest.mark.asyncio
+async def handles_request_item_puts_dict_in_data_queue(mocker):
+    request = mocker.MagicMock()
+    request.callback = mocker.MagicMock(return_value={"key": "value"})
+    data_service = DataService([], [])
+    data_service._handle_request = mocker.AsyncMock(return_value="response")
+    await data_service._handle_queue_item(request)
+    assert not data_service.__data_queue.empty()
+    assert await data_service.__data_queue.get() == {"key": "value"}
+
+
+@pytest.mark.asyncio
+async def handles_request_item_puts_request_in_work_queue(mocker):
+    request = mocker.MagicMock()
+    request.callback = mocker.MagicMock(return_value=request)
+    data_service = DataService([], [])
+    data_service._handle_request = mocker.AsyncMock(return_value="response")
+    await data_service._handle_queue_item(request)
+    assert not data_service.__work_queue.empty()
+    assert await data_service.__work_queue.get() == request
+
+
+@pytest.mark.asyncio
+async def handles_request_item_raises_value_error_for_unknown_type(mocker):
+    request = mocker.MagicMock()
+    request.callback = mocker.MagicMock(return_value=123)
+    data_service = DataService([], [])
+    data_service._handle_request = mocker.AsyncMock(return_value="response")
+    with pytest.raises(ValueError, match="Unknown item type <class 'int'>"):
+        await data_service._handle_queue_item(request)
 
 
 @pytest.mark.asyncio

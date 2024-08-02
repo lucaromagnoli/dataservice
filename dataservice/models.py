@@ -24,7 +24,7 @@ class Request(BaseModel):
     params: Optional[dict] = None
     form_data: Optional[dict] = None
     json_data: Optional[dict] = None
-    client: Optional[str] = "HttpXClient"
+    client: str = "HttpXClient"
 
     @model_validator(mode="after")
     def validate(self):
