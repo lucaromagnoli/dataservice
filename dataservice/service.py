@@ -77,18 +77,24 @@ class DataService:
         self.__started = True
 
     async def _handle_queue_item(self, request: Request | dict) -> None:
-        """Handle a single Request item from the queue and run callback over the response."""
+        """Handle a single item from the queue and run callback over the response."""
         if isinstance(request, Request):
-            response = await self._handle_request(request)
-            parsed = request.callback(response)
-            if isinstance(parsed, dict):
-                await self.__data_queue.put(parsed)
-            elif isinstance(parsed, (Request, Iterable, Generator, AsyncGenerator)):
-                await self.__work_queue.put(parsed)
+            return await self._handle_request_item(request)
         elif isinstance(request, dict):
-            await self.__data_queue.put(request)
+            return await self.__data_queue.put(request)
         else:
             raise ValueError(f"Unknown item type {type(request)}")
+
+    async def _handle_request_item(self, request: Request) -> None:
+        """Handle a single Request and run callback over the response."""
+        response = await self._handle_request(request)
+        callback_result = request.callback(response)
+        if isinstance(callback_result, dict):
+            return await self.__data_queue.put(callback_result)
+        if isinstance(callback_result, Request):
+            return await self.__work_queue.put(callback_result)
+        elif isinstance(callback_result, (Iterable, Generator, AsyncGenerator)):
+            return await self.__work_queue.put(callback_result)
 
     @retry
     async def _handle_request(self, request: Request) -> Response:
