@@ -6,7 +6,7 @@ from typing import AsyncGenerator, Generator
 from tenacity import retry
 
 from dataservice.client import Client
-from dataservice.models import Request, RequestOrData, RequestsIterable
+from dataservice.models import Request, RequestOrData, RequestsIterable, Response
 
 MAX_ASYNC_TASKS = int(os.environ.get("MAX_ASYNC_TASKS", "10"))
 logger = getLogger(__name__)
@@ -92,13 +92,16 @@ class DataService:
 
     async def _handle_request_item(self, request: Request) -> None:
         """Handle a single Request and run callback over the response."""
-        client = self._get_client_by_name(request.client)
-        response = await client.make_request(request)
+        response = await self._handle_request(request)
         callback_result = request.callback(response)
         if isinstance(callback_result, dict):
             return await self._add_to_data_queue(callback_result)
         else:  # callback_result is a Request or a Generator or AsyncGenerator
             return await self._add_to_work_queue(callback_result)
+
+    async def _handle_request(self, request) -> Response:
+        client = self._get_client_by_name(request.client)
+        return await client.make_request(request)
 
     async def _iter_callbacks(
         self, item: Generator | AsyncGenerator | RequestOrData

@@ -1,7 +1,7 @@
 from urllib.parse import urljoin
 
 import pytest
-from httpx_client import HttpXClient
+from clients import HttpXClient
 
 from dataservice.models import Request, Response
 from dataservice.service import DataService

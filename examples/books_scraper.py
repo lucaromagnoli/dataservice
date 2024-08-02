@@ -5,7 +5,7 @@ import logging
 from functools import partial
 from urllib.parse import urljoin
 
-from httpx_client import HttpXClient
+from clients import HttpXClient
 from logging_config import setup_logging
 
 from dataservice.models import Request, Response
@@ -50,9 +50,10 @@ async def main(args):
         ]
     )
     data_service = DataService(start_requests, clients=(client,))
-    data = [item async for item in data_service]
-    for item in data:
-        logger.info(f"Book details: {item}")
+    # with Pipeline(data_service) as data_pipeline:
+    #     pipeline.add(do_x)
+    #     data = pipeline.run(data)
+    logger.info(f"Scraped {len(data)} books.")
 
 
 if __name__ == "__main__":
