@@ -1,4 +1,5 @@
 """Simple example of scraping books from a website with pagination argument."""
+
 import argparse
 import json
 import logging

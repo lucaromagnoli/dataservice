@@ -2,6 +2,7 @@
 DataService: Manages the overall data processing service, including initialization, iteration, and running the data worker.
 DataWorker: Handles the actual data processing tasks, including managing queues, handling requests, and processing data items.
 """
+
 from __future__ import annotations
 import asyncio
 import os
@@ -10,7 +11,6 @@ from typing import Any, Optional
 
 from dataservice.models import RequestsIterable
 from dataservice.worker import DataWorker
-from dataservice.pipeline import Pipeline
 
 MAX_WORKERS = int(os.environ.get("MAX_WORKERS", "10"))
 logger = getLogger(__name__)

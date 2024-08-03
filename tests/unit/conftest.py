@@ -1,8 +1,6 @@
-import asyncio
-
 import pytest
 
-from dataservice import DataService, Request
+from dataservice import Request
 from tests.unit.clients import ToyClient
 
 
