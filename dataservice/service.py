@@ -2,13 +2,13 @@
 DataService: Manages the overall data processing service, including initialization, iteration, and running the data worker.
 DataWorker: Handles the actual data processing tasks, including managing queues, handling requests, and processing data items.
 """
-
+from __future__ import annotations
 import asyncio
 import os
 from logging import getLogger
-from typing import AsyncGenerator, Generator
+from typing import Any, AsyncGenerator, Generator, Optional
 
-from dataservice.models import Request, RequestOrData, RequestsIterable, Response
+from dataservice.models import Request, RequestsIterable, Response
 
 MAX_ASYNC_TASKS = int(os.environ.get("MAX_ASYNC_TASKS", "10"))
 logger = getLogger(__name__)
@@ -21,34 +21,30 @@ class DataService:
     A service class to handle data requests and processing.
     """
 
-    def __init__(self, requests: RequestsIterable, config: dict = None):
+    def __init__(
+        self, requests: RequestsIterable, config: Optional[dict[str, Any]] = None
+    ):
         """
         Initializes the DataService with the given parameters.
         """
-
+        default_config = {
+            "max_async_tasks": MAX_ASYNC_TASKS,
+            "deduplication": True,
+            "deduplication_keys": ("url",),
+        }
         self._requests = requests
-        self._config = config
-        self._data_worker = None
+        self._config = {**default_config, **(config or {})}
+        self._data_worker: Optional[DataWorker] = None
 
     @property
-    def config(self):
+    def config(self) -> dict[str, Any]:
         """
         Returns the configuration dictionary.
         """
-        if self._config is None:
-            self._config = {
-                "max_async_tasks": MAX_ASYNC_TASKS,
-                "deduplication": True,
-                "deduplication_keys": ("url",),
-            }
-        else:
-            self._config.setdefault("max_async_tasks", MAX_ASYNC_TASKS)
-            self._config.setdefault("deduplication", True)
-            self._config.setdefault("deduplication_keys", ("url",))
         return self._config
 
     @property
-    def data_worker(self):
+    def data_worker(self) -> DataWorker:
         """
         Lazy initialization of the DataWorker instance.
         """
@@ -56,13 +52,13 @@ class DataService:
             self._data_worker = DataWorker(self._requests, self.config)
         return self._data_worker
 
-    def __iter__(self):
+    def __iter__(self) -> DataService:
         """
         Returns the iterator object itself.
         """
         return self
 
-    def __next__(self):
+    def __next__(self) -> Any:
         """
         Fetches the next data item from the data worker.
         """
@@ -71,7 +67,7 @@ class DataService:
             raise StopIteration
         return self.data_worker.get_data_item()
 
-    def _run_data_worker(self):
+    def _run_data_worker(self) -> None:
         """
         Runs the data worker to fetch data items.
         """
@@ -83,21 +79,21 @@ class DataWorker:
     A worker class to handle asynchronous data processing.
     """
 
-    def __init__(self, requests: RequestsIterable, config: dict):
+    def __init__(self, requests: RequestsIterable, config: Dict[str, Any]):
         """
         Initializes the DataWorker with the given parameters.
         """
-        self.max_async_tasks = config["max_async_tasks"]
-        self._deduplication = config["deduplication"]
-        self._deduplication_keys = config["deduplication_keys"]
-        self._requests = requests
-        self._work_queue = asyncio.Queue()
-        self._data_queue = asyncio.Queue()
-        self._seen_requests = set()
-        self._started = False
-        self._clients = {}
+        self.max_async_tasks: int = config["max_async_tasks"]
+        self._deduplication: bool = config["deduplication"]
+        self._deduplication_keys: tuple = config["deduplication_keys"]
+        self._requests: RequestsIterable = requests
+        self._work_queue: asyncio.Queue = asyncio.Queue()
+        self._data_queue: asyncio.Queue = asyncio.Queue()
+        self._seen_requests: set = set()
+        self._started: bool = False
+        self._clients: dict[Any, Any] = {}
 
-    async def _get_batch_items_from_queue(self):
+    async def _get_batch_items_from_queue(self) -> list:
         """
         Retrieves a batch of items from the work queue.
         """
@@ -106,19 +102,19 @@ class DataWorker:
             items.append(await self._work_queue.get())
         return items
 
-    async def _add_to_work_queue(self, item):
+    async def _add_to_work_queue(self, item: Any) -> None:
         """
         Adds an item to the work queue.
         """
         await self._work_queue.put(item)
 
-    async def _add_to_data_queue(self, item):
+    async def _add_to_data_queue(self, item: Any) -> None:
         """
         Adds an item to the data queue.
         """
         await self._data_queue.put(item)
 
-    async def _enqueue_start_requests(self):
+    async def _enqueue_start_requests(self) -> None:
         """
         Enqueues the initial set of requests to the work queue.
         """
@@ -132,7 +128,7 @@ class DataWorker:
             raise ValueError("No requests to process.")
         self._started = True
 
-    async def _handle_queue_item(self, item):
+    async def _handle_queue_item(self, item: Any) -> None:
         """
         Handles an item from the work queue.
         """
@@ -143,7 +139,7 @@ class DataWorker:
         else:
             raise ValueError(f"Unknown item type {type(item)}")
 
-    def _is_duplicate_request(self, request):
+    def _is_duplicate_request(self, request: Request) -> bool:
         """
         Checks if a request is a duplicate.
         """
@@ -153,7 +149,7 @@ class DataWorker:
         self._seen_requests.add(key)
         return False
 
-    async def _handle_request_item(self, request):
+    async def _handle_request_item(self, request: Request) -> None:
         """
         Handles a request item.
         """
@@ -166,7 +162,7 @@ class DataWorker:
         else:
             await self._add_to_work_queue(callback_result)
 
-    async def _handle_request(self, request):
+    async def _handle_request(self, request: Request) -> Response:
         """
         Makes an asynchronous request.
         """
@@ -176,7 +172,7 @@ class DataWorker:
         client = self._clients[request.client]
         return await client.make_request(request)
 
-    async def _iter_callbacks(self, item):
+    async def _iter_callbacks(self, item: Any) -> AsyncGenerator:
         """
         Iterates over callbacks and creates tasks for them.
         """
@@ -191,7 +187,7 @@ class DataWorker:
         else:
             raise ValueError(f"Unknown item type {type(item)}")
 
-    async def fetch(self):
+    async def fetch(self) -> None:
         """
         Fetches data items by processing the work queue.
         """
@@ -206,19 +202,19 @@ class DataWorker:
                 ]
                 await asyncio.gather(*tasks)
 
-    def get_data_item(self):
+    def get_data_item(self) -> Any:
         """
         Retrieves a data item from the data queue.
         """
         return self._data_queue.get_nowait()
 
-    def has_no_more_data(self):
+    def has_no_more_data(self) -> bool:
         """
         Checks if there are no more data items in the data queue.
         """
         return self._data_queue.empty()
 
-    def has_jobs(self):
+    def has_jobs(self) -> bool:
         """
         Checks if there are jobs in the work queue.
         """

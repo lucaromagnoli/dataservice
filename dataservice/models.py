@@ -1,6 +1,9 @@
 from __future__ import annotations
+
 from typing import (
+    TYPE_CHECKING,
     Annotated,
+    Any,
     AsyncGenerator,
     Callable,
     Generator,
@@ -10,8 +13,6 @@ from typing import (
     Optional,
     TypeVar,
     Union,
-    TYPE_CHECKING,
-    Any,
 )
 
 from bs4 import BeautifulSoup
@@ -19,10 +20,9 @@ from pydantic import (
     AfterValidator,
     BaseModel,
     HttpUrl,
-    model_validator,
     model_serializer,
+    model_validator,
 )
-
 
 DataItemGeneric = TypeVar("DataItemGeneric")
 RequestOrData = Union["Request", DataItemGeneric]

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from logging import getLogger
+
 import httpx
 
 from dataservice.models import Request, Response
 
 logger = getLogger(__name__)
+
 
 class HttpXClient:
     """Client that uses HTTPX library to make requests."""

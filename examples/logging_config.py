@@ -23,7 +23,6 @@ def setup_logging():
                 "level": "DEBUG",
                 "propagate": False,
             },
-
             "books_scraper": {
                 "handlers": ["stdout"],
                 "level": "INFO",
