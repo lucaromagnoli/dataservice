@@ -2,13 +2,14 @@
 import argparse
 import json
 import logging
+from datetime import datetime
 from functools import partial
 from pprint import pprint
 from urllib.parse import urljoin
 
 from logging_config import setup_logging
 
-from dataservice import DataService, HttpXClient, Request, Response
+from dataservice import DataService, HttpXClient, Request, Response, Pipeline
 
 logger = logging.getLogger("books_scraper")
 setup_logging()
@@ -16,7 +17,11 @@ setup_logging()
 
 def parse_books(response: Response, pagination: bool = True):
     articles = response.soup.find_all("article", {"class": "product_pod"})
-    yield {"url": response.request.url, "title": response.soup.title.text}
+    yield {
+        "url": response.request.url,
+        "title": response.soup.title.text,
+        "articles": len(articles),
+    }
     for article in articles:
         href = article.h3.a["href"]
         url = urljoin(response.request.url, href)
@@ -45,6 +50,12 @@ def process_currency(results: list[dict]):
     return results
 
 
+def add_time_stamp(results: list[dict]):
+    for result in results:
+        result["timestamp"] = datetime.now().isoformat()
+    return results
+
+
 def write_to_file(results: list[dict], group_name: str):
     with open(f"books_{group_name}.json", "w") as f:
         json.dump(results, f, indent=4)
@@ -62,7 +73,16 @@ def main(args):
         ]
     )
     data_service = DataService(start_requests)
-    data = tuple(data_service)
+    pipeline = (
+        Pipeline()
+        .add_step(add_time_stamp)
+        .add_final_step(
+            [
+                partial(write_to_file, group_name="books1"),
+            ]
+        )
+    )
+    data = pipeline._run(data_service)
     pprint(data)
     print(len(data))
     # pipeline = Pipeline(data_service)

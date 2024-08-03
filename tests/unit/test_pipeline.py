@@ -1,8 +1,7 @@
-import functools
 import json
-import os
+from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
-from unittest.mock import call
 
 import pytest
 
@@ -10,8 +9,8 @@ from dataservice.pipeline import Pipeline
 
 
 @pytest.fixture
-def pipeline():
-    return Pipeline()
+def pipeline(request):
+    return Pipeline(request.param)
 
 
 @pytest.fixture
@@ -34,80 +33,85 @@ def write_to_file(results: list[dict], file_name):
 
 
 @pytest.mark.parametrize(
-    "results",
+    "pipeline",
     [
         [{"key": 1}, {"key": 2}, {"key": 3}],
         ({"key": 1}, {"key": 2}, {"key": 3}),
         iter([{"key": 1}, {"key": 2}, {"key": 3}]),
     ],
+    indirect=True,
 )
-def test_pipeline_add_step(pipeline, results):
+def test_pipeline_add_step(pipeline):
     pipeline.add_step(double_key)
-    results = pipeline.run(results)
+    results = pipeline.run()
     assert results == ({"key": 2}, {"key": 4}, {"key": 6})
 
 
 @pytest.mark.parametrize(
-    "results",
+    "pipeline",
     [
         [{"key": 1}, {"key": 2}, {"key": 3}],
         ({"key": 1}, {"key": 2}, {"key": 3}),
         iter([{"key": 1}, {"key": 2}, {"key": 3}]),
     ],
+    indirect=True,
 )
-def test_pipeline_add_multiple_steps(pipeline, results):
+def test_pipeline_add_multiple_steps(pipeline):
     results = (
         pipeline.add_step(double_key)
         .add_step(double_key)
         .add_step(double_key)
-        .run(results)
+        .run()
     )
     assert results == ({"key": 8}, {"key": 16}, {"key": 24})
 
 
 @pytest.mark.parametrize(
-    "results",
+    "pipeline",
     [
         [{"key": 1}, {"key": 2}, {"key": 3}],
         ({"key": 1}, {"key": 2}, {"key": 3}),
         iter([{"key": 1}, {"key": 2}, {"key": 3}]),
     ],
+    indirect=True,
 )
-def test_pipeline_add_final_step_no_previous_node(pipeline, results):
+def test_pipeline_add_final_step_no_previous_node(pipeline):
     """Test adding a final step to the pipeline. Input results are not modified by the last step."""
-    results = pipeline.add_final_step([double_key]).run(results)
+    results = pipeline.add_final_step([double_key]).run()
     assert results == ({"key": 1}, {"key": 2}, {"key": 3})
 
 
 @pytest.mark.parametrize(
-    "results",
+    "pipeline",
     [
         [{"key": 1}, {"key": 2}, {"key": 3}],
         ({"key": 1}, {"key": 2}, {"key": 3}),
         iter([{"key": 1}, {"key": 2}, {"key": 3}]),
     ],
+    indirect=True,
 )
-def test_pipeline_add_final_step_with_previous_nodes(pipeline, results):
+def test_pipeline_add_final_step_with_previous_nodes(pipeline):
     """Test adding a final step to the pipeline. Input results are not modified by the last step."""
     results = (
         pipeline.add_step(double_key)
         .add_step(double_key)
         .add_step(double_key)
         .add_final_step([double_key])
-        .run(results)
+        .run()
     )
     assert results == ({"key": 8}, {"key": 16}, {"key": 24})
 
 
 @pytest.mark.parametrize(
-    "results",
+    "pipeline",
     [
         [{"key": 1}, {"key": 2}, {"key": 3}],
         ({"key": 1}, {"key": 2}, {"key": 3}),
         iter([{"key": 1}, {"key": 2}, {"key": 3}]),
     ],
+    indirect=True,
 )
-def test_pipeline_add_final_step_raises_error(pipeline, results):
+def test_pipeline_add_final_step_raises_error(pipeline):
     """Test adding a final step to the pipeline raises an error if a final step has already been added."""
 
     with pytest.raises(ValueError):
@@ -117,14 +121,15 @@ def test_pipeline_add_final_step_raises_error(pipeline, results):
 
 
 @pytest.mark.parametrize(
-    "results",
+    "pipeline",
     [
         [{"key": 1}, {"key": 2}, {"key": 3}],
         ({"key": 1}, {"key": 2}, {"key": 3}),
         iter([{"key": 1}, {"key": 2}, {"key": 3}]),
     ],
+    indirect=True,
 )
-def test_pipeline_run_threaded(pipeline, mocker, results):
+def test_pipeline_run_threaded(pipeline, mocker):
     """Test running the pipeline with a threaded executor."""
 
     def return_value():
@@ -134,24 +139,131 @@ def test_pipeline_run_threaded(pipeline, mocker, results):
     mocked_thread_pool = mocker.patch(
         "dataservice.pipeline.ThreadPoolExecutor.submit", return_value=return_value
     )
-    results = pipeline.add_step(double_key).run(results)
+    results = pipeline.add_step(double_key).run()
     assert results == ({"key": 2}, {"key": 4}, {"key": 6})
     mocked_thread_pool.assert_called_once()
 
 
 @pytest.mark.parametrize(
-    "results",
+    "pipeline",
     [
         [{"key": 1}, {"key": 2}, {"key": 3}],
         ({"key": 1}, {"key": 2}, {"key": 3}),
         iter([{"key": 1}, {"key": 2}, {"key": 3}]),
     ],
+    indirect=True,
 )
-def test_pipeline_leaves_runs_in_processpool(pipeline, mocker, results):
+def test_pipeline_leaves_runs_in_processpool(pipeline, mocker):
     """Test running the pipeline with a threaded executor."""
 
     mocked_process_pool = mocker.patch(
         "dataservice.pipeline.ProcessPoolExecutor.submit",
     )
-    pipeline.add_final_step([double_key, double_key]).run(results)
+    pipeline.add_final_step([double_key, double_key]).run()
     assert len(mocked_process_pool.call_args_list) == 2
+
+
+@dataclass
+class FooResult:
+    foo: str
+
+
+@dataclass
+class BarResult:
+    bar: str
+
+
+@pytest.mark.parametrize(
+    "results, key_func, expected",
+    [
+        pytest.param(
+            [{"key": i} for i in range(1, 11)],
+            lambda x: "odd_" if x["key"] % 2 else "even",
+            defaultdict(
+                int,
+                {
+                    "even": [
+                        {"key": 2},
+                        {"key": 4},
+                        {"key": 6},
+                        {"key": 8},
+                        {"key": 10},
+                    ],
+                    "odd_": [
+                        {"key": 1},
+                        {"key": 3},
+                        {"key": 5},
+                        {"key": 7},
+                        {"key": 9},
+                    ],
+                },
+            ),
+            id="list",
+        ),
+        pytest.param(
+            [
+                *[FooResult(foo=str(i)) for i in range(1, 11)],
+                *[BarResult(bar=str(i)) for i in range(1, 11)],
+            ],
+            lambda x: f"{x.__class__.__name__}s",
+            defaultdict(
+                int,
+                {
+                    "FooResults": [FooResult(foo=str(i)) for i in range(1, 11)],
+                    "BarResults": [BarResult(bar=str(i)) for i in range(1, 11)],
+                },
+            ),
+            id="list",
+        ),
+    ],
+)
+def test__group_by(results, key_func, expected):
+    pipeline = Pipeline(results)
+    groups = pipeline._group_by(results, key_func)
+    assert groups == expected
+
+
+@pytest.mark.parametrize(
+    "results, key_func, expected",
+    [
+        pytest.param(
+            [{"key": i} for i in range(1, 11)],
+            lambda x: "odd_" if x["key"] % 2 else "even",
+            {
+                "even": (
+                    {"key": 2},
+                    {"key": 4},
+                    {"key": 6},
+                    {"key": 8},
+                    {"key": 10},
+                ),
+                "odd_": (
+                    {"key": 1},
+                    {"key": 3},
+                    {"key": 5},
+                    {"key": 7},
+                    {"key": 9},
+                ),
+            },
+            id="list",
+        ),
+        pytest.param(
+            [
+                *[FooResult(foo=str(i)) for i in range(1, 11)],
+                *[BarResult(bar=str(i)) for i in range(1, 11)],
+            ],
+            lambda x: f"{x.__class__.__name__}s",
+            {
+                "FooResults": tuple(FooResult(foo=str(i)) for i in range(1, 11)),
+                "BarResults": tuple(BarResult(bar=str(i)) for i in range(1, 11)),
+            },
+            id="list",
+        ),
+    ],
+)
+def test_group_by(results, key_func, expected):
+    pipeline = Pipeline(results)
+    groups = {}
+    for group_name, group in pipeline.group_by(key_func):
+        groups[group_name] = group.run()
+    assert groups == expected
