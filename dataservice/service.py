@@ -1,3 +1,8 @@
+"""
+DataService: Manages the overall data processing service, including initialization, iteration, and running the data worker.
+DataWorker: Handles the actual data processing tasks, including managing queues, handling requests, and processing data items.
+"""
+
 import asyncio
 import os
 from logging import getLogger

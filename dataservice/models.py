@@ -23,12 +23,12 @@ from pydantic import (
     model_serializer,
 )
 
-from dataservice.abclient import ABClient
 
 DataItemGeneric = TypeVar("DataItemGeneric")
 RequestOrData = Union["Request", DataItemGeneric]
 CallbackReturn = Iterator[RequestOrData] | RequestOrData
 CallbackType = Callable[["Response"], CallbackReturn]
+ClientCallable = Callable[["Request"], "Response"]
 StrOrDict = str | dict
 
 RequestsIterable = (
@@ -52,7 +52,7 @@ class Request(BaseModel):
     params: Optional[dict] = None
     form_data: Optional[dict] = None
     json_data: Optional[dict] = None
-    client: type(ABClient)
+    client: ClientCallable
 
     @model_validator(mode="after")
     def validate(self):
