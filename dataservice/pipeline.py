@@ -1,8 +1,17 @@
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from typing import AsyncIterator, Callable, Iterable, Iterator, NewType, TypeVar, Generic
+from typing import (
+    AsyncIterator,
+    Callable,
+    Iterable,
+    Iterator,
+    NewType,
+    TypeVar,
+    Generic,
+)
 
-T = TypeVar('T')
+T = TypeVar("T")
+
 
 class Pipeline:
     def __init__(self):
@@ -55,7 +64,9 @@ class Pipeline:
         self._nodes[key].append(func)
         return self
 
-    def add_final_step(self, funcs: Iterable[Callable[[tuple[Generic[T], ...], ...], None]]):
+    def add_final_step(
+        self, funcs: Iterable[Callable[[tuple[Generic[T], ...], ...], None]]
+    ):
         """Add multiple nodes to the pipeline. This is the final step in the pipeline
         and can only be called once. Any other calls to this method will raise a ValueError.
         """
@@ -63,6 +74,7 @@ class Pipeline:
         if key in self._nodes:
             raise ValueError("Leaf nodes already added.")
         self._nodes[key].extend(funcs)
+        return self
 
     def group_by(self, results, key: Callable[[tuple[Generic[T], ...], ...], dict]):
         """Group the results by the key."""

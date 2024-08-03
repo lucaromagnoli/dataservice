@@ -11,8 +11,6 @@ def toy_client():
     return ToyClient(random_sleep=0)
 
 
-
-
 @pytest.fixture
 def mock_request():
     return Request(

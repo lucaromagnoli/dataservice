@@ -6,6 +6,7 @@ from dataservice.models import Request, Response
 
 logger = logging.getLogger(__name__)
 
+
 class ToyClient:
     def __init__(self, random_sleep: int = 0):
         self.random_sleep = random_sleep
@@ -23,4 +24,3 @@ class ToyClient:
         )
         data = f"<html><head></head><body>This is content for URL: {request.url}</body></html>"
         return Response(request=request, data=data)
-

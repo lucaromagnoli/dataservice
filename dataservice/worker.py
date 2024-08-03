@@ -7,10 +7,13 @@ from typing import Any, AsyncGenerator, Generator
 from dataservice.models import Request, Response, RequestsIterable
 
 logger = logging.getLogger(__name__)
+
+
 class DataWorker:
     """
     A worker class to handle asynchronous data processing.
     """
+
     _clients: dict[Any, Any] = {}
 
     def __init__(self, requests: RequestsIterable, config: dict[str, Any]):
@@ -26,7 +29,9 @@ class DataWorker:
         self._seen_requests: set = set()
         self._started: bool = False
 
-    async def _get_batch_items_from_queue(self) -> list[RequestsIterable | Request | dict]:
+    async def _get_batch_items_from_queue(
+        self,
+    ) -> list[RequestsIterable | Request | dict]:
         """
         Retrieves a batch of items from the work queue.
         """
