@@ -21,21 +21,31 @@ class DataService:
     A service class to handle data requests and processing.
     """
 
-    def __init__(
-        self,
-        requests,
-        max_async_tasks=MAX_ASYNC_TASKS,
-        deduplication=True,
-        deduplication_keys=("url",),
-    ):
+    def __init__(self, requests: RequestsIterable, config: dict = None):
         """
         Initializes the DataService with the given parameters.
         """
+
         self._requests = requests
-        self._max_async_tasks = max_async_tasks
-        self._deduplication = deduplication
-        self._deduplication_keys = deduplication_keys
+        self._config = config
         self._data_worker = None
+
+    @property
+    def config(self):
+        """
+        Returns the configuration dictionary.
+        """
+        if self._config is None:
+            self._config = {
+                "max_async_tasks": MAX_ASYNC_TASKS,
+                "deduplication": True,
+                "deduplication_keys": ("url",),
+            }
+        else:
+            self._config.setdefault("max_async_tasks", MAX_ASYNC_TASKS)
+            self._config.setdefault("deduplication", True)
+            self._config.setdefault("deduplication_keys", ("url",))
+        return self._config
 
     @property
     def data_worker(self):
@@ -43,12 +53,7 @@ class DataService:
         Lazy initialization of the DataWorker instance.
         """
         if self._data_worker is None:
-            self._data_worker = DataWorker(
-                self._requests,
-                self._max_async_tasks,
-                self._deduplication,
-                self._deduplication_keys,
-            )
+            self._data_worker = DataWorker(self._requests, self.config)
         return self._data_worker
 
     def __iter__(self):
@@ -78,13 +83,13 @@ class DataWorker:
     A worker class to handle asynchronous data processing.
     """
 
-    def __init__(self, requests, max_async_tasks, deduplication, deduplication_keys):
+    def __init__(self, requests: RequestsIterable, config: dict):
         """
         Initializes the DataWorker with the given parameters.
         """
-        self.max_async_tasks = max_async_tasks
-        self._deduplication = deduplication
-        self._deduplication_keys = deduplication_keys
+        self.max_async_tasks = config["max_async_tasks"]
+        self._deduplication = config["deduplication"]
+        self._deduplication_keys = config["deduplication_keys"]
         self._requests = requests
         self._work_queue = asyncio.Queue()
         self._data_queue = asyncio.Queue()
