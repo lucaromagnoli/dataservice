@@ -1,8 +1,7 @@
 import json
+import os
 from collections import defaultdict
 from dataclasses import dataclass
-from pathlib import Path
-
 import pytest
 
 from dataservice.pipeline import Pipeline
@@ -14,9 +13,11 @@ def pipeline(request):
 
 
 @pytest.fixture
-def file_to_write():
-    name = Path.cwd() / "test_file.json"
+def file_to_write(shared_datadir):
+    name = shared_datadir / "test_file.json"
     yield name
+    if name.is_file():
+        os.remove(name)
 
 
 def double_key(iterable):
@@ -58,10 +59,7 @@ def test_pipeline_add_step(pipeline):
 )
 def test_pipeline_add_multiple_steps(pipeline):
     results = (
-        pipeline.add_step(double_key)
-        .add_step(double_key)
-        .add_step(double_key)
-        .run()
+        pipeline.add_step(double_key).add_step(double_key).add_step(double_key).run()
     )
     assert results == ({"key": 8}, {"key": 16}, {"key": 24})
 
@@ -267,3 +265,11 @@ def test_group_by(results, key_func, expected):
     for group_name, group in pipeline.group_by(key_func):
         groups[group_name] = group.run()
     assert groups == expected
+
+
+def test_write_to_file(file_to_write):
+    results = [{"key": 1}, {"key": 2}, {"key": 3}]
+    write_to_file(results, file_to_write)
+    assert file_to_write.is_file()
+    with open(file_to_write) as f:
+        assert json.load(f) == results
