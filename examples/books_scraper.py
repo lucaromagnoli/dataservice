@@ -8,7 +8,7 @@ from urllib.parse import urljoin
 
 from logging_config import setup_logging
 
-from dataservice import DataService, HttpXClient, Pipeline, Request, Response
+from dataservice import DataService, HttpXClient, Request, Response
 
 logger = logging.getLogger("books_scraper")
 setup_logging()
@@ -20,7 +20,6 @@ def parse_books(response: Response, pagination: bool = True):
     for article in articles:
         href = article.h3.a["href"]
         url = urljoin(response.request.url, href)
-        yield Request(url=url, callback=parse_book_details, client=HttpXClient())
         yield Request(url=url, callback=parse_book_details, client=HttpXClient())
     if pagination:
         yield from parse_pagination(response)

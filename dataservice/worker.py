@@ -4,8 +4,7 @@ import asyncio
 import logging
 from typing import Any, AsyncGenerator, Generator
 
-from dataservice import Request, Response
-from models import RequestsIterable
+from dataservice.models import Request, Response, RequestsIterable
 
 logger = logging.getLogger(__name__)
 class DataWorker:

@@ -39,7 +39,9 @@ def data_worker(request, toy_client, config):
                 client=ToyClient(),
             )
         ]
-    return DataWorker(requests=request.param["requests"], config=config)
+
+    request.param["config"] = {**config, **(request.param.get("config") or {})}
+    return DataWorker(requests=request.param["requests"], config=request.param["config"])
 
 
 @pytest.fixture
@@ -102,3 +104,28 @@ async def test_handles_queue_item_raises_value_error_for_unknown_type(
 ):
     with pytest.raises(ValueError, match="Unknown item type <class 'int'>"):
         await data_worker._handle_queue_item(1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "data_worker", [{"requests": [request_with_data_callback]}], indirect=True
+)
+async def test_is_duplicate_request_returns_false_for_new_request(data_worker):
+    request = Request(url="http://example.com", client=ToyClient(), callback=lambda x: x)
+    assert not data_worker._is_duplicate_request(request)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "config, expected",
+    [
+        ({"deduplication": True, "max_workers": 1, "deduplication_keys": ["url"]}, 1),
+        ({"deduplication": False, "max_workers": 1, "deduplication_keys": ["url"]}, 2)
+    ],
+)
+async def test_deduplication(config, expected, mocker):
+    mocked_handle_request = mocker.patch("worker.DataWorker._handle_request", return_value=[{"parsed": "data"}])
+    data_worker = DataWorker(requests=[request_with_data_callback, request_with_data_callback], config=config)
+    await data_worker.fetch()
+    assert mocked_handle_request.call_count == expected
+
