@@ -10,21 +10,8 @@ from dataservice.pipeline import Pipeline
 
 
 @pytest.fixture
-def parametrized_pipeline(request: pytest.FixtureRequest):
-    results = []
-    match request.param:
-        case "list":
-            results = [{"key": 1}, {"key": 2}, {"key": 3}]
-        case "tuple":
-            results = ({"key": 1}, {"key": 2}, {"key": 3})
-        case "generator":
-            results = ({"key": x} for x in range(1, 4))
-    return Pipeline(results)
-
-
-@pytest.fixture
-def simple_pipeline():
-    return Pipeline([{"key": 1}, {"key": 2}, {"key": 3}])
+def pipeline():
+    return Pipeline()
 
 
 @pytest.fixture
@@ -47,58 +34,97 @@ def write_to_file(results: list[dict], file_name):
 
 
 @pytest.mark.parametrize(
-    "parametrized_pipeline", ["list", "tuple", "generator"], indirect=True
+    "results",
+    [
+        [{"key": 1}, {"key": 2}, {"key": 3}],
+        ({"key": 1}, {"key": 2}, {"key": 3}),
+        iter([{"key": 1}, {"key": 2}, {"key": 3}]),
+
+    ]
 )
-def test_pipeline_add_step(parametrized_pipeline):
-    parametrized_pipeline.add_step(double_key)
-    results = parametrized_pipeline.run()
+def test_pipeline_add_step(pipeline, results):
+    pipeline.add_step(double_key)
+    results = pipeline.run(results)
     assert results == ({"key": 2}, {"key": 4}, {"key": 6})
 
 
 @pytest.mark.parametrize(
-    "parametrized_pipeline", ["list", "tuple", "generator"], indirect=True
+    "results",
+    [
+        [{"key": 1}, {"key": 2}, {"key": 3}],
+        ({"key": 1}, {"key": 2}, {"key": 3}),
+        iter([{"key": 1}, {"key": 2}, {"key": 3}]),
+
+    ]
 )
-def test_pipeline_add_multiple_steps(parametrized_pipeline):
-    parametrized_pipeline.add_step(double_key).add_step(double_key).add_step(double_key)
-    results = parametrized_pipeline.run()
+def test_pipeline_add_multiple_steps(pipeline, results):
+    pipeline.add_step(double_key).add_step(double_key).add_step(double_key)
+    results = pipeline.run(results)
     assert results == ({"key": 8}, {"key": 16}, {"key": 24})
 
 
 @pytest.mark.parametrize(
-    "parametrized_pipeline", ["list", "tuple", "generator"], indirect=True
+    "results",
+    [
+        [{"key": 1}, {"key": 2}, {"key": 3}],
+        ({"key": 1}, {"key": 2}, {"key": 3}),
+        iter([{"key": 1}, {"key": 2}, {"key": 3}]),
+
+    ]
 )
-def test_pipeline_add_final_step_no_previous_node(parametrized_pipeline):
+def test_pipeline_add_final_step_no_previous_node(pipeline, results):
     """Test adding a final step to the pipeline. Input results are not modified by the last step."""
-    parametrized_pipeline.add_final_step([double_key])
-    results = parametrized_pipeline.run()
+    pipeline.add_final_step([double_key])
+    results = pipeline.run(results)
     assert results == ({"key": 1}, {"key": 2}, {"key": 3})
 
 
 @pytest.mark.parametrize(
-    "parametrized_pipeline", ["list", "tuple", "generator"], indirect=True
+    "results",
+    [
+        [{"key": 1}, {"key": 2}, {"key": 3}],
+        ({"key": 1}, {"key": 2}, {"key": 3}),
+        iter([{"key": 1}, {"key": 2}, {"key": 3}]),
+
+    ]
 )
-def test_pipeline_add_final_step_with_previous_nodes(parametrized_pipeline):
+def test_pipeline_add_final_step_with_previous_nodes(pipeline, results):
     """Test adding a final step to the pipeline. Input results are not modified by the last step."""
-    parametrized_pipeline.add_step(double_key).add_step(double_key).add_step(
+    pipeline.add_step(double_key).add_step(double_key).add_step(
         double_key
     ).add_final_step([double_key])
-    results = parametrized_pipeline.run()
+    results = pipeline.run(results)
     assert results == ({"key": 8}, {"key": 16}, {"key": 24})
 
 
 @pytest.mark.parametrize(
-    "parametrized_pipeline", ["list", "tuple", "generator"], indirect=True
+    "results",
+    [
+        [{"key": 1}, {"key": 2}, {"key": 3}],
+        ({"key": 1}, {"key": 2}, {"key": 3}),
+        iter([{"key": 1}, {"key": 2}, {"key": 3}]),
+
+    ]
 )
-def test_pipeline_add_final_step_raises_error(parametrized_pipeline):
+def test_pipeline_add_final_step_raises_error(pipeline, results):
     """Test adding a final step to the pipeline raises an error if a final step has already been added."""
-    parametrized_pipeline.add_step(double_key).add_step(double_key).add_step(
+    pipeline.add_step(double_key).add_step(double_key).add_step(
         double_key
     ).add_final_step([double_key])
     with pytest.raises(ValueError):
-        parametrized_pipeline.add_final_step([double_key])
+        pipeline.add_final_step([double_key])
 
 
-def test_pipeline_run_threaded(simple_pipeline, mocker):
+@pytest.mark.parametrize(
+    "results",
+    [
+        [{"key": 1}, {"key": 2}, {"key": 3}],
+        ({"key": 1}, {"key": 2}, {"key": 3}),
+        iter([{"key": 1}, {"key": 2}, {"key": 3}]),
+
+    ]
+)
+def test_pipeline_run_threaded(pipeline, mocker, results):
     """Test running the pipeline with a threaded executor."""
 
     def return_value():
@@ -108,20 +134,29 @@ def test_pipeline_run_threaded(simple_pipeline, mocker):
     mocked_thread_pool = mocker.patch(
         "dataservice.pipeline.ThreadPoolExecutor.submit", return_value=return_value
     )
-    simple_pipeline.add_step(double_key)
-    results = simple_pipeline.run()
+    pipeline.add_step(double_key)
+    results = pipeline.run(results)
     assert results == ({"key": 2}, {"key": 4}, {"key": 6})
     mocked_thread_pool.assert_called_once()
 
 
-def test_pipeline_leaves_runs_in_processpool(simple_pipeline, mocker):
+@pytest.mark.parametrize(
+    "results",
+    [
+        [{"key": 1}, {"key": 2}, {"key": 3}],
+        ({"key": 1}, {"key": 2}, {"key": 3}),
+        iter([{"key": 1}, {"key": 2}, {"key": 3}]),
+
+    ]
+)
+def test_pipeline_leaves_runs_in_processpool(pipeline, mocker, results):
     """Test running the pipeline with a threaded executor."""
 
     mocked_process_pool = mocker.patch(
         "dataservice.pipeline.ProcessPoolExecutor.submit",
     )
-    simple_pipeline.add_final_step([double_key, double_key])
-    simple_pipeline.run()
+    pipeline.add_final_step([double_key, double_key])
+    pipeline.run(results)
     assert len(mocked_process_pool.call_args_list) == 2
 
 

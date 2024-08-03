@@ -10,6 +10,7 @@ from typing import Any, Optional
 
 from dataservice.models import RequestsIterable
 from dataservice.worker import DataWorker
+from dataservice.pipeline import Pipeline
 
 MAX_WORKERS = int(os.environ.get("MAX_WORKERS", "10"))
 logger = getLogger(__name__)
@@ -35,7 +36,7 @@ class DataService:
         }
         self._requests = requests
         self._config = {**default_config, **(config or {})}
-        self._data_worker: Optional[DataWorker] = None
+        self._data_worker: DataWorker | None = None
 
     @property
     def config(self) -> dict[str, Any]:

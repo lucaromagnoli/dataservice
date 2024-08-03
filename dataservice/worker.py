@@ -35,13 +35,13 @@ class DataWorker:
             items.append(await self._work_queue.get())
         return items
 
-    async def _add_to_work_queue(self, item: Any) -> None:
+    async def _add_to_work_queue(self, item: RequestsIterable | Request) -> None:
         """
         Adds an item to the work queue.
         """
         await self._work_queue.put(item)
 
-    async def _add_to_data_queue(self, item: Any) -> None:
+    async def _add_to_data_queue(self, item: dict) -> None:
         """
         Adds an item to the data queue.
         """
@@ -61,7 +61,7 @@ class DataWorker:
             raise ValueError("No requests to process.")
         self._started = True
 
-    async def _handle_queue_item(self, item: Any) -> None:
+    async def _handle_queue_item(self, item: Request | dict) -> None:
         """
         Handles an item from the work queue.
         """
@@ -107,7 +107,7 @@ class DataWorker:
         client = cls._clients[key]
         return await client(request)
 
-    async def _iter_callbacks(self, item: Any) -> AsyncGenerator:
+    async def _iter_callbacks(self, item: Any) -> AsyncGenerator[asyncio.Task, None]:
         """
         Iterates over callbacks and creates tasks for them.
         """
