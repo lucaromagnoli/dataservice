@@ -7,13 +7,13 @@ from tests.unit.clients import ToyClient
 request_with_data_callback = Request(
     url="http://example.com",
     callback=lambda x: {"parsed": "data"},
-    client=ToyClient(),
+    client=ToyClient,
 )
 
 request_with_iterator_callback = Request(
     url="http://example.com",
     callback=lambda x: iter(Request(url="http://example.com", client=ToyClient(), callback=lambda x: {"parsed": "data"})),
-    client=ToyClient(),
+    client=ToyClient,
 )
 
 
@@ -24,7 +24,7 @@ def data_worker(request, toy_client):
             Request(
                 url="http://example.com",
                 callback=lambda x: {"parsed": "data"},
-                client=ToyClient(),
+                client=ToyClient,
             )
         ]
     return DataWorker(

@@ -23,6 +23,11 @@ def setup_logging():
                 "level": "INFO",
                 "propagate": False,
             },
+            "dataservice": {
+                "handlers": ["stdout"],
+                "level": "INFO",
+                "propagate": False,
+            },
             "books_scraper": {
                 "handlers": ["stdout"],
                 "level": "INFO",

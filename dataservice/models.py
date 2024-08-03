@@ -1,6 +1,4 @@
 from __future__ import annotations
-from abc import ABC, abstractmethod
-from logging import getLogger
 from typing import (
     Annotated,
     AsyncGenerator,
@@ -12,11 +10,13 @@ from typing import (
     Optional,
     TypeVar,
     Union,
+    TYPE_CHECKING
 )
 
 from bs4 import BeautifulSoup
 from pydantic import AfterValidator, BaseModel, HttpUrl, model_validator
 
+from dataservice.abclient import ABClient
 
 DataItemGeneric = TypeVar("DataItemGeneric")
 RequestOrData = Union["Request", DataItemGeneric]
@@ -76,17 +76,3 @@ class Response(BaseModel):
         if self.__soup is None:
             self.__soup = self.__get_soup()
         return self.__soup
-
-
-class ABClient(ABC):
-    """Abstract base class for clients."""
-
-    def __init__(self):
-        self.logger = getLogger(__name__)
-
-    def get_name(self):
-        return self.__class__.__name__
-
-    @abstractmethod
-    async def make_request(self, request: Request) -> Response:
-        raise NotImplementedError

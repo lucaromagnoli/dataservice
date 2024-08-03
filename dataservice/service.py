@@ -5,7 +5,7 @@ from typing import AsyncGenerator, Generator
 
 from tenacity import retry
 
-from dataservice.models import Request, RequestOrData, RequestsIterable, Response, ABClient
+from dataservice.models import Request, RequestOrData, RequestsIterable, Response
 
 MAX_ASYNC_TASKS = int(os.environ.get("MAX_ASYNC_TASKS", "10"))
 logger = getLogger(__name__)
