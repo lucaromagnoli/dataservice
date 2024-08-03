@@ -79,7 +79,7 @@ class DataWorker:
     A worker class to handle asynchronous data processing.
     """
 
-    def __init__(self, requests: RequestsIterable, config: Dict[str, Any]):
+    def __init__(self, requests: RequestsIterable, config: dict[str, Any]):
         """
         Initializes the DataWorker with the given parameters.
         """
