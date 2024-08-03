@@ -1,6 +1,6 @@
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from typing import Callable, Iterable, NewType, Iterator, AsyncIterator
+from typing import AsyncIterator, Callable, Iterable, Iterator, NewType
 
 ResultsType = NewType("ResultsType", tuple)
 
@@ -34,12 +34,13 @@ class Pipeline:
 
     def _run_nodes(self, results: tuple):
         """Run the non-leaf nodes in the pipeline on a separate thread."""
+
         def inner():
             nonlocal results
             for k, v in self.nodes.items():
                 if k == -1:
                     continue
-                func, = self.nodes[k]
+                (func,) = self.nodes[k]
                 results = tuple(func(results))
             return results
 

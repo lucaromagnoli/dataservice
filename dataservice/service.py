@@ -11,9 +11,49 @@ from dataservice.models import Request, RequestOrData, RequestsIterable, Respons
 MAX_ASYNC_TASKS = int(os.environ.get("MAX_ASYNC_TASKS", "10"))
 logger = getLogger(__name__)
 
+__all__ = ["DataService"]
+
 
 class DataService:
-    """Data Service class that orchestrates the Request - Response data flow."""
+    def __init__(
+        self,
+        requests: RequestsIterable,
+        clients: list[Client] | tuple[Client],
+        max_async_tasks: int = MAX_ASYNC_TASKS,
+    ) -> None:
+        self._requests: RequestsIterable = requests
+        self._clients: list[Client] | tuple[Client] = clients
+        self._max_async_tasks: int = max_async_tasks
+        self._data_worker = None
+
+    @property
+    def data_worker(self):
+        if self._data_worker is None:
+            self._data_worker = DataWorker(
+                requests=self._requests,
+                clients=self._clients,
+                max_async_tasks=self._max_async_tasks,
+            )
+        return self._data_worker
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        self._run_data_worker()
+        if self.data_worker.has_no_more_data():
+            raise StopIteration
+        return self.data_worker.get_data_item()
+
+    def _run_data_worker(self):
+        async def _run():
+            await self.data_worker.fetch()
+
+        asyncio.run(_run())
+
+
+class DataWorker:
+    """Data Worker class that orchestrates the Request - Response data flow."""
 
     def __init__(
         self,
@@ -27,17 +67,6 @@ class DataService:
         self.__work_queue: asyncio.Queue[RequestsIterable | Request] = asyncio.Queue()
         self.__data_queue: asyncio.Queue[dict] = asyncio.Queue()
         self.__started: bool = False
-
-    def __aiter__(self):
-        logger.info("Starting Data Service")
-        return self
-
-    async def __anext__(self):
-        """Return the next item from the data queue."""
-        await self._fetch()
-        if self.__data_queue.empty():
-            raise StopAsyncIteration
-        return self.__data_queue.get_nowait()
 
     @property
     def client(self) -> Client:
@@ -121,7 +150,7 @@ class DataService:
         else:
             raise ValueError(f"Unknown item type {type(item)}")
 
-    async def _fetch(self) -> None:
+    async def fetch(self) -> None:
         """
         The main Data Service data gathering logic. Enqueues the initial requests
         and starts the Request-Response data flow until there are no more Requests to process.
@@ -129,7 +158,7 @@ class DataService:
         if not self.__started:
             await self._enqueue_start_requests()
 
-        while not self.__work_queue.empty():
+        while self.has_jobs():
             logger.debug(f"Work queue size: {self.__work_queue.qsize()}")
             async with asyncio.Semaphore(self.max_async_tasks):
                 items = await self._get_batch_items_from_queue()
@@ -137,3 +166,19 @@ class DataService:
                     task for item in items async for task in self._iter_callbacks(item)
                 ]
                 await asyncio.gather(*tasks)
+
+    def get_data_item(self) -> dict:
+        """Return a data item from the data queue."""
+        return self.__data_queue.get_nowait()
+
+    def get_work_item(self) -> Request:
+        """Return a request item from the work queue."""
+        return self.__work_queue.get_nowait()
+
+    def has_no_more_data(self) -> bool:
+        """Check if there is more data to process."""
+        return self.__data_queue.empty()
+
+    def has_jobs(self) -> bool:
+        """Check if there is more data to process."""
+        return not self.__work_queue.empty()

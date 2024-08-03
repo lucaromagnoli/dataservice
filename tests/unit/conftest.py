@@ -5,6 +5,12 @@ import pytest
 from dataservice.client import Client
 from dataservice.models import Request
 from dataservice.service import DataService
+from tests.unit.clients import ToyClient
+
+
+@pytest.fixture
+def toy_client(mocker):
+    return ToyClient(random_sleep=0)
 
 
 @pytest.fixture
@@ -22,7 +28,9 @@ def data_service(mock_client, mocker):
 
 
 @pytest.fixture
-def mock_request(mocker):
+def mock_request():
     return Request(
-        url="http://example.com", callback=mocker.Mock(return_value={"parsed": "data"})
+        url="http://example.com",
+        callback=lambda x: {"parsed": "data"},
+        client="ToyClient",
     )

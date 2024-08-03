@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import call
 
 import pytest
+
 from dataservice.pipeline import Pipeline
 
 
@@ -19,6 +20,7 @@ def parametrized_pipeline(request: pytest.FixtureRequest):
         case "generator":
             results = ({"key": x} for x in range(1, 4))
     return Pipeline(results)
+
 
 @pytest.fixture
 def simple_pipeline():
@@ -52,6 +54,7 @@ def test_pipeline_add_step(parametrized_pipeline):
     results = parametrized_pipeline.run()
     assert results == ({"key": 2}, {"key": 4}, {"key": 6})
 
+
 @pytest.mark.parametrize(
     "parametrized_pipeline", ["list", "tuple", "generator"], indirect=True
 )
@@ -60,6 +63,7 @@ def test_pipeline_add_multiple_steps(parametrized_pipeline):
     results = parametrized_pipeline.run()
     assert results == ({"key": 8}, {"key": 16}, {"key": 24})
 
+
 @pytest.mark.parametrize(
     "parametrized_pipeline", ["list", "tuple", "generator"], indirect=True
 )
@@ -67,34 +71,42 @@ def test_pipeline_add_final_step_no_previous_node(parametrized_pipeline):
     """Test adding a final step to the pipeline. Input results are not modified by the last step."""
     parametrized_pipeline.add_final_step([double_key])
     results = parametrized_pipeline.run()
-    assert results == ({'key': 1}, {'key': 2}, {'key': 3})
+    assert results == ({"key": 1}, {"key": 2}, {"key": 3})
+
 
 @pytest.mark.parametrize(
     "parametrized_pipeline", ["list", "tuple", "generator"], indirect=True
 )
 def test_pipeline_add_final_step_with_previous_nodes(parametrized_pipeline):
     """Test adding a final step to the pipeline. Input results are not modified by the last step."""
-    parametrized_pipeline.add_step(double_key).add_step(double_key).add_step(double_key).add_final_step([double_key])
+    parametrized_pipeline.add_step(double_key).add_step(double_key).add_step(
+        double_key
+    ).add_final_step([double_key])
     results = parametrized_pipeline.run()
     assert results == ({"key": 8}, {"key": 16}, {"key": 24})
+
 
 @pytest.mark.parametrize(
     "parametrized_pipeline", ["list", "tuple", "generator"], indirect=True
 )
 def test_pipeline_add_final_step_raises_error(parametrized_pipeline):
     """Test adding a final step to the pipeline raises an error if a final step has already been added."""
-    parametrized_pipeline.add_step(double_key).add_step(double_key).add_step(double_key).add_final_step([double_key])
+    parametrized_pipeline.add_step(double_key).add_step(double_key).add_step(
+        double_key
+    ).add_final_step([double_key])
     with pytest.raises(ValueError):
         parametrized_pipeline.add_final_step([double_key])
 
+
 def test_pipeline_run_threaded(simple_pipeline, mocker):
     """Test running the pipeline with a threaded executor."""
+
     def return_value():
         pass
+
     return_value.result = lambda: ({"key": 2}, {"key": 4}, {"key": 6})
     mocked_thread_pool = mocker.patch(
-        "dataservice.pipeline.ThreadPoolExecutor.submit",
-        return_value=return_value
+        "dataservice.pipeline.ThreadPoolExecutor.submit", return_value=return_value
     )
     simple_pipeline.add_step(double_key)
     results = simple_pipeline.run()

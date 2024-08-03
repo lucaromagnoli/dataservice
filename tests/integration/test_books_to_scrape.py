@@ -1,8 +1,8 @@
 from urllib.parse import urljoin
 
 import pytest
-from dataservice.clients import HttpXClient
 
+from dataservice.clients import HttpXClient
 from dataservice.models import Request, Response
 from dataservice.service import DataService
 
@@ -39,7 +39,6 @@ def parse_book_details(response: Response):
     return {"title": title, "price": price}
 
 
-@pytest.mark.asyncio
-async def test_scrape_books(data_service):
-    data = [item async for item in data_service]
+def test_scrape_books(data_service):
+    data = tuple(data_service)
     assert len(data) == 20

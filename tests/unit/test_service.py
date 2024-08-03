@@ -1,97 +1,92 @@
 import pytest
 
-from dataservice.client import Client
 from dataservice.models import Request
-from dataservice.service import DataService
+from dataservice.service import DataWorker
+
+request_with_data_callback = Request(
+    url="http://example.com",
+    callback=lambda x: {"parsed": "data"},
+    client="ToyClient",
+)
+
+request_with_iterator_callback = Request(
+    url="http://example.com",
+    callback=lambda x: iter(Request(url="http://example.com", client="ToyClient", callback=lambda x: {"parsed": "data"})),
+    client="ToyClient",
+)
 
 
 @pytest.fixture
-def mock_client(mocker):
-    client = mocker.MagicMock(spec=Client)
-    client.make_request = mocker.AsyncMock(return_value={"data": "response"})
-    client.get_name = mocker.Mock(return_value="MockClient")
-    return client
+def data_worker(request, toy_client):
+    if "requests" not in request.param:
+        request.param["requests"] = [
+            Request(
+                url="http://example.com",
+                callback=lambda x: {"parsed": "data"},
+                client="ToyClient",
+            )
+        ]
+    if "clients" not in request.param:
+        request.param["clients"] = (toy_client,)
+    return DataWorker(
+        requests=request.param["requests"], clients=request.param["clients"]
+    )
 
 
 @pytest.fixture
-def mock_request(mocker):
-    r = mocker.MagicMock(spec=Request)
-    r.callback = mocker.Mock(return_value={"parsed": "data"})
-    r.client = "MockClient"
-    return r
-
-
-@pytest.fixture
-def data_service(mock_client, mock_request):
-    return DataService(requests=[mock_request], clients=(mock_client,))
+def queue_item(request):
+    return request.param
 
 
 @pytest.mark.asyncio
-async def test_handles_request_correctly(data_service, mock_request):
-    async for result in data_service:
-        assert result == {"parsed": "data"}
+@pytest.mark.parametrize(
+    "data_worker",
+    [{}],
+    indirect=True,
+)
+async def test_data_worker_handles_request_correctly(data_worker):
+    await data_worker.fetch()
+    assert data_worker.get_data_item() == {"parsed": "data"}
 
 
 @pytest.mark.asyncio
-async def test_handles_empty_queue(data_service, mock_client):
-    data_service = DataService(requests=[], clients=(mock_client,))
+@pytest.mark.parametrize("data_worker", [{"requests": []}], indirect=True)
+async def test_data_worker_handles_empty_queue(data_worker):
     with pytest.raises(ValueError, match="No requests to process"):
-        async for _ in data_service:
-            pass
-
-
-import pytest
+        await data_worker.fetch()
 
 
 @pytest.mark.asyncio
-async def handles_request_item_puts_dict_in_data_queue(mocker):
-    request = mocker.MagicMock()
-    request.callback = mocker.MagicMock(return_value={"key": "value"})
-    data_service = DataService([], [])
-    data_service._handle_request = mocker.AsyncMock(return_value="response")
-    await data_service._handle_queue_item(request)
-    assert not data_service.__data_queue.empty()
-    assert await data_service.__data_queue.get() == {"key": "value"}
+@pytest.mark.parametrize(
+    "data_worker, queue_item",
+    [
+        (
+            {},
+            request_with_data_callback,
+        )
+    ],
+    indirect=True,
+)
+async def test_handles_request_item_puts_dict_in_data_queue(data_worker, queue_item):
+    await data_worker._handle_queue_item(queue_item)
+    assert not data_worker.has_no_more_data()
+    assert data_worker.get_data_item() == {"parsed": "data"}
 
 
 @pytest.mark.asyncio
-async def handles_request_item_puts_request_in_work_queue(mocker):
-    request = mocker.MagicMock()
-    request.callback = mocker.MagicMock(return_value=request)
-    data_service = DataService([], [])
-    data_service._handle_request = mocker.AsyncMock(return_value="response")
-    await data_service._handle_queue_item(request)
-    assert not data_service.__work_queue.empty()
-    assert await data_service.__work_queue.get() == request
+@pytest.mark.parametrize("data_worker, queue_item", [({}, request_with_iterator_callback)], indirect=True)
+async def test_handles_request_item_puts_request_in_work_queue(data_worker, queue_item):
+    await data_worker._handle_queue_item(queue_item)
+    assert data_worker.get_work_item() is not None
 
 
 @pytest.mark.asyncio
-async def handles_request_item_raises_value_error_for_unknown_type(mocker):
-    request = mocker.MagicMock()
-    request.callback = mocker.MagicMock(return_value=123)
-    data_service = DataService([], [])
-    data_service._handle_request = mocker.AsyncMock(return_value="response")
+@pytest.mark.parametrize(
+    "data_worker",
+    [{}],
+    indirect=True,
+)
+async def test_handles_queue_item_raises_value_error_for_unknown_type(data_worker, mocker):
     with pytest.raises(ValueError, match="Unknown item type <class 'int'>"):
-        await data_service._handle_queue_item(request)
+        await data_worker._handle_queue_item(1)
 
-
-@pytest.mark.asyncio
-async def test_processes_generator_requests(data_service, mock_request, mock_client):
-    async def generator():
-        yield mock_request
-
-    data_service = DataService(requests=generator(), clients=(mock_client,))
-    async for result in data_service:
-        assert result == {"parsed": "data"}
-
-
-@pytest.mark.asyncio
-async def test_processes_async_generator_requests(
-    data_service, mock_request, mock_client
-):
-    async def async_generator():
-        yield mock_request
-
-    data_service = DataService(requests=async_generator(), clients=(mock_client,))
-    async for result in data_service:
-        assert result == {"parsed": "data"}
