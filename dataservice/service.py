@@ -3,8 +3,6 @@ import os
 from logging import getLogger
 from typing import AsyncGenerator, Generator
 
-from tenacity import retry
-
 from dataservice.models import Request, RequestOrData, RequestsIterable, Response
 
 MAX_ASYNC_TASKS = int(os.environ.get("MAX_ASYNC_TASKS", "10"))
@@ -14,109 +12,158 @@ __all__ = ["DataService"]
 
 
 class DataService:
+    """
+    A service class to handle data requests and processing.
+    """
+
     def __init__(
         self,
-        requests: RequestsIterable,
-        max_async_tasks: int = MAX_ASYNC_TASKS,
-    ) -> None:
-        self._requests: RequestsIterable = requests
-        self._max_async_tasks: int = max_async_tasks
+        requests,
+        max_async_tasks=MAX_ASYNC_TASKS,
+        deduplication=True,
+        deduplication_keys=("url",),
+    ):
+        """
+        Initializes the DataService with the given parameters.
+        """
+        self._requests = requests
+        self._max_async_tasks = max_async_tasks
+        self._deduplication = deduplication
+        self._deduplication_keys = deduplication_keys
         self._data_worker = None
 
     @property
     def data_worker(self):
+        """
+        Lazy initialization of the DataWorker instance.
+        """
         if self._data_worker is None:
             self._data_worker = DataWorker(
-                requests=self._requests,
-                max_async_tasks=self._max_async_tasks,
+                self._requests,
+                self._max_async_tasks,
+                self._deduplication,
+                self._deduplication_keys,
             )
         return self._data_worker
 
     def __iter__(self):
+        """
+        Returns the iterator object itself.
+        """
         return self
 
     def __next__(self):
+        """
+        Fetches the next data item from the data worker.
+        """
         self._run_data_worker()
         if self.data_worker.has_no_more_data():
             raise StopIteration
         return self.data_worker.get_data_item()
 
     def _run_data_worker(self):
-        async def _run():
-            await self.data_worker.fetch()
-
-        asyncio.run(_run())
+        """
+        Runs the data worker to fetch data items.
+        """
+        asyncio.run(self.data_worker.fetch())
 
 
 class DataWorker:
-    """Data Worker class that orchestrates the Request - Response data flow."""
+    """
+    A worker class to handle asynchronous data processing.
+    """
 
-    def __init__(
-        self,
-        requests: RequestsIterable,
-        max_async_tasks: int = MAX_ASYNC_TASKS,
-    ):
+    def __init__(self, requests, max_async_tasks, deduplication, deduplication_keys):
+        """
+        Initializes the DataWorker with the given parameters.
+        """
         self.max_async_tasks = max_async_tasks
-        self._requests: RequestsIterable = requests
-        self.__work_queue: asyncio.Queue[RequestsIterable | Request] = asyncio.Queue()
-        self.__data_queue: asyncio.Queue[dict] = asyncio.Queue()
-        self.__started: bool = False
+        self._deduplication = deduplication
+        self._deduplication_keys = deduplication_keys
+        self._requests = requests
+        self._work_queue = asyncio.Queue()
+        self._data_queue = asyncio.Queue()
+        self._seen_requests = set()
+        self._started = False
 
-    async def _get_batch_items_from_queue(self) -> list[RequestsIterable | Request]:
-        """Get a batch of items from the queue."""
-        items: list[RequestsIterable | Request] = []
-        while not self.__work_queue.empty() and len(items) < self.max_async_tasks:
-            item = await self.__work_queue.get()
-            items.append(item)
+    async def _get_batch_items_from_queue(self):
+        """
+        Retrieves a batch of items from the work queue.
+        """
+        items = []
+        while not self._work_queue.empty() and len(items) < self.max_async_tasks:
+            items.append(await self._work_queue.get())
         return items
 
-    async def _add_to_work_queue(self, item: RequestsIterable | Request) -> None:
-        """Add an item to the work queue."""
-        await self.__work_queue.put(item)
+    async def _add_to_work_queue(self, item):
+        """
+        Adds an item to the work queue.
+        """
+        await self._work_queue.put(item)
 
-    async def _add_to_data_queue(self, item: dict) -> None:
-        """Add an item to the data queue."""
-        await self.__data_queue.put(item)
+    async def _add_to_data_queue(self, item):
+        """
+        Adds an item to the data queue.
+        """
+        await self._data_queue.put(item)
 
     async def _enqueue_start_requests(self):
-        """Enqueue the initial requests to the work queue."""
+        """
+        Enqueues the initial set of requests to the work queue.
+        """
         if isinstance(self._requests, AsyncGenerator):
             async for request in self._requests:
                 await self._add_to_work_queue(request)
         else:
             for request in self._requests:
                 await self._add_to_work_queue(request)
-        if self.__work_queue.empty():
+        if self._work_queue.empty():
             raise ValueError("No requests to process.")
-        self.__started = True
+        self._started = True
 
-    async def _handle_queue_item(self, item: RequestOrData) -> None:
-        """Handle a single item from the queue and run callback over the response."""
+    async def _handle_queue_item(self, item):
+        """
+        Handles an item from the work queue.
+        """
         if isinstance(item, Request):
-            return await self._handle_request_item(item)
+            await self._handle_request_item(item)
         elif isinstance(item, dict):
-            return await self._add_to_data_queue(item)
+            await self._add_to_data_queue(item)
         else:
             raise ValueError(f"Unknown item type {type(item)}")
 
-    async def _handle_request_item(self, request: Request) -> None:
-        """Handle a single Request and run callback over the response."""
+    def _is_duplicate_request(self, request):
+        """
+        Checks if a request is a duplicate.
+        """
+        key = request.url
+        if key in self._seen_requests:
+            return True
+        self._seen_requests.add(key)
+        return False
+
+    async def _handle_request_item(self, request):
+        """
+        Handles a request item.
+        """
+        if self._deduplication and self._is_duplicate_request(request):
+            return
         response = await self._handle_request(request)
         callback_result = request.callback(response)
         if isinstance(callback_result, dict):
-            return await self._add_to_data_queue(callback_result)
-        else:  # callback_result is a Request or a Generator or AsyncGenerator
-            return await self._add_to_work_queue(callback_result)
+            await self._add_to_data_queue(callback_result)
+        else:
+            await self._add_to_work_queue(callback_result)
 
-    async def _handle_request(self, request) -> Response:
+    async def _handle_request(self, request):
+        """
+        Makes an asynchronous request.
+        """
         return await request.client().make_request(request)
 
-    async def _iter_callbacks(
-        self, item: Generator | AsyncGenerator | RequestOrData
-    ) -> AsyncGenerator[asyncio.Task, None]:
+    async def _iter_callbacks(self, item):
         """
-        Iterates over the items yielded by the callback functions and handles them accordingly.
-        Returns an async iterator of asyncio Tasks.
+        Iterates over callbacks and creates tasks for them.
         """
         if isinstance(item, Generator):
             for i in item:
@@ -129,16 +176,14 @@ class DataWorker:
         else:
             raise ValueError(f"Unknown item type {type(item)}")
 
-    async def fetch(self) -> None:
+    async def fetch(self):
         """
-        The main Data Service data gathering logic. Enqueues the initial requests
-        and starts the Request-Response data flow until there are no more Requests to process.
+        Fetches data items by processing the work queue.
         """
-        if not self.__started:
+        if not self._started:
             await self._enqueue_start_requests()
-
         while self.has_jobs():
-            logger.debug(f"Work queue size: {self.__work_queue.qsize()}")
+            logger.debug(f"Work queue size: {self._work_queue.qsize()}")
             async with asyncio.Semaphore(self.max_async_tasks):
                 items = await self._get_batch_items_from_queue()
                 tasks = [
@@ -146,18 +191,20 @@ class DataWorker:
                 ]
                 await asyncio.gather(*tasks)
 
-    def get_data_item(self) -> dict:
-        """Return a data item from the data queue."""
-        return self.__data_queue.get_nowait()
+    def get_data_item(self):
+        """
+        Retrieves a data item from the data queue.
+        """
+        return self._data_queue.get_nowait()
 
-    def get_work_item(self) -> Request:
-        """Return a request item from the work queue."""
-        return self.__work_queue.get_nowait()
+    def has_no_more_data(self):
+        """
+        Checks if there are no more data items in the data queue.
+        """
+        return self._data_queue.empty()
 
-    def has_no_more_data(self) -> bool:
-        """Check if there is more data to process."""
-        return self.__data_queue.empty()
-
-    def has_jobs(self) -> bool:
-        """Check if there is more data to process."""
-        return not self.__work_queue.empty()
+    def has_jobs(self):
+        """
+        Checks if there are jobs in the work queue.
+        """
+        return not self._work_queue.empty()

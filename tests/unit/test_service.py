@@ -12,7 +12,13 @@ request_with_data_callback = Request(
 
 request_with_iterator_callback = Request(
     url="http://example.com",
-    callback=lambda x: iter(Request(url="http://example.com", client=ToyClient(), callback=lambda x: {"parsed": "data"})),
+    callback=lambda x: iter(
+        Request(
+            url="http://example.com",
+            client=ToyClient(),
+            callback=lambda x: {"parsed": "data"},
+        )
+    ),
     client=ToyClient,
 )
 
@@ -27,9 +33,7 @@ def data_worker(request, toy_client):
                 client=ToyClient,
             )
         ]
-    return DataWorker(
-        requests=request.param["requests"]
-    )
+    return DataWorker(requests=request.param["requests"])
 
 
 @pytest.fixture
@@ -73,7 +77,9 @@ async def test_handles_request_item_puts_dict_in_data_queue(data_worker, queue_i
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("data_worker, queue_item", [({}, request_with_iterator_callback)], indirect=True)
+@pytest.mark.parametrize(
+    "data_worker, queue_item", [({}, request_with_iterator_callback)], indirect=True
+)
 async def test_handles_request_item_puts_request_in_work_queue(data_worker, queue_item):
     await data_worker._handle_queue_item(queue_item)
     assert data_worker.get_work_item() is not None
@@ -85,7 +91,8 @@ async def test_handles_request_item_puts_request_in_work_queue(data_worker, queu
     [{}],
     indirect=True,
 )
-async def test_handles_queue_item_raises_value_error_for_unknown_type(data_worker, mocker):
+async def test_handles_queue_item_raises_value_error_for_unknown_type(
+    data_worker, mocker
+):
     with pytest.raises(ValueError, match="Unknown item type <class 'int'>"):
         await data_worker._handle_queue_item(1)
-

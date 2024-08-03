@@ -10,11 +10,18 @@ from typing import (
     Optional,
     TypeVar,
     Union,
-    TYPE_CHECKING
+    TYPE_CHECKING,
+    Any,
 )
 
 from bs4 import BeautifulSoup
-from pydantic import AfterValidator, BaseModel, HttpUrl, model_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    HttpUrl,
+    model_validator,
+    model_serializer,
+)
 
 from dataservice.abclient import ABClient
 
@@ -54,6 +61,16 @@ class Request(BaseModel):
         if self.method == "GET" and (self.form_data or self.json_data):
             raise ValueError("GET requests cannot have form data or json data.")
         return self
+
+    @model_serializer
+    def ser_model(self) -> dict[str, Any]:
+        model = {}
+        for key in self.model_fields.keys():
+            val = getattr(self, key)
+            if key in ("callback", "client"):
+                val = id(val)
+            model[key] = val
+        return model
 
 
 class Response(BaseModel):

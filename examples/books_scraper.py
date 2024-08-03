@@ -9,8 +9,10 @@ from urllib.parse import urljoin
 from logging_config import setup_logging
 
 from dataservice import Request, Response, DataService, Pipeline, HttpXClient
+
 logger = logging.getLogger("books_scraper")
 setup_logging()
+
 
 def parse_books(response: Response, pagination: bool = True):
     articles = response.soup.find_all("article", {"class": "product_pod"})
@@ -18,6 +20,7 @@ def parse_books(response: Response, pagination: bool = True):
     for article in articles:
         href = article.h3.a["href"]
         url = urljoin(response.request.url, href)
+        yield Request(url=url, callback=parse_book_details, client=HttpXClient)
         yield Request(url=url, callback=parse_book_details, client=HttpXClient)
     if pagination:
         yield from parse_pagination(response)
@@ -62,6 +65,7 @@ def main(args):
     data_service = DataService(start_requests)
     data = tuple(data_service)
     pprint(data)
+    print(len(data))
     # pipeline = Pipeline(data_service)
     # for group_name, group in pipeline.group_by(type):
     #     with group as group_pipeline:

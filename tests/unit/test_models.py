@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 from pydantic import ValidationError
 
 from dataservice.models import Request, Response
+from tests.unit.clients import ToyClient
 
 
 @pytest.fixture
@@ -22,7 +23,7 @@ def valid_url():
 
 @pytest.fixture
 def valid_request(valid_url, dummy_callback):
-    return Request(url=valid_url, callback=dummy_callback, client="TestClient")
+    return Request(url=valid_url, callback=dummy_callback, client=ToyClient)
 
 
 def test_request_creation(valid_url, dummy_callback):
@@ -35,7 +36,7 @@ def test_request_creation(valid_url, dummy_callback):
     assert request.form_data is None
     assert request.json_data is None
     assert request.content_type == "text"
-    assert request.client == "TestClient"
+    assert request.client == ToyClient
 
 
 def test_request_optional_fields(valid_url, dummy_callback):
@@ -96,7 +97,7 @@ def test_response_soup_property_with_dict(valid_request):
             None,
             None,
             None,
-            "TestClient",
+            ToyClient,
             does_not_raise(),
         ),
         (
@@ -107,7 +108,7 @@ def test_response_soup_property_with_dict(valid_request):
             None,
             {"key": "value"},
             None,
-            "TestClient",
+            ToyClient,
             pytest.raises(ValidationError),
         ),
         (

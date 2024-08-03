@@ -43,7 +43,7 @@ async def test_httpx_client_get_request(
         params=params,
         callback=lambda x: x,
         content_type=content_type,
-        client="HttpXClient",
+        client=HttpXClient,
     )
     expected_response = Response(request=request, data=expected)
     response = await httpx_client.make_request(request)
@@ -77,7 +77,7 @@ async def test_httpx_client_post_request(
         json_data=json_data,
         callback=lambda x: x,
         content_type=content_type,
-        client="HttpXClient",
+        client=HttpXClient,
     )
     expected_response = Response(request=request, data=response)
     response = await httpx_client.make_request(request)
