@@ -13,10 +13,10 @@ def pipeline(request):
 
 
 @pytest.fixture
-def file_to_write(shared_datadir):
-    name = shared_datadir / "test_file.json"
+def file_to_write(request):
+    name = request.config.rootdir.join("test_file.json")
     yield name
-    if name.is_file():
+    if os.path.isfile(name):
         os.remove(name)
 
 
@@ -270,6 +270,6 @@ def test_group_by(results, key_func, expected):
 def test_write_to_file(file_to_write):
     results = [{"key": 1}, {"key": 2}, {"key": 3}]
     write_to_file(results, file_to_write)
-    assert file_to_write.is_file()
+    assert os.path.isfile(file_to_write)
     with open(file_to_write) as f:
         assert json.load(f) == results
