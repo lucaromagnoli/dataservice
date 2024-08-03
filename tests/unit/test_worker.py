@@ -1,7 +1,7 @@
 import pytest
 
 from dataservice.models import Request
-from worker import DataWorker
+from dataservice.worker import DataWorker
 from tests.unit.clients import ToyClient
 
 
@@ -129,7 +129,8 @@ async def test_is_duplicate_request_returns_false_for_new_request(data_worker):
 )
 async def test_deduplication(config, expected, mocker):
     mocked_handle_request = mocker.patch(
-        "worker.DataWorker._handle_request", return_value=[{"parsed": "data"}]
+        "dataservice.worker.DataWorker._handle_request",
+        return_value=[{"parsed": "data"}],
     )
     data_worker = DataWorker(
         requests=[request_with_data_callback, request_with_data_callback], config=config
