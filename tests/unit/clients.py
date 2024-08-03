@@ -1,8 +1,7 @@
 import asyncio
 import random
 
-from dataservice.ab_client import ABClient
-from dataservice.models import Request, Response
+from dataservice import ABClient, Request, Response
 
 
 class ToyClient(ABClient):

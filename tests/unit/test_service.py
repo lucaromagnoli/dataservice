@@ -2,17 +2,18 @@ import pytest
 
 from dataservice.models import Request
 from dataservice.service import DataWorker
+from tests.unit.clients import ToyClient
 
 request_with_data_callback = Request(
     url="http://example.com",
     callback=lambda x: {"parsed": "data"},
-    client="ToyClient",
+    client=ToyClient(),
 )
 
 request_with_iterator_callback = Request(
     url="http://example.com",
-    callback=lambda x: iter(Request(url="http://example.com", client="ToyClient", callback=lambda x: {"parsed": "data"})),
-    client="ToyClient",
+    callback=lambda x: iter(Request(url="http://example.com", client=ToyClient(), callback=lambda x: {"parsed": "data"})),
+    client=ToyClient(),
 )
 
 
@@ -23,13 +24,11 @@ def data_worker(request, toy_client):
             Request(
                 url="http://example.com",
                 callback=lambda x: {"parsed": "data"},
-                client="ToyClient",
+                client=ToyClient(),
             )
         ]
-    if "clients" not in request.param:
-        request.param["clients"] = (toy_client,)
     return DataWorker(
-        requests=request.param["requests"], clients=request.param["clients"]
+        requests=request.param["requests"]
     )
 
 

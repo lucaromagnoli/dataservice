@@ -5,8 +5,7 @@ from typing import AsyncGenerator, Generator
 
 from tenacity import retry
 
-from dataservice.ab_client import ABClient
-from dataservice.models import Request, RequestOrData, RequestsIterable, Response
+from dataservice.models import Request, RequestOrData, RequestsIterable, Response, ABClient
 
 MAX_ASYNC_TASKS = int(os.environ.get("MAX_ASYNC_TASKS", "10"))
 logger = getLogger(__name__)
@@ -18,11 +17,9 @@ class DataService:
     def __init__(
         self,
         requests: RequestsIterable,
-        clients: list[ABClient] | tuple[ABClient],
         max_async_tasks: int = MAX_ASYNC_TASKS,
     ) -> None:
         self._requests: RequestsIterable = requests
-        self._clients: list[ABClient] | tuple[ABClient] = clients
         self._max_async_tasks: int = max_async_tasks
         self._data_worker = None
 
@@ -31,7 +28,6 @@ class DataService:
         if self._data_worker is None:
             self._data_worker = DataWorker(
                 requests=self._requests,
-                clients=self._clients,
                 max_async_tasks=self._max_async_tasks,
             )
         return self._data_worker
@@ -58,29 +54,13 @@ class DataWorker:
     def __init__(
         self,
         requests: RequestsIterable,
-        clients: list[ABClient] | tuple[ABClient],
         max_async_tasks: int = MAX_ASYNC_TASKS,
     ):
-        self.clients = clients
         self.max_async_tasks = max_async_tasks
         self._requests: RequestsIterable = requests
         self.__work_queue: asyncio.Queue[RequestsIterable | Request] = asyncio.Queue()
         self.__data_queue: asyncio.Queue[dict] = asyncio.Queue()
         self.__started: bool = False
-
-    @property
-    def client(self) -> ABClient:
-        """Return the primary client."""
-        return self.clients[0]
-
-    def _get_client_by_name(self, name: str | None) -> ABClient:
-        """Return the client by name."""
-        if name is None:
-            return self.client
-        for client in self.clients:
-            if client.get_name() == name:
-                return client
-        raise ValueError(f"Client not found: {name}")
 
     async def _get_batch_items_from_queue(self) -> list[RequestsIterable | Request]:
         """Get a batch of items from the queue."""
@@ -129,8 +109,7 @@ class DataWorker:
             return await self._add_to_work_queue(callback_result)
 
     async def _handle_request(self, request) -> Response:
-        client = self._get_client_by_name(request.client)
-        return await client.make_request(request)
+        return await request.client().make_request(request)
 
     async def _iter_callbacks(
         self, item: Generator | AsyncGenerator | RequestOrData

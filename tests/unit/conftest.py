@@ -2,9 +2,7 @@ import asyncio
 
 import pytest
 
-from dataservice.ab_client import ABClient
-from dataservice.models import Request
-from dataservice.service import DataService
+from dataservice import ABClient, DataService, Request
 from tests.unit.clients import ToyClient
 
 

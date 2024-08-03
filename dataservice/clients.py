@@ -1,7 +1,6 @@
 import httpx
 
-from dataservice.ab_client import ABClient
-from dataservice.models import Request, Response
+from dataservice.models import Request, Response, ABClient
 
 
 class HttpXClient(ABClient):

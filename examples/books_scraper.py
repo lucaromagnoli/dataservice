@@ -12,14 +12,13 @@ from dataservice import Request, Response, DataService, Pipeline, HttpXClient
 logger = logging.getLogger("books_scraper")
 setup_logging()
 
-
 def parse_books(response: Response, pagination: bool = True):
     articles = response.soup.find_all("article", {"class": "product_pod"})
     yield {"url": response.request.url, "title": response.soup.title.text}
     for article in articles:
         href = article.h3.a["href"]
         url = urljoin(response.request.url, href)
-        yield Request(url=url, callback=parse_book_details, client="HttpXClient")
+        yield Request(url=url, callback=parse_book_details, client=HttpXClient)
     if pagination:
         yield from parse_pagination(response)
 
@@ -28,7 +27,7 @@ def parse_pagination(response):
     next_page = response.soup.find("li", {"class": "next"})
     if next_page is not None:
         next_page_url = urljoin(response.request.url, next_page.a["href"])
-        yield Request(url=next_page_url, callback=parse_books, client="HttpXClient")
+        yield Request(url=next_page_url, callback=parse_books, client=HttpXClient)
 
 
 def parse_book_details(response: Response):
@@ -51,17 +50,16 @@ def write_to_file(results: list[dict], group_name: str):
 
 
 def main(args):
-    client = HttpXClient()
     start_requests = iter(
         [
             Request(
                 url="https://books.toscrape.com/index.html",
                 callback=partial(parse_books, pagination=args.pagination),
-                client="HttpXClient",
+                client=HttpXClient,
             )
         ]
     )
-    data_service = DataService(start_requests, clients=(client,))
+    data_service = DataService(start_requests)
     data = tuple(data_service)
     pprint(data)
     # pipeline = Pipeline(data_service)
