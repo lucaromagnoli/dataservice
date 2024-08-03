@@ -1,13 +1,19 @@
 import pytest
 
 from dataservice.models import Request
-from dataservice.service import DataWorker
+from worker import DataWorker
 from tests.unit.clients import ToyClient
+
+
+@pytest.fixture
+def config():
+    return {"max_workers": 1, "deduplication": False, "deduplication_keys": ["url"]}
+
 
 request_with_data_callback = Request(
     url="http://example.com",
     callback=lambda x: {"parsed": "data"},
-    client=ToyClient,
+    client=ToyClient(),
 )
 
 request_with_iterator_callback = Request(
@@ -19,21 +25,21 @@ request_with_iterator_callback = Request(
             callback=lambda x: {"parsed": "data"},
         )
     ),
-    client=ToyClient,
+    client=ToyClient(),
 )
 
 
 @pytest.fixture
-def data_worker(request, toy_client):
+def data_worker(request, toy_client, config):
     if "requests" not in request.param:
         request.param["requests"] = [
             Request(
                 url="http://example.com",
                 callback=lambda x: {"parsed": "data"},
-                client=ToyClient,
+                client=ToyClient(),
             )
         ]
-    return DataWorker(requests=request.param["requests"])
+    return DataWorker(requests=request.param["requests"], config=config)
 
 
 @pytest.fixture
@@ -82,7 +88,7 @@ async def test_handles_request_item_puts_dict_in_data_queue(data_worker, queue_i
 )
 async def test_handles_request_item_puts_request_in_work_queue(data_worker, queue_item):
     await data_worker._handle_queue_item(queue_item)
-    assert data_worker.get_work_item() is not None
+    assert data_worker._work_queue.get_nowait() is not None
 
 
 @pytest.mark.asyncio

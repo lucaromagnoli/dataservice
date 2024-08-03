@@ -2,27 +2,15 @@ import asyncio
 
 import pytest
 
-from dataservice import ABClient, DataService, Request
+from dataservice import DataService, Request
 from tests.unit.clients import ToyClient
 
 
 @pytest.fixture
-def toy_client(mocker):
+def toy_client():
     return ToyClient(random_sleep=0)
 
 
-@pytest.fixture
-def mock_client(mocker):
-    client = mocker.Mock(spec=ABClient)
-    client.make_request = mocker.AsyncMock(return_value={"data": "response"})
-    return client
-
-
-@pytest.fixture
-def data_service(mock_client, mocker):
-    ds = DataService(clients=(mock_client,))
-    ds.__queue = mocker.Mock(spec=asyncio.Queue)
-    return ds
 
 
 @pytest.fixture

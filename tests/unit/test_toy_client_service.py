@@ -18,12 +18,12 @@ def start_requests():
         "https://www.foobar.com",
         "https://www.barbaz.com",
     ]
-    return [Request(url=url, callback=parse_items, client="ToyClient") for url in urls]
+    return [Request(url=url, callback=parse_items, client=ToyClient()) for url in urls]
 
 
 @pytest.fixture
 def toy_service(toy_client, start_requests):
-    return DataService(requests=start_requests, clients=(toy_client,))
+    return DataService(requests=start_requests)
 
 
 async def parse_items(response: Response):
@@ -32,7 +32,7 @@ async def parse_items(response: Response):
         soup = response.soup
         soup.find("home")
         url = f"{response.request.url}item_{i}"
-        yield Request(url=url, callback=parse_item, client="ToyClient")
+        yield Request(url=url, callback=parse_item, client=ToyClient())
 
 
 def parse_item(response: Response):

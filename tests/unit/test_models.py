@@ -23,11 +23,11 @@ def valid_url():
 
 @pytest.fixture
 def valid_request(valid_url, dummy_callback):
-    return Request(url=valid_url, callback=dummy_callback, client=ToyClient)
+    return Request(url=valid_url, callback=dummy_callback, client=ToyClient())
 
 
 def test_request_creation(valid_url, dummy_callback):
-    request = Request(url=valid_url, callback=dummy_callback, client="TestClient")
+    request = Request(url=valid_url, callback=dummy_callback, client=ToyClient())
     assert request.url == valid_url
     assert request.callback == dummy_callback
     assert request.method == "GET"
@@ -36,7 +36,7 @@ def test_request_creation(valid_url, dummy_callback):
     assert request.form_data is None
     assert request.json_data is None
     assert request.content_type == "text"
-    assert request.client == ToyClient
+    assert isinstance(request.client, ToyClient)
 
 
 def test_request_optional_fields(valid_url, dummy_callback):
@@ -44,7 +44,6 @@ def test_request_optional_fields(valid_url, dummy_callback):
     params = {"q": "test"}
     data = {"key": "value"}
     json_data = {"json_key": "json_value"}
-    client = "test_client"
     request = Request(
         url=valid_url,
         callback=dummy_callback,
@@ -54,7 +53,7 @@ def test_request_optional_fields(valid_url, dummy_callback):
         form_data=data,
         json_data=json_data,
         content_type="json",
-        client=client,
+        client=ToyClient(),
     )
     assert request.method == "POST"
     assert request.headers == headers
@@ -62,7 +61,7 @@ def test_request_optional_fields(valid_url, dummy_callback):
     assert request.form_data == data
     assert request.json_data == json_data
     assert request.content_type == "json"
-    assert request.client == client
+    assert isinstance(request.client, ToyClient)
 
 
 def test_response_creation(valid_request):
@@ -97,7 +96,7 @@ def test_response_soup_property_with_dict(valid_request):
             None,
             None,
             None,
-            ToyClient,
+            ToyClient(),
             does_not_raise(),
         ),
         (
@@ -108,7 +107,7 @@ def test_response_soup_property_with_dict(valid_request):
             None,
             {"key": "value"},
             None,
-            ToyClient,
+            ToyClient(),
             pytest.raises(ValidationError),
         ),
         (
@@ -119,7 +118,7 @@ def test_response_soup_property_with_dict(valid_request):
             None,
             {"key": "value"},
             None,
-            "TestClient",
+            ToyClient(),
             does_not_raise(),
         ),
         (
@@ -130,7 +129,7 @@ def test_response_soup_property_with_dict(valid_request):
             None,
             None,
             {"key": "value"},
-            "TestClient",
+            ToyClient(),
             does_not_raise(),
         ),
         (
