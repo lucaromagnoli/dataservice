@@ -1,141 +1,161 @@
 from __future__ import annotations
 
 import asyncio
-import datetime
-import random
-import uuid
-from abc import ABC, abstractmethod
-import multiprocessing
-from multiprocessing import Process
-from pprint import pprint
-from typing import Iterator, Coroutine, Callable, Awaitable, AsyncIterator, Iterable, Generator
-from uuid import UUID
+import logging
+from typing import Any, AsyncGenerator, Generator
+
+from dataservice.models import Request, Response, RequestsIterable
+
+logger = logging.getLogger(__name__)
 
 
+class DataWorker:
+    """
+    A worker class to handle asynchronous data processing.
+    """
 
-class Client:
-    async def make_request(self, request: Request) -> Response:
-        print(f"Requesting URL: {request.url}")
-        delay = random.randint(0, 2) / 100
-        print(f"Waiting for {delay}")
-        await asyncio.sleep(delay)
-        print(f"Returning {request.url}")
-        return Response(request, "response data")
+    _clients: dict[Any, Any] = {}
 
-class Request:
-    def __init__(self, url: str, callback: Callable[[Response], Awaitable]):
-        self.url = url
-        self.callback = callback
+    def __init__(self, requests: RequestsIterable, config: dict[str, Any]):
+        """
+        Initializes the DataWorker with the given parameters.
+        """
+        self._max_workers: int = config["max_workers"]
+        self._deduplication: bool = config["deduplication"]
+        self._deduplication_keys: tuple = config["deduplication_keys"]
+        self._requests: RequestsIterable = requests
+        self._work_queue: asyncio.Queue = asyncio.Queue()
+        self._data_queue: asyncio.Queue = asyncio.Queue()
+        self._seen_requests: set = set()
+        self._started: bool = False
 
-class Response:
-    def __init__(self, request: Request, data: [str|dict]):
-        self.request = request
-        self.data = data
+    async def _get_batch_items_from_queue(
+        self,
+    ) -> list[RequestsIterable | Request | dict]:
+        """
+        Retrieves a batch of items from the work queue.
+        """
+        items: list[RequestsIterable | Request | dict] = []
+        while not self._work_queue.empty() and len(items) < self._max_workers:
+            items.append(await self._work_queue.get())
+        return items
 
+    async def _add_to_work_queue(self, item: RequestsIterable | Request) -> None:
+        """
+        Adds an item to the work queue.
+        """
+        await self._work_queue.put(item)
 
-def parse_items(response: Response):
-    """Mock function that parses a list of items from a response and makes a request for each item"""
-    for i in range(1, 6):
-        url = f"{response.request.url}/item_{i}"
-        yield Request(url, parse_item)
+    async def _add_to_data_queue(self, item: dict) -> None:
+        """
+        Adds an item to the data queue.
+        """
+        await self._data_queue.put(item)
 
+    async def _enqueue_start_requests(self) -> None:
+        """
+        Enqueues the initial set of requests to the work queue.
+        """
+        if isinstance(self._requests, AsyncGenerator):
+            async for request in self._requests:
+                await self._add_to_work_queue(request)
+        else:
+            for request in self._requests:
+                await self._add_to_work_queue(request)
+        if self._work_queue.empty():
+            raise ValueError("No requests to process.")
+        self._started = True
 
-def parse_item(response: Response):
-    """Mock function that returns a data item from the response"""
-    return {"url": response.request.url, "item_id": uuid.uuid4()}
+    async def _handle_queue_item(self, item: Request | dict) -> None:
+        """
+        Handles an item from the work queue.
+        """
+        if isinstance(item, Request):
+            await self._handle_request_item(item)
+        elif isinstance(item, dict):
+            await self._add_to_data_queue(item)
+        else:
+            raise ValueError(f"Unknown item type {type(item)}")
 
+    def _is_duplicate_request(self, request: Request) -> bool:
+        """
+        Checks if a request is a duplicate.
+        """
+        key = request.url
+        if key in self._seen_requests:
+            return True
+        self._seen_requests.add(key)
+        return False
 
-def start_requests():
-    urls = [
-        "http://www.idontknow.com",
-        "http://www.youdontknow.com",
-        "http://www.hedontknow.com",
-        "http://www.shedontknow.com",
-        "http://www.wedontknow.com",
-        "http://www.theydontknow.com",
-    ]
-    for url in urls:
-        yield Request(url, parse_items)
+    async def _handle_request_item(self, request: Request) -> None:
+        """
+        Handles a request item.
+        """
+        if self._deduplication and self._is_duplicate_request(request):
+            return
+        response = await self._handle_request(request)
+        callback_result = request.callback(response)
+        if isinstance(callback_result, dict):
+            await self._add_to_data_queue(callback_result)
+        else:
+            await self._add_to_work_queue(callback_result)
 
+    @classmethod
+    async def _handle_request(cls, request: Request) -> Response:
+        """
+        Makes an asynchronous request.
+        """
+        key = str(request.client)
+        if key not in cls._clients:
+            cls._clients[key] = request.client
 
-def enqueue_requests(requests_queue: multiprocessing.Queue, requests_iter: Iterable):
-    for request in requests_iter:
-        requests_queue.put(request)
+        client = cls._clients[key]
+        return await client(request)
 
+    async def _iter_callbacks(self, item: Any) -> AsyncGenerator[asyncio.Task, None]:
+        """
+        Iterates over callbacks and creates tasks for them.
+        """
+        if isinstance(item, Generator):
+            for i in item:
+                yield asyncio.create_task(self._handle_queue_item(i))
+        elif isinstance(item, AsyncGenerator):
+            async for i in item:
+                yield asyncio.create_task(self._handle_queue_item(i))
+        elif isinstance(item, (Request, dict)):
+            yield asyncio.create_task(self._handle_queue_item(item))
+        else:
+            raise ValueError(f"Unknown item type {type(item)}")
 
-async def process_requests_async(client, requests_queue, responses_queue):
+    async def fetch(self) -> None:
+        """
+        Fetches data items by processing the work queue.
+        """
+        if not self._started:
+            await self._enqueue_start_requests()
+        while self.has_jobs():
+            logger.debug(f"Work queue size: {self._work_queue.qsize()}")
+            async with asyncio.Semaphore(self._max_workers):
+                items = await self._get_batch_items_from_queue()
+                tasks = [
+                    task for item in items async for task in self._iter_callbacks(item)
+                ]
+                await asyncio.gather(*tasks)
 
-    tasks = []
-    while not requests_queue.empty():
-        request = requests_queue.get()
-        tasks.append(asyncio.create_task(client.make_request(request)))
-    for task in tasks:
-        response = await task
-        responses_queue.put(response)
+    def get_data_item(self) -> Any:
+        """
+        Retrieves a data item from the data queue.
+        """
+        return self._data_queue.get_nowait()
 
-def async_to_sync(coro, *args, **kwargs):
-    return asyncio.run(coro(*args, **kwargs))
+    def has_no_more_data(self) -> bool:
+        """
+        Checks if there are no more data items in the data queue.
+        """
+        return self._data_queue.empty()
 
-def process_requests(client, requests_queue, responses_queue):
-    return async_to_sync(process_requests_async, client, requests_queue, responses_queue)
-
-def process_response(response, requests_queue: multiprocessing.Queue, responses_queue: multiprocessing.Queue, data_queue: multiprocessing.Queue):
-    print(f'Processing response {response.request.url}')
-    parsed = response.request.callback(response)
-    if isinstance(parsed, Generator):
-        for item in parsed:
-            if isinstance(item, Request):
-                print(f"Putting request {item.url} in request queue")
-                requests_queue.put(item)
-            elif isinstance(item, dict):
-                print("Putting data item in data queue")
-                data_queue.put(item)
-    else:
-        if isinstance(parsed, Request):
-            print(f"Putting request {parsed.url} in request queue")
-            requests_queue.put(parsed)
-        elif isinstance(parsed, dict):
-            print(f"Putting data item {parsed} in data queue")
-            data_queue.put(parsed)
-
-
-def process_responses(requests_queue: multiprocessing.Queue, responses_queue: multiprocessing.Queue, data_queue: multiprocessing.Queue):
-    """"""
-    has_responses = True
-    while has_responses:
-        response = responses_queue.get()
-        responses_process = Process(target=process_response, args=(response, requests_queue, responses_queue, data_queue))
-        responses_process.start()
-        responses_process.join()
-        has_responses = not responses_queue.empty()
-
-
-def main():
-    client = Client()
-    with multiprocessing.Manager() as mg:
-        requests_queue, responses_queue, data_queue = mg.Queue(), mg.Queue(), mg.Queue()
-        enqueue_requests(requests_queue, start_requests())
-        has_jobs = True
-        while has_jobs:
-            requests_process = Process(target=process_requests, args=(client, requests_queue, responses_queue))
-            responses_process = Process(target=process_responses, args=(requests_queue, responses_queue, data_queue))
-            requests_process.start()
-            responses_process.start()
-            requests_process.join()
-            responses_process.join()
-
-            has_jobs = not requests_queue.empty() or not responses_queue.empty()
-            if has_jobs:
-                print(f"More Jobs. requests_queue size: {requests_queue.qsize()}, responses_queue size: {responses_queue.qsize()}")
-            else:
-                print(f"No more jobs requests_queue size: {requests_queue.qsize()}, responses_queue size: {responses_queue.qsize()}")
-
-        print(f"Data queue size {data_queue.qsize()}")
-        while not data_queue.empty():
-            data_item = data_queue.get()
-            print(f"Data item {data_item}")
-
-
-
-if __name__ == "__main__":
-    main()
+    def has_jobs(self) -> bool:
+        """
+        Checks if there are jobs in the work queue.
+        """
+        return not self._work_queue.empty()
