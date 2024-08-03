@@ -22,7 +22,7 @@ def valid_url():
 
 @pytest.fixture
 def valid_request(valid_url, dummy_callback):
-    return Request(url=valid_url, callback=dummy_callback)
+    return Request(url=valid_url, callback=dummy_callback, client="TestClient")
 
 
 def test_request_creation(valid_url, dummy_callback):

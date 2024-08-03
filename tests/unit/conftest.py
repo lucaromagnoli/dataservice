@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from dataservice.client import Client
+from dataservice.ab_client import ABClient
 from dataservice.models import Request
 from dataservice.service import DataService
 from tests.unit.clients import ToyClient
@@ -15,7 +15,7 @@ def toy_client(mocker):
 
 @pytest.fixture
 def mock_client(mocker):
-    client = mocker.Mock(spec=Client)
+    client = mocker.Mock(spec=ABClient)
     client.make_request = mocker.AsyncMock(return_value={"data": "response"})
     return client
 

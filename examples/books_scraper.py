@@ -7,13 +7,9 @@ from functools import partial
 from pprint import pprint
 from urllib.parse import urljoin
 
-from clients import HttpXClient
 from logging_config import setup_logging
-from pipeline import Pipeline
 
-from dataservice.models import Request, Response
-from dataservice.service import DataService
-
+from dataservice import Request, Response, DataService, Pipeline, HttpXClient
 logger = logging.getLogger("books_scraper")
 setup_logging()
 

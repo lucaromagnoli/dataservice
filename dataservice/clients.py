@@ -1,10 +1,10 @@
 import httpx
 
-from dataservice.client import Client
+from dataservice.ab_client import ABClient
 from dataservice.models import Request, Response
 
 
-class HttpXClient(Client):
+class HttpXClient(ABClient):
     """Client that uses HTTPX library to make requests."""
 
     def __init__(self):

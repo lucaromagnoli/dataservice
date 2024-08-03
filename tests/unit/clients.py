@@ -1,11 +1,11 @@
 import asyncio
 import random
 
-from dataservice.client import Client
+from dataservice.ab_client import ABClient
 from dataservice.models import Request, Response
 
 
-class ToyClient(Client):
+class ToyClient(ABClient):
     def __init__(self, random_sleep: int = 0):
         self.random_sleep = random_sleep
         super().__init__()
@@ -21,7 +21,7 @@ class ToyClient(Client):
         return Response(request=request, data=data)
 
 
-class AnotherToyClient(Client):
+class AnotherToyClient(ABClient):
     async def make_request(self, request: Request) -> Response:
         data = f"<html><head></head><body>This is content for URL: {request.url}</body></html>"
         return Response(request=request, data=data)

@@ -4,7 +4,7 @@ from logging import getLogger
 from dataservice.models import Request, Response
 
 
-class Client(ABC):
+class ABClient(ABC):
     """Abstract base class for clients."""
 
     def __init__(self):

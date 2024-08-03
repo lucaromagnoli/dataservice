@@ -5,7 +5,7 @@ from typing import AsyncGenerator, Generator
 
 from tenacity import retry
 
-from dataservice.client import Client
+from dataservice.ab_client import ABClient
 from dataservice.models import Request, RequestOrData, RequestsIterable, Response
 
 MAX_ASYNC_TASKS = int(os.environ.get("MAX_ASYNC_TASKS", "10"))
@@ -18,11 +18,11 @@ class DataService:
     def __init__(
         self,
         requests: RequestsIterable,
-        clients: list[Client] | tuple[Client],
+        clients: list[ABClient] | tuple[ABClient],
         max_async_tasks: int = MAX_ASYNC_TASKS,
     ) -> None:
         self._requests: RequestsIterable = requests
-        self._clients: list[Client] | tuple[Client] = clients
+        self._clients: list[ABClient] | tuple[ABClient] = clients
         self._max_async_tasks: int = max_async_tasks
         self._data_worker = None
 
@@ -58,7 +58,7 @@ class DataWorker:
     def __init__(
         self,
         requests: RequestsIterable,
-        clients: list[Client] | tuple[Client],
+        clients: list[ABClient] | tuple[ABClient],
         max_async_tasks: int = MAX_ASYNC_TASKS,
     ):
         self.clients = clients
@@ -69,11 +69,11 @@ class DataWorker:
         self.__started: bool = False
 
     @property
-    def client(self) -> Client:
+    def client(self) -> ABClient:
         """Return the primary client."""
         return self.clients[0]
 
-    def _get_client_by_name(self, name: str | None) -> Client:
+    def _get_client_by_name(self, name: str | None) -> ABClient:
         """Return the client by name."""
         if name is None:
             return self.client
