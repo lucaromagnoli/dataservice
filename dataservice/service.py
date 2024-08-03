@@ -85,6 +85,7 @@ class DataWorker:
         self._data_queue = asyncio.Queue()
         self._seen_requests = set()
         self._started = False
+        self._clients = {}
 
     async def _get_batch_items_from_queue(self):
         """
@@ -159,7 +160,11 @@ class DataWorker:
         """
         Makes an asynchronous request.
         """
-        return await request.client().make_request(request)
+        if request.client not in self._clients:
+            self._clients[request.client] = request.client()
+
+        client = self._clients[request.client]
+        return await client.make_request(request)
 
     async def _iter_callbacks(self, item):
         """
