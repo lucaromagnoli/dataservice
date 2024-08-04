@@ -1,8 +1,8 @@
 from __future__ import annotations
-from typing import Any
 
 from typing import (
     Annotated,
+    Any,
     AsyncGenerator,
     Callable,
     Generator,
@@ -10,9 +10,9 @@ from typing import (
     Iterator,
     Literal,
     Optional,
+    TypedDict,
     TypeVar,
     Union,
-    TypedDict,
 )
 
 from bs4 import BeautifulSoup

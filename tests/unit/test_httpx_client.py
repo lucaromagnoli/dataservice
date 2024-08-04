@@ -1,14 +1,11 @@
 import pytest
-from httpx import (
-    HTTPError,
-    HTTPStatusError,
-    Response as HttpXResponse,
-    TimeoutException,
-)
+from httpx import HTTPError, HTTPStatusError
+from httpx import Response as HttpXResponse
+from httpx import TimeoutException
 from pytest_httpx import HTTPXMock
 
-from dataservice.exceptions import RequestException, RetryableRequestException
 from dataservice.clients import HttpXClient
+from dataservice.exceptions import RequestException, RetryableRequestException
 from dataservice.models import Request, Response
 
 

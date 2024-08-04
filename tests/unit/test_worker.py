@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import pytest
 
 from dataservice.config import ServiceConfig
-from dataservice.exceptions import RetryableRequestException, RequestException
+from dataservice.exceptions import RequestException, RetryableRequestException
 from dataservice.models import Request, Response
 from dataservice.worker import DataWorker
 from tests.unit.conftest import ToyClient

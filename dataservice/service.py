@@ -10,7 +10,7 @@ from logging import getLogger
 from typing import Any
 
 from dataservice.config import ServiceConfig
-from dataservice.models import RequestsIterable, FailedRequest
+from dataservice.models import FailedRequest, RequestsIterable
 from dataservice.worker import DataWorker
 
 logger = getLogger(__name__)

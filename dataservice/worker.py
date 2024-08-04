@@ -3,19 +3,18 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import is_dataclass
-from typing import Any, AsyncGenerator, Generator
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Generator
 
 from tenacity import (
     AsyncRetrying,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
 )
 
 from dataservice.config import ServiceConfig
 from dataservice.exceptions import RequestException, RetryableRequestException
-from dataservice.models import Request, RequestsIterable, Response, FailedRequest
-from typing import TYPE_CHECKING
+from dataservice.models import FailedRequest, Request, RequestsIterable, Response
 
 if TYPE_CHECKING:
     from _typeshed import DataclassInstance

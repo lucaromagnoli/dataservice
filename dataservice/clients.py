@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from logging import getLogger
-from typing import NoReturn, Annotated
+from typing import Annotated, NoReturn
 
 import httpx
 from annotated_types import Ge, Le
 
 from dataservice.exceptions import RequestException, RetryableRequestException
-
 from dataservice.models import Request, Response
 
 logger = getLogger(__name__)

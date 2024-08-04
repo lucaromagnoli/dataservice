@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from typing import Callable, Iterable, TypeVar, Iterator
+from typing import Callable, Iterable, Iterator, TypeVar
 
 Result = TypeVar("Result")
 ResultsIterable = Iterable[Result]
