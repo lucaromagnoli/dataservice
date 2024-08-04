@@ -1,7 +1,7 @@
 import pytest
 
 from dataservice import Request
-from tests.unit.clients import ToyClient
+from tests.unit.toy_clients import ToyClient
 
 
 @pytest.fixture

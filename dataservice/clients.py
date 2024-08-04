@@ -3,7 +3,7 @@ from __future__ import annotations
 from logging import getLogger
 
 import httpx
-from exceptions import RequestException, RetryableRequestException
+from dataservice.exceptions import RequestException, RetryableRequestException
 
 from dataservice.models import Request, Response
 

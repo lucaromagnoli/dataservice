@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 from pydantic import ValidationError
 
 from dataservice.models import Request, Response
-from tests.unit.clients import ToyClient
+from tests.unit.toy_clients import ToyClient
 
 
 @pytest.fixture

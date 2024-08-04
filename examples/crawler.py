@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pprint import pprint
 from urllib.parse import urljoin
 
-from logging_config import setup_logging
+from examples.logging_config import setup_logging
 
 from dataservice import DataService, HttpXClient, Request, Response
 
