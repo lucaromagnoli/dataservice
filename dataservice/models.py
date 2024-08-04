@@ -1,8 +1,8 @@
 from __future__ import annotations
+from typing import Any
 
 from typing import (
     Annotated,
-    Any,
     AsyncGenerator,
     Callable,
     Generator,
@@ -12,6 +12,7 @@ from typing import (
     Optional,
     TypeVar,
     Union,
+    TypedDict,
 )
 
 from bs4 import BeautifulSoup
@@ -93,3 +94,10 @@ class Response(BaseModel):
         if self.__soup is None:
             self.__soup = self.__get_soup()
         return self.__soup
+
+
+class FailedRequest(TypedDict):
+    """Failed request model."""
+
+    request: Request
+    error: str

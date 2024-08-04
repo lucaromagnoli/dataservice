@@ -14,7 +14,11 @@ from tenacity import (
 
 from dataservice.config import ServiceConfig
 from dataservice.exceptions import RequestException, RetryableRequestException
-from dataservice.models import Request, RequestsIterable, Response
+from dataservice.models import Request, RequestsIterable, Response, FailedRequest
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from _typeshed import DataclassInstance
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +38,7 @@ class DataWorker:
         self._requests: RequestsIterable = requests
         self._work_queue: asyncio.Queue = asyncio.Queue()
         self._data_queue: asyncio.Queue = asyncio.Queue()
-        self._failures: list[Request] = []
+        self._failures: list[FailedRequest] = []
         self._seen_requests: set = set()
         self._started: bool = False
 
@@ -55,13 +59,13 @@ class DataWorker:
         """
         await self._work_queue.put(item)
 
-    async def _add_to_data_queue(self, item: dict) -> None:
+    async def _add_to_data_queue(self, item: dict | type[DataclassInstance]) -> None:
         """
         Adds an item to the data queue.
         """
         await self._data_queue.put(item)
 
-    def _add_to_failures(self, item: Request) -> None:
+    def _add_to_failures(self, item: FailedRequest) -> None:
         """
         Adds an item to the failures list.
         """
@@ -81,7 +85,9 @@ class DataWorker:
             raise ValueError("No requests to process.")
         self._started = True
 
-    async def _handle_queue_item(self, item: Request | dict) -> None:
+    async def _handle_queue_item(
+        self, item: Request | dict | type[DataclassInstance]
+    ) -> None:
         """
         Handles an item from the work queue.
         """
@@ -117,12 +123,12 @@ class DataWorker:
                 await self._add_to_work_queue(callback_result)
         except RequestException as e:
             logger.error(f"Exception making request: {e}")
-            self._add_to_failures({"request": request, "error": e})
+            self._add_to_failures({"request": request, "error": str(e)})
             return
 
         except Exception as e:
             logger.error(f"Error processing callback {request.callback.__name__}: {e}")
-            self._add_to_failures({"request": request, "error": e})
+            self._add_to_failures({"request": request, "error": str(e)})
             return
 
     async def _handle_request(self, request: Request) -> Response:
@@ -133,6 +139,10 @@ class DataWorker:
         if key not in self._clients:
             self._clients[key] = request.client
         client = self._clients[key]
+        return await self._wrap_retry(client, request)
+
+    async def _wrap_retry(self, client, request):
+        """Wraps the request in a retry mechanism."""
         retryer = AsyncRetrying(
             reraise=True,
             stop=stop_after_attempt(self.config.max_retries),
@@ -198,7 +208,7 @@ class DataWorker:
         """
         return not self._work_queue.empty()
 
-    def get_failures(self) -> tuple[Request]:
+    def get_failures(self) -> tuple[FailedRequest, ...]:
         """
         Returns the list of failed requests.
         """

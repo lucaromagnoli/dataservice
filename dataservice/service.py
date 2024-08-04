@@ -10,7 +10,7 @@ from logging import getLogger
 from typing import Any
 
 from dataservice.config import ServiceConfig
-from dataservice.models import Request, RequestsIterable
+from dataservice.models import RequestsIterable, FailedRequest
 from dataservice.worker import DataWorker
 
 logger = getLogger(__name__)
@@ -21,23 +21,16 @@ class DataService:
     A service class to handle data requests and processing.
     """
 
-    def __init__(self, requests: RequestsIterable, config: ServiceConfig = None):
+    def __init__(
+        self, requests: RequestsIterable, config: ServiceConfig = ServiceConfig()
+    ):
         """
         Initializes the DataService with the given parameters.
         """
 
         self._requests = requests
-        self._config = config
+        self.config = config
         self._data_worker: DataWorker | None = None
-
-    @property
-    def config(self) -> ServiceConfig:
-        """
-        Returns the configuration dictionary.
-        """
-        if self._config is None:
-            self._config = ServiceConfig()
-        return self._config
 
     @property
     def data_worker(self) -> DataWorker:
@@ -49,7 +42,7 @@ class DataService:
         return self._data_worker
 
     @property
-    def failures(self) -> tuple[Request]:
+    def failures(self) -> tuple[FailedRequest, ...]:
         """
         Returns the list of failed requests.
         """

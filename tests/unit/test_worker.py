@@ -8,7 +8,7 @@ from dataservice.config import ServiceConfig
 from dataservice.exceptions import RetryableRequestException, RequestException
 from dataservice.models import Request, Response
 from dataservice.worker import DataWorker
-from tests.unit.toy_clients import ToyClient
+from tests.unit.conftest import ToyClient
 
 
 @dataclass

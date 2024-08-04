@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from logging import getLogger
+from typing import NoReturn, Annotated
 
 import httpx
+from annotated_types import Ge, Le
+
 from dataservice.exceptions import RequestException, RetryableRequestException
 
 from dataservice.models import Request, Response
@@ -19,26 +22,29 @@ class HttpXClient:
     def __call__(self, *args, **kwargs):
         return self.make_request(*args, **kwargs)
 
-    async def make_request(self, request: Request) -> Response:
+    async def make_request(self, request: Request) -> Response | NoReturn:
         """Make a request and handle exceptions."""
         try:
             return await self._make_request(request)
         except httpx.HTTPStatusError as e:
             logger.debug(f"Request exception making request: {e}")
-            if 400 <= e.response.status_code < 500:
+            status_code: Annotated[int, Ge(400), Le(600)] = e.response.status_code
+            if 400 <= status_code < 500:
                 raise RequestException(
                     e.response.reason_phrase, status_code=e.response.status_code
                 )
-            elif 500 <= e.response.status_code < 600:
+            elif 500 <= status_code < 600:
                 raise RetryableRequestException(
                     e.response.reason_phrase, status_code=e.response.status_code
                 )
+            else:
+                raise
         except httpx.TimeoutException as e:
             logger.debug(f"Timeout exception making request: {e}")
-            raise RetryableRequestException(e)
+            raise RetryableRequestException(str(e))
         except httpx.HTTPError as e:
             logger.debug(f"HTTP Error making request: {e}")
-            raise RequestException(e)
+            raise RequestException(str(e))
 
     async def _make_request(self, request: Request) -> Response:
         """Make a request using HTTPX."""
