@@ -25,13 +25,13 @@ class HttpXClient:
             return await self._make_request(request)
         except httpx.HTTPStatusError as e:
             logger.debug(f"Request exception making request: {e}")
-            if 400 >= e.response.status_code < 500:
+            if 400 <= e.response.status_code < 500:
                 raise RequestException(
-                    e.response.text, status_code=e.response.status_code
+                    e.response.reason_phrase, status_code=e.response.status_code
                 )
-            elif 500 >= e.response.status_code < 600:
+            elif 500 <= e.response.status_code < 600:
                 raise RetryableRequestException(
-                    e.response.text, status_code=e.response.status_code
+                    e.response.reason_phrase, status_code=e.response.status_code
                 )
         except httpx.TimeoutException as e:
             logger.debug(f"Timeout exception making request: {e}")

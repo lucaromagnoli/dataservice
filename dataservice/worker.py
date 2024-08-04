@@ -7,12 +7,13 @@ from typing import Any, AsyncGenerator, Generator
 
 from tenacity import (
     stop_after_attempt,
-    retry_if_result,
     AsyncRetrying,
     RetryError,
+    retry_if_exception_type,
 )
 
 from dataservice.models import Request, Response, RequestsIterable
+from exceptions import RetryableRequestException, RequestException
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class DataWorker:
         self._requests: RequestsIterable = requests
         self._work_queue: asyncio.Queue = asyncio.Queue()
         self._data_queue: asyncio.Queue = asyncio.Queue()
+        self._failures: list[Request] = []
         self._seen_requests: set = set()
         self._started: bool = False
 
@@ -59,6 +61,12 @@ class DataWorker:
         Adds an item to the data queue.
         """
         await self._data_queue.put(item)
+
+    def _add_to_failures(self, item: Request) -> None:
+        """
+        Adds an item to the failures list.
+        """
+        self._failures.append(item)
 
     async def _enqueue_start_requests(self) -> None:
         """
@@ -101,16 +109,22 @@ class DataWorker:
         """
         if self._deduplication and self._is_duplicate_request(request):
             return
-        response = await self._handle_request(request)
-        if response.status_code != 200:
-            logger.error(f"Request failed with status code {response.status_code}")
+        try:
+            response = await self._handle_request(request)
+            callback_result = request.callback(response)
+            if isinstance(callback_result, dict):
+                await self._add_to_data_queue(callback_result)
+            else:
+                await self._add_to_work_queue(callback_result)
+        except RequestException as e:
+            logger.error(f"Exception making request: {e}")
+            self._add_to_failures({"request": request, "error": e})
             return
 
-        callback_result = request.callback(response)
-        if isinstance(callback_result, dict):
-            await self._add_to_data_queue(callback_result)
-        else:
-            await self._add_to_work_queue(callback_result)
+        except Exception as e:
+            logger.error(f"Error processing callback {request.callback.__name__}: {e}")
+            self._add_to_failures({"request": request, "error": e})
+            return
 
     @classmethod
     async def _handle_request(cls, request: Request) -> Response:
@@ -123,7 +137,7 @@ class DataWorker:
                 async for attempt in AsyncRetrying(
                     reraise=False,
                     stop=stop_after_attempt(3),
-                    retry=retry_if_result(lambda x: x.status_code == 500),
+                    retry=retry_if_exception_type(RetryableRequestException),
                 ):
                     with attempt:
                         result = await cls._make_request(client, req)
@@ -191,3 +205,9 @@ class DataWorker:
         Checks if there are jobs in the work queue.
         """
         return not self._work_queue.empty()
+
+    def get_failures(self) -> tuple[Request]:
+        """
+        Returns the list of failed requests.
+        """
+        return tuple(self._failures)

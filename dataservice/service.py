@@ -9,13 +9,11 @@ import os
 from logging import getLogger
 from typing import Any, Optional
 
-from dataservice.models import RequestsIterable
+from dataservice.models import RequestsIterable, Request
 from dataservice.worker import DataWorker
 
 MAX_WORKERS = int(os.environ.get("MAX_WORKERS", "10"))
 logger = getLogger(__name__)
-
-__all__ = ["DataService"]
 
 
 class DataService:
@@ -53,6 +51,13 @@ class DataService:
         if self._data_worker is None:
             self._data_worker = DataWorker(self._requests, self.config)
         return self._data_worker
+
+    @property
+    def failures(self) -> tuple[Request]:
+        """
+        Returns the list of failed requests.
+        """
+        return self.data_worker.get_failures()
 
     def __iter__(self) -> DataService:
         """

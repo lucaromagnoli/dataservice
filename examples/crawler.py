@@ -51,6 +51,7 @@ def main(args):
     data = tuple(data_service)
     pprint(data)
     print(len(data))
+    print(data_service.failures)
 
 
 if __name__ == "__main__":
