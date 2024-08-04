@@ -5,6 +5,8 @@ import logging
 from dataclasses import is_dataclass
 from typing import Any, AsyncGenerator, Generator
 
+from tenacity import stop_after_attempt, retry_if_result, retry
+
 from dataservice.models import Request, Response, RequestsIterable
 
 logger = logging.getLogger(__name__)
@@ -95,7 +97,8 @@ class DataWorker:
         if self._deduplication and self._is_duplicate_request(request):
             return
         response = await self._handle_request(request)
-        if response is None:
+        if response.status_code != 200:
+            logger.error(f"Request failed with status code {response.status_code}")
             return
 
         callback_result = request.callback(response)
@@ -105,18 +108,23 @@ class DataWorker:
             await self._add_to_work_queue(callback_result)
 
     @classmethod
+    @retry(
+        retry=retry_if_result(lambda x: x.status_code == 500),
+        stop=stop_after_attempt(3),
+    )
     async def _handle_request(cls, request: Request) -> Response:
         """
         Makes an asynchronous request.
         """
-        key = str(request.client)
+        key = type(request.client).__name__
         if key not in cls._clients:
             cls._clients[key] = request.client
+        return await cls._make_request(cls._clients[key], request)
 
-        client = cls._clients[key]
-        response = await client(request)
-        if response.status_code == 200:
-            return response
+    @staticmethod
+    async def _make_request(client, request) -> Response:
+        """ "Wraps client call."""
+        return await client(request)
 
     async def _iter_callbacks(self, item: Any) -> AsyncGenerator[asyncio.Task, None]:
         """
@@ -128,7 +136,7 @@ class DataWorker:
         elif isinstance(item, AsyncGenerator):
             async for i in item:
                 yield asyncio.create_task(self._handle_queue_item(i))
-        elif isinstance(item, (Request, dict)):
+        elif isinstance(item, (Request, dict)) or is_dataclass(item):
             yield asyncio.create_task(self._handle_queue_item(item))
         else:
             raise ValueError(f"Unknown item type {type(item)}")

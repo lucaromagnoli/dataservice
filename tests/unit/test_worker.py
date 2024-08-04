@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from dataservice.models import Request
+from dataservice.models import Request, Response
 from dataservice.worker import DataWorker
 from tests.unit.clients import ToyClient
 
@@ -44,7 +44,7 @@ request_with_iterator_callback = Request(
 
 
 @pytest.fixture
-def data_worker(request, toy_client, config):
+def data_worker_with_params(request, toy_client, config):
     if "requests" not in request.param:
         request.param["requests"] = [request_with_data_callback]
 
@@ -52,6 +52,11 @@ def data_worker(request, toy_client, config):
     return DataWorker(
         requests=request.param["requests"], config=request.param["config"]
     )
+
+
+@pytest.fixture
+def data_worker(config):
+    return DataWorker(requests=[request_with_data_callback], config=config)
 
 
 @pytest.fixture
@@ -74,15 +79,15 @@ async def test_data_worker_handles_request_correctly(requests, expected, config)
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("data_worker", [{"requests": []}], indirect=True)
-async def test_data_worker_handles_empty_queue(data_worker):
+@pytest.mark.parametrize("data_worker_with_params", [{"requests": []}], indirect=True)
+async def test_data_worker_handles_empty_queue(data_worker_with_params):
     with pytest.raises(ValueError, match="No requests to process"):
-        await data_worker.fetch()
+        await data_worker_with_params.fetch()
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "data_worker, queue_item",
+    "data_worker_with_params, queue_item",
     [
         (
             {},
@@ -91,43 +96,53 @@ async def test_data_worker_handles_empty_queue(data_worker):
     ],
     indirect=True,
 )
-async def test_handles_request_item_puts_dict_in_data_queue(data_worker, queue_item):
-    await data_worker._handle_queue_item(queue_item)
-    assert not data_worker.has_no_more_data()
-    assert data_worker.get_data_item() == {"parsed": "data"}
+async def test_handles_queue_item_puts_dict_in_data_queue(
+    data_worker_with_params, queue_item
+):
+    await data_worker_with_params._handle_queue_item(queue_item)
+    assert not data_worker_with_params.has_no_more_data()
+    assert data_worker_with_params.get_data_item() == {"parsed": "data"}
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "data_worker, queue_item", [({}, request_with_iterator_callback)], indirect=True
+    "data_worker_with_params, queue_item",
+    [({}, request_with_iterator_callback)],
+    indirect=True,
 )
-async def test_handles_request_item_puts_request_in_work_queue(data_worker, queue_item):
-    await data_worker._handle_queue_item(queue_item)
-    assert data_worker._work_queue.get_nowait() is not None
+async def test_handles_queue_item_puts_request_in_work_queue(
+    data_worker_with_params, queue_item
+):
+    await data_worker_with_params._handle_queue_item(queue_item)
+    assert data_worker_with_params._work_queue.get_nowait() is not None
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "data_worker",
+    "data_worker_with_params",
     [{}],
     indirect=True,
 )
 async def test_handles_queue_item_raises_value_error_for_unknown_type(
-    data_worker, mocker
+    data_worker_with_params, mocker
 ):
     with pytest.raises(ValueError, match="Unknown item type <class 'int'>"):
-        await data_worker._handle_queue_item(1)
+        await data_worker_with_params._handle_queue_item(1)
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "data_worker", [{"requests": [request_with_data_callback]}], indirect=True
+    "data_worker_with_params",
+    [{"requests": [request_with_data_callback]}],
+    indirect=True,
 )
-async def test_is_duplicate_request_returns_false_for_new_request(data_worker):
+async def test_is_duplicate_request_returns_false_for_new_request(
+    data_worker_with_params,
+):
     request = Request(
         url="http://example.com", client=ToyClient(), callback=lambda x: x
     )
-    assert not data_worker._is_duplicate_request(request)
+    assert not data_worker_with_params._is_duplicate_request(request)
 
 
 @pytest.mark.asyncio
@@ -141,10 +156,33 @@ async def test_is_duplicate_request_returns_false_for_new_request(data_worker):
 async def test_deduplication(config, expected, mocker):
     mocked_handle_request = mocker.patch(
         "dataservice.worker.DataWorker._handle_request",
-        return_value=[{"parsed": "data"}],
+        side_effect=[
+            Response(request=request_with_data_callback, data={"parsed": "data"}),
+            Response(request=request_with_data_callback, data={"parsed": "data"}),
+        ],
     )
     data_worker = DataWorker(
         requests=[request_with_data_callback, request_with_data_callback], config=config
     )
     await data_worker.fetch()
     assert mocked_handle_request.call_count == expected
+
+
+@pytest.mark.asyncio
+async def test__handle_request(data_worker, mocker):
+    request = Request(
+        url="http://example.com",
+        callback=lambda x: {"parsed": "data"},
+        client=ToyClient(),
+    )
+    mocked_make_request = mocker.patch(
+        "dataservice.worker.DataWorker._make_request",
+        side_effect=[
+            Response(request=request, data=None, status_code=500),
+            Response(request=request, data=None, status_code=500),
+            Response(request=request, data={"parsed": "data"}),
+        ],
+    )
+    response = await data_worker._handle_request(request)
+    assert response.data == {"parsed": "data"}
+    assert mocked_make_request.call_count == 3
