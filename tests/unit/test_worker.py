@@ -1,7 +1,11 @@
+import os
+from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass
 
 import pytest
 
+from dataservice.config import ServiceConfig
+from dataservice.exceptions import RetryableRequestException, RequestException
 from dataservice.models import Request, Response
 from dataservice.worker import DataWorker
 from tests.unit.clients import ToyClient
@@ -14,7 +18,7 @@ class Foo:
 
 @pytest.fixture
 def config():
-    return {"max_workers": 1, "deduplication": False, "deduplication_keys": ["url"]}
+    return ServiceConfig()
 
 
 request_with_data_callback = Request(
@@ -44,11 +48,24 @@ request_with_iterator_callback = Request(
 
 
 @pytest.fixture
+def os_environ():
+    os.environ["MAX_RETRIES"] = "0"
+    os.environ["WAIT_EXP_MUL"] = "0"
+    os.environ["WAIT_EXP_MIN"] = "0"
+    os.environ["WAIT_EXP_MAX"] = "0"
+    yield
+    del os.environ["MAX_RETRIES"]
+    del os.environ["WAIT_EXP_MUL"]
+    del os.environ["WAIT_EXP_MIN"]
+    del os.environ["WAIT_EXP_MAX"]
+
+
+@pytest.fixture
 def data_worker_with_params(request, toy_client, config):
     if "requests" not in request.param:
         request.param["requests"] = [request_with_data_callback]
-
-    request.param["config"] = {**config, **(request.param.get("config") or {})}
+    if "config" not in request.param:
+        request.param["config"] = config
     return DataWorker(
         requests=request.param["requests"], config=request.param["config"]
     )
@@ -149,8 +166,8 @@ async def test_is_duplicate_request_returns_false_for_new_request(
 @pytest.mark.parametrize(
     "config, expected",
     [
-        ({"deduplication": True, "max_workers": 1, "deduplication_keys": ["url"]}, 1),
-        ({"deduplication": False, "max_workers": 1, "deduplication_keys": ["url"]}, 2),
+        (ServiceConfig(**{"deduplication": True, "max_workers": 1}), 1),
+        (ServiceConfig(**{"deduplication": False, "max_workers": 1}), 2),
     ],
 )
 async def test_deduplication(config, expected, mocker):
@@ -170,45 +187,57 @@ async def test_deduplication(config, expected, mocker):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "side_effect, expected_response, expected_call_count",
+    "side_effect, expected_response, expected_behaviour, expected_call_count",
     [
         (
             [
-                Response(
-                    request=request_with_data_callback, data=None, status_code=500
-                ),
-                Response(
-                    request=request_with_data_callback, data=None, status_code=500
-                ),
+                RetryableRequestException("Retryable request exception"),
+                RetryableRequestException("Retryable request exception"),
                 Response(request=request_with_data_callback, data={"parsed": "data"}),
             ],
             Response(request=request_with_data_callback, data={"parsed": "data"}),
+            does_not_raise(),
             3,
         ),
         (
             [
-                Response(
-                    request=request_with_data_callback, data=None, status_code=500
-                ),
-                Response(
-                    request=request_with_data_callback, data=None, status_code=500
-                ),
-                Response(
-                    request=request_with_data_callback, data=None, status_code=500
-                ),
+                RetryableRequestException("Retryable request exception"),
+                RetryableRequestException("Retryable request exception"),
+                RetryableRequestException("Retryable request exception"),
             ],
-            Response(request=request_with_data_callback, data=None, status_code=500),
-            3,
+            None,
+            pytest.raises(RetryableRequestException),
+            None,
+        ),
+        (
+            [
+                RequestException("Request exception"),
+                RequestException("Request exception"),
+                RequestException("Request exception"),
+            ],
+            None,
+            pytest.raises(RequestException),
+            None,
         ),
     ],
 )
 async def test__handle_request(
-    data_worker, mocker, side_effect, expected_response, expected_call_count
+    data_worker,
+    mocker,
+    side_effect,
+    expected_response,
+    expected_behaviour,
+    expected_call_count,
 ):
     mocked_make_request = mocker.patch(
         "dataservice.worker.DataWorker._make_request",
-        side_effect=side_effect,
+        mocker.AsyncMock(side_effect=side_effect),
     )
-    response = await data_worker._handle_request(request_with_data_callback)
-    assert response == expected_response
-    assert mocked_make_request.call_count == expected_call_count
+    data_worker._clients = {"toyclient": ToyClient()}
+    data_worker.config = ServiceConfig(
+        max_retries=3, wait_exp_mul=0, wait_exp_min=0, wait_exp_max=0
+    )
+    with expected_behaviour:
+        response = await data_worker._handle_request(request_with_data_callback)
+        assert response.model_dump() == expected_response.model_dump()
+        assert mocked_make_request.call_count == expected_call_count

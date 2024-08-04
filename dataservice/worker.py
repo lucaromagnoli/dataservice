@@ -6,14 +6,14 @@ from dataclasses import is_dataclass
 from typing import Any, AsyncGenerator, Generator
 
 from tenacity import (
-    stop_after_attempt,
     AsyncRetrying,
-    RetryError,
-    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
 )
 
-from dataservice.models import Request, Response, RequestsIterable
-from exceptions import RetryableRequestException, RequestException
+from dataservice.config import ServiceConfig
+from dataservice.exceptions import RequestException
+from dataservice.models import Request, RequestsIterable, Response
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +25,11 @@ class DataWorker:
 
     _clients: dict[Any, Any] = {}
 
-    def __init__(self, requests: RequestsIterable, config: dict[str, Any]):
+    def __init__(self, requests: RequestsIterable, config: ServiceConfig):
         """
         Initializes the DataWorker with the given parameters.
         """
-        self._max_workers: int = config["max_workers"]
-        self._deduplication: bool = config["deduplication"]
-        self._deduplication_keys: tuple = config["deduplication_keys"]
+        self.config = config
         self._requests: RequestsIterable = requests
         self._work_queue: asyncio.Queue = asyncio.Queue()
         self._data_queue: asyncio.Queue = asyncio.Queue()
@@ -46,7 +44,7 @@ class DataWorker:
         Retrieves a batch of items from the work queue.
         """
         items: list[RequestsIterable | Request | dict] = []
-        while not self._work_queue.empty() and len(items) < self._max_workers:
+        while not self._work_queue.empty() and len(items) < self.config.max_workers:
             items.append(await self._work_queue.get())
         return items
 
@@ -107,7 +105,7 @@ class DataWorker:
         """
         Handles a request item.
         """
-        if self._deduplication and self._is_duplicate_request(request):
+        if self.config.deduplication and self._is_duplicate_request(request):
             return
         try:
             response = await self._handle_request(request)
@@ -126,36 +124,28 @@ class DataWorker:
             self._add_to_failures({"request": request, "error": e})
             return
 
-    @classmethod
-    async def _handle_request(cls, request: Request) -> Response:
+    async def _handle_request(self, request: Request) -> Response:
         """
         Makes an asynchronous request and retry on 500 status code.
         """
-
-        async def inner(client, req):
-            try:
-                async for attempt in AsyncRetrying(
-                    reraise=False,
-                    stop=stop_after_attempt(3),
-                    retry=retry_if_exception_type(RetryableRequestException),
-                ):
-                    with attempt:
-                        result = await cls._make_request(client, req)
-                    if not attempt.retry_state.outcome.failed:
-                        attempt.retry_state.set_result(result)
-            except RetryError as e:
-                logger.error(f"Error making request: {e}")
-            return result
-
         key = type(request.client).__name__.lower()
-        if key not in cls._clients:
-            cls._clients[key] = request.client
-
-        return await inner(cls._clients[key], request)
+        if key not in self._clients:
+            self._clients[key] = request.client
+        client = self._clients[key]
+        retryer = AsyncRetrying(
+            reraise=True,
+            stop=stop_after_attempt(self.config.max_retries),
+            wait=wait_exponential(
+                multiplier=self.config.wait_exp_mul,
+                min=self.config.wait_exp_min,
+                max=self.config.wait_exp_max,
+            ),
+        )
+        return await retryer(self._make_request, client, request)
 
     @staticmethod
     async def _make_request(client, request) -> Response:
-        """ "Wraps client call."""
+        """Wraps client call."""
         return await client(request)
 
     async def _iter_callbacks(self, item: Any) -> AsyncGenerator[asyncio.Task, None]:
@@ -181,7 +171,7 @@ class DataWorker:
             await self._enqueue_start_requests()
         while self.has_jobs():
             logger.debug(f"Work queue size: {self._work_queue.qsize()}")
-            async with asyncio.Semaphore(self._max_workers):
+            async with asyncio.Semaphore(self.config.max_workers):
                 items = await self._get_batch_items_from_queue()
                 tasks = [
                     task for item in items async for task in self._iter_callbacks(item)

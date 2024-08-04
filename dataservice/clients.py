@@ -3,9 +3,9 @@ from __future__ import annotations
 from logging import getLogger
 
 import httpx
+from exceptions import RequestException, RetryableRequestException
 
 from dataservice.models import Request, Response
-from exceptions import RequestException, RetryableRequestException
 
 logger = getLogger(__name__)
 

@@ -2,6 +2,7 @@ import json
 import os
 from collections import defaultdict
 from dataclasses import dataclass
+
 import pytest
 
 from dataservice.pipeline import Pipeline

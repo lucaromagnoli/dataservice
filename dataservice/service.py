@@ -4,15 +4,15 @@ DataWorker: Handles the actual data processing tasks, including managing queues,
 """
 
 from __future__ import annotations
-import asyncio
-import os
-from logging import getLogger
-from typing import Any, Optional
 
-from dataservice.models import RequestsIterable, Request
+import asyncio
+from logging import getLogger
+from typing import Any
+
+from dataservice.config import ServiceConfig
+from dataservice.models import Request, RequestsIterable
 from dataservice.worker import DataWorker
 
-MAX_WORKERS = int(os.environ.get("MAX_WORKERS", "10"))
 logger = getLogger(__name__)
 
 
@@ -21,26 +21,22 @@ class DataService:
     A service class to handle data requests and processing.
     """
 
-    def __init__(
-        self, requests: RequestsIterable, config: Optional[dict[str, Any]] = None
-    ):
+    def __init__(self, requests: RequestsIterable, config: ServiceConfig = None):
         """
         Initializes the DataService with the given parameters.
         """
-        default_config = {
-            "max_workers": MAX_WORKERS,
-            "deduplication": True,
-            "deduplication_keys": ("url",),
-        }
+
         self._requests = requests
-        self._config = {**default_config, **(config or {})}
+        self._config = config
         self._data_worker: DataWorker | None = None
 
     @property
-    def config(self) -> dict[str, Any]:
+    def config(self) -> ServiceConfig:
         """
         Returns the configuration dictionary.
         """
+        if self._config is None:
+            self._config = ServiceConfig()
         return self._config
 
     @property

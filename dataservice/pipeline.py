@@ -1,10 +1,6 @@
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from typing import (
-    Callable,
-    Iterable,
-    TypeVar,
-)
+from typing import Callable, Iterable, TypeVar
 
 Result = TypeVar("Result")
 ResultsIterable = Iterable[Result]

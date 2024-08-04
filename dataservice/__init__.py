@@ -1,8 +1,9 @@
 from dataservice.clients import HttpXClient
+from dataservice.config import ServiceConfig
+from dataservice.exceptions import RequestException, RetryableRequestException
 from dataservice.models import Request, Response
 from dataservice.pipeline import Pipeline
 from dataservice.service import DataService
-from dataservice.exceptions import RequestException, RetryableRequestException
 
 __all__ = [
     "DataService",
@@ -12,4 +13,5 @@ __all__ = [
     "Response",
     "RequestException",
     "RetryableRequestException",
+    "ServiceConfig",
 ]
