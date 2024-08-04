@@ -3,9 +3,9 @@
 import argparse
 import json
 import logging
+import timeit
 from datetime import datetime
 from functools import partial
-from pprint import pprint
 from urllib.parse import urljoin
 
 from dataservice import DataService, HttpXClient, Pipeline, Request, Response
@@ -19,7 +19,7 @@ def parse_books(response: Response, pagination: bool = True):
     articles = response.soup.find_all("article", {"class": "product_pod"})
     yield {
         "url": response.request.url,
-        "title": response.soup.title.text,
+        "title": response.soup.title.get_text(strip=True),
         "articles": len(articles),
     }
     for article in articles:
@@ -43,57 +43,40 @@ def parse_book_details(response: Response):
     return {"title": title, "price": price}
 
 
-def process_currency(results: list[dict]):
-    for result in results:
-        result["currency"] = "£"
-        result["price"] = result["price"].replace("£", "")
-    return results
-
-
 def add_time_stamp(results: list[dict]):
     for result in results:
         result["timestamp"] = datetime.now().isoformat()
     return results
 
 
-def write_to_file(results: list[dict], group_name: str):
-    with open(f"books_{group_name}.json", "w") as f:
+def write_to_file(results: list[dict], group_name: str = ""):
+    with open(f"books{group_name}.json", "w") as f:
         json.dump(results, f, indent=4)
     logger.info("Results written to books.json")
 
 
-def main(args):
-    start_requests = iter(
-        [
-            Request(
-                url="https://books.toscrape.com/index.html",
-                callback=partial(parse_books, pagination=args.pagination),
-                client=HttpXClient(),
-            )
-        ]
-    )
+def main(pagination: bool = True):
+    start_requests = [
+        Request(
+            url="https://books.toscrape.com/index.html",
+            callback=partial(parse_books, pagination=pagination),
+            client=HttpXClient(),
+        )
+    ]
+
     data_service = DataService(start_requests)
     pipeline = (
-        Pipeline()
+        Pipeline(data_service)
         .add_step(add_time_stamp)
         .add_final_step(
             [
-                partial(write_to_file, group_name="books1"),
+                partial(write_to_file),
             ]
         )
     )
-    data = pipeline._run(data_service)
-    pprint(data)
-    print(len(data))
-    # pipeline = Pipeline(data_service)
-    # for group_name, group in pipeline.group_by(type):
-    #     with group as group_pipeline:
-    #         group_pipeline.add_step(process_currency).add_final_step(
-    #             [partial(write_to_file, group_name=group_name)]
-    #         )
-    # data = [item async for item in data_service]
-    # with Pipeline(data) as pipeline:
-    #     pipeline.add_leaves([write_to_file])
+    books = pipeline.run()
+    for book in books:
+        logger.info(book)
 
 
 if __name__ == "__main__":
@@ -104,5 +87,7 @@ if __name__ == "__main__":
         help="Enable pagination.",
         default=False,
     )
-    main(args=parser.parse_args())
-    # asyncio.run(main(args=parser.parse_args()))
+
+    args = parser.parse_args()
+    # main(args.workers, args.pagination)
+    tt = timeit.timeit(lambda: main(False), number=1)

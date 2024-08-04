@@ -41,17 +41,6 @@ class DataWorker:
         self._seen_requests: set = set()
         self._started: bool = False
 
-    async def _get_batch_items_from_queue(
-        self,
-    ) -> list[RequestsIterable | Request | dict]:
-        """
-        Retrieves a batch of items from the work queue.
-        """
-        items: list[RequestsIterable | Request | dict] = []
-        while not self._work_queue.empty() and len(items) < self.config.max_workers:
-            items.append(await self._work_queue.get())
-        return items
-
     async def _add_to_work_queue(self, item: RequestsIterable | Request) -> None:
         """
         Adds an item to the work queue.
@@ -182,12 +171,9 @@ class DataWorker:
             await self._enqueue_start_requests()
         while self.has_jobs():
             logger.debug(f"Work queue size: {self._work_queue.qsize()}")
-            async with asyncio.Semaphore(self.config.max_workers):
-                items = await self._get_batch_items_from_queue()
-                tasks = [
-                    task for item in items async for task in self._iter_callbacks(item)
-                ]
-                await asyncio.gather(*tasks)
+            item = self._work_queue.get_nowait()
+            tasks = [task async for task in self._iter_callbacks(item)]
+            await asyncio.gather(*tasks)
 
     def get_data_item(self) -> Any:
         """
