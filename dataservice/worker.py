@@ -9,10 +9,11 @@ from tenacity import (
     AsyncRetrying,
     stop_after_attempt,
     wait_exponential,
+    retry_if_exception_type,
 )
 
 from dataservice.config import ServiceConfig
-from dataservice.exceptions import RequestException
+from dataservice.exceptions import RequestException, RetryableRequestException
 from dataservice.models import Request, RequestsIterable, Response
 
 logger = logging.getLogger(__name__)
@@ -140,6 +141,7 @@ class DataWorker:
                 min=self.config.wait_exp_min,
                 max=self.config.wait_exp_max,
             ),
+            retry=retry_if_exception_type(RetryableRequestException),
         )
         return await retryer(self._make_request, client, request)
 
