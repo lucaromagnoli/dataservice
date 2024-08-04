@@ -5,7 +5,12 @@ import logging
 from dataclasses import is_dataclass
 from typing import Any, AsyncGenerator, Generator
 
-from tenacity import stop_after_attempt, retry_if_result, retry
+from tenacity import (
+    stop_after_attempt,
+    retry_if_result,
+    AsyncRetrying,
+    RetryError,
+)
 
 from dataservice.models import Request, Response, RequestsIterable
 
@@ -108,18 +113,31 @@ class DataWorker:
             await self._add_to_work_queue(callback_result)
 
     @classmethod
-    @retry(
-        retry=retry_if_result(lambda x: x.status_code == 500),
-        stop=stop_after_attempt(3),
-    )
     async def _handle_request(cls, request: Request) -> Response:
         """
-        Makes an asynchronous request.
+        Makes an asynchronous request and retry on 500 status code.
         """
-        key = type(request.client).__name__
+
+        async def inner(client, req):
+            try:
+                async for attempt in AsyncRetrying(
+                    reraise=False,
+                    stop=stop_after_attempt(3),
+                    retry=retry_if_result(lambda x: x.status_code == 500),
+                ):
+                    with attempt:
+                        result = await cls._make_request(client, req)
+                    if not attempt.retry_state.outcome.failed:
+                        attempt.retry_state.set_result(result)
+            except RetryError as e:
+                logger.error(f"Error making request: {e}")
+            return result
+
+        key = type(request.client).__name__.lower()
         if key not in cls._clients:
             cls._clients[key] = request.client
-        return await cls._make_request(cls._clients[key], request)
+
+        return await inner(cls._clients[key], request)
 
     @staticmethod
     async def _make_request(client, request) -> Response:

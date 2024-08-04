@@ -169,20 +169,46 @@ async def test_deduplication(config, expected, mocker):
 
 
 @pytest.mark.asyncio
-async def test__handle_request(data_worker, mocker):
-    request = Request(
-        url="http://example.com",
-        callback=lambda x: {"parsed": "data"},
-        client=ToyClient(),
-    )
+@pytest.mark.parametrize(
+    "side_effect, expected_response, expected_call_count",
+    [
+        (
+            [
+                Response(
+                    request=request_with_data_callback, data=None, status_code=500
+                ),
+                Response(
+                    request=request_with_data_callback, data=None, status_code=500
+                ),
+                Response(request=request_with_data_callback, data={"parsed": "data"}),
+            ],
+            Response(request=request_with_data_callback, data={"parsed": "data"}),
+            3,
+        ),
+        (
+            [
+                Response(
+                    request=request_with_data_callback, data=None, status_code=500
+                ),
+                Response(
+                    request=request_with_data_callback, data=None, status_code=500
+                ),
+                Response(
+                    request=request_with_data_callback, data=None, status_code=500
+                ),
+            ],
+            Response(request=request_with_data_callback, data=None, status_code=500),
+            3,
+        ),
+    ],
+)
+async def test__handle_request(
+    data_worker, mocker, side_effect, expected_response, expected_call_count
+):
     mocked_make_request = mocker.patch(
         "dataservice.worker.DataWorker._make_request",
-        side_effect=[
-            Response(request=request, data=None, status_code=500),
-            Response(request=request, data=None, status_code=500),
-            Response(request=request, data={"parsed": "data"}),
-        ],
+        side_effect=side_effect,
     )
-    response = await data_worker._handle_request(request)
-    assert response.data == {"parsed": "data"}
-    assert mocked_make_request.call_count == 3
+    response = await data_worker._handle_request(request_with_data_callback)
+    assert response == expected_response
+    assert mocked_make_request.call_count == expected_call_count
