@@ -79,7 +79,8 @@ class Response(BaseModel):
         arbitrary_types_allowed = True
 
     request: Request
-    data: StrOrDict
+    data: StrOrDict | None
+    status_code: int = 200
     __soup: BeautifulSoup | None = None
 
     def __get_soup(self):

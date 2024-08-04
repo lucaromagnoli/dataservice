@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import is_dataclass
 from typing import Any, AsyncGenerator, Generator
 
 from dataservice.models import Request, Response, RequestsIterable
@@ -72,7 +73,7 @@ class DataWorker:
         """
         if isinstance(item, Request):
             await self._handle_request_item(item)
-        elif isinstance(item, dict):
+        elif isinstance(item, dict) or is_dataclass(item):
             await self._add_to_data_queue(item)
         else:
             raise ValueError(f"Unknown item type {type(item)}")
@@ -94,6 +95,9 @@ class DataWorker:
         if self._deduplication and self._is_duplicate_request(request):
             return
         response = await self._handle_request(request)
+        if response is None:
+            return
+
         callback_result = request.callback(response)
         if isinstance(callback_result, dict):
             await self._add_to_data_queue(callback_result)
@@ -110,7 +114,9 @@ class DataWorker:
             cls._clients[key] = request.client
 
         client = cls._clients[key]
-        return await client(request)
+        response = await client(request)
+        if response.status_code == 200:
+            return response
 
     async def _iter_callbacks(self, item: Any) -> AsyncGenerator[asyncio.Task, None]:
         """

@@ -46,7 +46,7 @@ async def test_httpx_client_get_request(
         client=HttpXClient,
     )
     expected_response = Response(request=request, data=expected)
-    response = await httpx_client.make_request(request)
+    response = await httpx_client._make_request(request)
     assert response.data == expected_response.data
 
 
@@ -80,5 +80,5 @@ async def test_httpx_client_post_request(
         client=HttpXClient,
     )
     expected_response = Response(request=request, data=response)
-    response = await httpx_client.make_request(request)
+    response = await httpx_client._make_request(request)
     assert response.data == expected_response.data

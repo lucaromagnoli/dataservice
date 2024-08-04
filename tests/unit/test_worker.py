@@ -1,8 +1,15 @@
+from dataclasses import dataclass
+
 import pytest
 
 from dataservice.models import Request
 from dataservice.worker import DataWorker
 from tests.unit.clients import ToyClient
+
+
+@dataclass
+class Foo:
+    parsed: str
 
 
 @pytest.fixture
@@ -15,6 +22,13 @@ request_with_data_callback = Request(
     callback=lambda x: {"parsed": "data"},
     client=ToyClient(),
 )
+
+request_with_dataclass_callback = Request(
+    url="http://example.com",
+    callback=lambda x: Foo(parsed="data"),
+    client=ToyClient(),
+)
+
 
 request_with_iterator_callback = Request(
     url="http://example.com",
@@ -32,13 +46,7 @@ request_with_iterator_callback = Request(
 @pytest.fixture
 def data_worker(request, toy_client, config):
     if "requests" not in request.param:
-        request.param["requests"] = [
-            Request(
-                url="http://example.com",
-                callback=lambda x: {"parsed": "data"},
-                client=ToyClient(),
-            )
-        ]
+        request.param["requests"] = [request_with_data_callback]
 
     request.param["config"] = {**config, **(request.param.get("config") or {})}
     return DataWorker(
@@ -53,13 +61,16 @@ def queue_item(request):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "data_worker",
-    [{}],
-    indirect=True,
+    "requests, expected",
+    [
+        ([request_with_data_callback], {"parsed": "data"}),
+        ([request_with_dataclass_callback], Foo(parsed="data")),
+    ],
 )
-async def test_data_worker_handles_request_correctly(data_worker):
+async def test_data_worker_handles_request_correctly(requests, expected, config):
+    data_worker = DataWorker(requests, config)
     await data_worker.fetch()
-    assert data_worker.get_data_item() == {"parsed": "data"}
+    assert data_worker.get_data_item() == expected
 
 
 @pytest.mark.asyncio
