@@ -5,6 +5,7 @@ from logging import getLogger
 import httpx
 
 from dataservice.models import Request, Response
+from exceptions import RequestException, RetryableRequestException
 
 logger = getLogger(__name__)
 
@@ -19,13 +20,25 @@ class HttpXClient:
         return self.make_request(*args, **kwargs)
 
     async def make_request(self, request: Request) -> Response:
+        """Make a request and handle exceptions."""
         try:
             return await self._make_request(request)
         except httpx.HTTPStatusError as e:
-            logger.debug(f"Error making request: {e}")
-            return Response(
-                request=request, data=None, status_code=e.response.status_code
-            )
+            logger.debug(f"Request exception making request: {e}")
+            if 400 >= e.response.status_code < 500:
+                raise RequestException(
+                    e.response.text, status_code=e.response.status_code
+                )
+            elif 500 >= e.response.status_code < 600:
+                raise RetryableRequestException(
+                    e.response.text, status_code=e.response.status_code
+                )
+        except httpx.TimeoutException as e:
+            logger.debug(f"Timeout exception making request: {e}")
+            raise RetryableRequestException(e)
+        except httpx.HTTPError as e:
+            logger.debug(f"HTTP Error making request: {e}")
+            raise RequestException(e)
 
     async def _make_request(self, request: Request) -> Response:
         """Make a request using HTTPX."""
