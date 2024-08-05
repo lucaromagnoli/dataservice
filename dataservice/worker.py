@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import random
 from dataclasses import is_dataclass
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Generator
 
@@ -127,17 +128,18 @@ class DataWorker:
         if key not in self._clients:
             self._clients[key] = request.client
         client = self._clients[key]
+        await asyncio.sleep(random.randint(0, self.config.random_delay) / 1000)
         return await self._wrap_retry(client, request)
 
     async def _wrap_retry(self, client, request):
         """Wraps the request in a retry mechanism."""
         retryer = AsyncRetrying(
             reraise=True,
-            stop=stop_after_attempt(self.config.max_retries),
+            stop=stop_after_attempt(self.config.retry.max_attempts),
             wait=wait_exponential(
-                multiplier=self.config.wait_exp_mul,
-                min=self.config.wait_exp_min,
-                max=self.config.wait_exp_max,
+                multiplier=self.config.retry.wait_exp_mul,
+                min=self.config.retry.wait_exp_min,
+                max=self.config.retry.wait_exp_max,
             ),
             retry=retry_if_exception_type(RetryableRequestException),
         )
@@ -167,34 +169,36 @@ class DataWorker:
         """
         Fetches data items by processing the work queue.
         """
-        if not self._started:
-            await self._enqueue_start_requests()
-        while self.has_jobs():
-            logger.debug(f"Work queue size: {self._work_queue.qsize()}")
-            item = self._work_queue.get_nowait()
-            tasks = [task async for task in self._iter_callbacks(item)]
-            await asyncio.gather(*tasks)
+        semaphore = asyncio.Semaphore(self.config.max_concurrency)
+        async with semaphore:
+            if not self._started:
+                await self._enqueue_start_requests()
+            while self.has_jobs():
+                logger.debug(f"Work queue size: {self._work_queue.qsize()}")
+                item = self._work_queue.get_nowait()
+                tasks = [task async for task in self._iter_callbacks(item)]
+                await asyncio.gather(*tasks)
 
     def get_data_item(self) -> Any:
         """
-        Retrieves a data item from the data queue.
+        Retrieve a data item from the data queue.
         """
         return self._data_queue.get_nowait()
 
     def has_no_more_data(self) -> bool:
         """
-        Checks if there are no more data items in the data queue.
+        Check if there are no more data items in the data queue.
         """
         return self._data_queue.empty()
 
     def has_jobs(self) -> bool:
         """
-        Checks if there are jobs in the work queue.
+        Check if there are jobs in the work queue.
         """
         return not self._work_queue.empty()
 
     def get_failures(self) -> tuple[FailedRequest, ...]:
         """
-        Returns the list of failed requests.
+        Return a tuple of failed requests.
         """
         return tuple(self._failures)

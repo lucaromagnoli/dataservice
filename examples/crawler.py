@@ -14,7 +14,7 @@ setup_logging()
 
 
 @dataclass
-class CrawledLink:
+class Link:
     source: str
     destination: str
     text: str
@@ -28,7 +28,7 @@ def get_links(response: Response):
         links = resp.soup.find_all("a")
         for link in links:
             link_href = urljoin(base_url, link["href"])
-            yield CrawledLink(
+            yield Link(
                 source=base_url, destination=link_href, text=link.get_text(strip=True)
             )
             yield Request(url=link_href, callback=inner, client=HttpXClient())
