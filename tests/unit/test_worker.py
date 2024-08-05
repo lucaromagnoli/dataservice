@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import nullcontext as does_not_raise
 from dataclasses import dataclass
@@ -249,3 +250,60 @@ async def test__handle_request(
         response = await data_worker._handle_request(request_with_data_callback)
         assert response.model_dump() == expected_response.model_dump()
         assert mocked_make_request.call_count == expected_call_count
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "side_effect, expected_behaviour, expected_logs",
+    [
+        (
+            [
+                RetryableRequestException("Retryable request exception"),
+                RetryableRequestException("Retryable request exception"),
+                Response(request=request_with_data_callback, data={"parsed": "data"}),
+            ],
+            does_not_raise(),
+            "Retrying request http://example.com/, attempt 3",
+        ),
+        (
+            [
+                RetryableRequestException("Retryable request exception"),
+                RetryableRequestException("Retryable request exception"),
+                RetryableRequestException("Retryable request exception"),
+            ],
+            pytest.raises(RetryableRequestException),
+            "Retrying request http://example.com/, attempt 3",
+        ),
+        (
+            [
+                RequestException("Request exception"),
+                RequestException("Request exception"),
+                RequestException("Request exception"),
+            ],
+            pytest.raises(RequestException),
+            "Exception making request: Request exception",
+        ),
+    ],
+)
+async def test_retry_logs(
+    side_effect, expected_behaviour, expected_logs, data_worker, mocker, caplog
+):
+    mocker.patch(
+        "dataservice.worker.DataWorker._make_request",
+        mocker.AsyncMock(side_effect=side_effect),
+    )
+    data_worker._clients = {"toyclient": ToyClient()}
+    data_worker.config = ServiceConfig(
+        **{
+            "retry": {
+                "max_retries": 2,
+                "wait_exponential": 0,
+                "wait_exp_min": 0,
+                "wait_exp_max": 0,
+            }
+        }
+    )
+    caplog.set_level(logging.DEBUG)
+    with expected_behaviour:
+        await data_worker._handle_request(request_with_data_callback)
+        assert caplog.messages[-1] == expected_logs

@@ -274,3 +274,17 @@ def test_write_to_file(file_to_write):
     assert os.path.isfile(file_to_write)
     with open(file_to_write) as f:
         assert json.load(f) == results
+
+
+def test_add_step_variable_args():
+    pipeline = Pipeline([{"key": 1}, {"key": 2}, {"key": 3}])
+    results = pipeline.add_step(double_key, double_key, double_key).run()
+    assert results == ({"key": 2}, {"key": 4}, {"key": 6})
+
+
+def test_add_step_final_variable_args():
+    pipeline = Pipeline([{"key": 1}, {"key": 2}, {"key": 3}])
+    results = (
+        pipeline.add_step(double_key).add_step(double_key, double_key, final=True).run()
+    )
+    assert results == ({"key": 2}, {"key": 4}, {"key": 6})

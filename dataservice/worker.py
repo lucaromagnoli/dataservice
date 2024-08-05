@@ -133,6 +133,23 @@ class DataWorker:
 
     async def _wrap_retry(self, client, request):
         """Wraps the request in a retry mechanism."""
+
+        def before_log(logger):
+            def _before_log(retry_state):
+                logger.debug(
+                    f"Retrying request {request.url}, attempt {retry_state.attempt_number}",
+                )
+
+            return _before_log
+
+        def after_log(logger):
+            def _after_log(retry_state):
+                logger.debug(
+                    f"Retry attempt {retry_state.attempt_number}. Request {request.url} returned with status {retry_state.outcome}",
+                )
+
+            return _after_log
+
         retryer = AsyncRetrying(
             reraise=True,
             stop=stop_after_attempt(self.config.retry.max_attempts),
@@ -142,6 +159,8 @@ class DataWorker:
                 max=self.config.retry.wait_exp_max,
             ),
             retry=retry_if_exception_type(RetryableRequestException),
+            before=before_log(logger),
+            after=after_log(logger),
         )
         return await retryer(self._make_request, client, request)
 

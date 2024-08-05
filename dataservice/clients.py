@@ -26,7 +26,7 @@ class HttpXClient:
         try:
             return await self._make_request(request)
         except httpx.HTTPStatusError as e:
-            logger.debug(f"Request exception making request: {e}")
+            logger.debug(f"HTTP Status Error making request: {e}")
             status_code: Annotated[int, Ge(400), Le(600)] = e.response.status_code
             if 400 <= status_code < 500:
                 raise RequestException(
