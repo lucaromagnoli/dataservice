@@ -235,8 +235,16 @@ async def test__handle_request(
     )
     data_worker._clients = {"toyclient": ToyClient()}
     data_worker.config = ServiceConfig(
-        max_retries=3, wait_exp_mul=0, wait_exp_min=0, wait_exp_max=0
+        **{
+            "retry": {
+                "max_retries": 0,
+                "wait_exponential": 0,
+                "wait_exp_min": 0,
+                "wait_exp_max": 0,
+            }
+        }
     )
+
     with expected_behaviour:
         response = await data_worker._handle_request(request_with_data_callback)
         assert response.model_dump() == expected_response.model_dump()

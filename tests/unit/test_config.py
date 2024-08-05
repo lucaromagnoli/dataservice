@@ -43,9 +43,14 @@ def test_service_config_defaults():
 
 
 def test_service_config_custom_values():
-    retry_config = RetryConfig(max_attempts=5)
+    retry_config = {"max_attempts": 5}
     config = ServiceConfig(
-        deduplication=False, max_concurrency=20, random_delay=100, retry=retry_config
+        **{
+            "deduplication": False,
+            "max_concurrency": 20,
+            "random_delay": 100,
+            "retry": retry_config,
+        }
     )
     assert config.deduplication is False
     assert config.max_concurrency == 20

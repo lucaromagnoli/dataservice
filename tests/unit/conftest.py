@@ -9,20 +9,6 @@ from dataservice.models import Request, Response
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture
-def toy_client():
-    return ToyClient(random_sleep=0)
-
-
-# @pytest.fixture
-# def mock_request():
-#     return Request(
-#         url="http://example.com",
-#         callback=lambda x: {"parsed": "data"},
-#         client="ToyClient",
-#     )
-
-
 class ToyClient:
     def __init__(self, random_sleep: int = 0):
         self.random_sleep = random_sleep
@@ -40,3 +26,8 @@ class ToyClient:
         )
         data = f"<html><head></head><body>This is content for URL: {request.url}</body></html>"
         return Response(request=request, data=data)
+
+
+@pytest.fixture
+def toy_client():
+    return ToyClient(random_sleep=0)
