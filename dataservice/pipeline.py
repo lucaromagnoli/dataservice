@@ -56,26 +56,24 @@ class Pipeline:
         """Get the index of the last node in the pipeline."""
         return list(self._nodes.keys())[-1]
 
-    def add_step(self, func: Callable[[ResultsTuple], None]) -> Pipeline:
+    def add_step(
+        self, *funcs: Callable[[ResultsTuple], ResultsIterable], final: bool = False
+    ) -> Pipeline:
         """Add a node to the pipeline. Each node is a function that takes the results of the previous node as input."""
+        if final:
+            if -1 in self._nodes:
+                raise ValueError("A final step has already been added.")
+            key = -1
+            self._nodes[key].extend(funcs)
+            return self
+
+        func = funcs[0]
         if not self._nodes:
             key = 1
         else:
             last_node = self._get_last_node()
             key = last_node + 1
         self._nodes[key].append(func)
-        return self
-
-    def add_final_step(
-        self, funcs: Iterable[Callable[[ResultsTuple], None]]
-    ) -> Pipeline:
-        """Add multiple nodes to the pipeline. This is the final step in the pipeline
-        and can only be called once. Any other calls to this method will raise a ValueError.
-        """
-        key = -1
-        if key in self._nodes:
-            raise ValueError("Leaf nodes already added.")
-        self._nodes[key].extend(funcs)
         return self
 
     def group_by(self, key: Callable[[Result], str]) -> Iterator[tuple[str, Pipeline]]:

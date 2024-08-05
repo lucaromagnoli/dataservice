@@ -76,7 +76,7 @@ def test_pipeline_add_multiple_steps(pipeline):
 )
 def test_pipeline_add_final_step_no_previous_node(pipeline):
     """Test adding a final step to the pipeline. Input results are not modified by the last step."""
-    results = pipeline.add_final_step([double_key]).run()
+    results = pipeline.add_step(double_key, final=True).run()
     assert results == ({"key": 1}, {"key": 2}, {"key": 3})
 
 
@@ -95,7 +95,7 @@ def test_pipeline_add_final_step_with_previous_nodes(pipeline):
         pipeline.add_step(double_key)
         .add_step(double_key)
         .add_step(double_key)
-        .add_final_step([double_key])
+        .add_step(double_key, final=True)
         .run()
     )
     assert results == ({"key": 8}, {"key": 16}, {"key": 24})
@@ -116,7 +116,7 @@ def test_pipeline_add_final_step_raises_error(pipeline):
     with pytest.raises(ValueError):
         pipeline.add_step(double_key).add_step(double_key).add_step(
             double_key
-        ).add_final_step([double_key]).add_final_step([double_key])
+        ).add_step(double_key, final=True).add_step(double_key, final=True)
 
 
 @pytest.mark.parametrize(
@@ -158,7 +158,7 @@ def test_pipeline_leaves_runs_in_processpool(pipeline, mocker):
     mocked_process_pool = mocker.patch(
         "dataservice.pipeline.ProcessPoolExecutor.submit",
     )
-    pipeline.add_final_step([double_key, double_key]).run()
+    pipeline.add_step(double_key, double_key, final=True).run()
     assert len(mocked_process_pool.call_args_list) == 2
 
 
