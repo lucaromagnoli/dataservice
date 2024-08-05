@@ -296,7 +296,7 @@ async def test_retry_logs(
     data_worker.config = ServiceConfig(
         **{
             "retry": {
-                "max_retries": 2,
+                "max_retries": 3,
                 "wait_exponential": 0,
                 "wait_exp_min": 0,
                 "wait_exp_max": 0,
