@@ -9,7 +9,7 @@ repos:
     # Ruff version.
     rev: v0.5.6
     hooks:
-      # Run the linter.
+      # Run the linter and sort imports.
       - id: ruff
         args: [--fix, --select=I]
       # Run the formatter.
