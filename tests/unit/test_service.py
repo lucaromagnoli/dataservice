@@ -4,7 +4,7 @@ import pytest
 
 from dataservice.models import Request, Response
 from dataservice.service import DataService
-from tests.unit.clients import ToyClient
+from tests.unit.conftest import ToyClient
 
 
 @pytest.fixture

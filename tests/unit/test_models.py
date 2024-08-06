@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 from pydantic import ValidationError
 
 from dataservice.models import Request, Response
-from tests.unit.clients import ToyClient
+from tests.unit.conftest import ToyClient
 
 
 @pytest.fixture
@@ -81,7 +81,7 @@ def test_response_soup_property(valid_request):
 def test_response_soup_property_with_dict(valid_request):
     json_data = {"key": "value"}
     response = Response(request=valid_request, data=json_data)
-    with pytest.raises(Warning, match="Cannot create BeautifulSoup from dict."):
+    with pytest.raises(ValueError, match="Cannot create BeautifulSoup from dict."):
         _ = response.soup
 
 

@@ -1,6 +1,11 @@
 import pytest
+from httpx import HTTPError, HTTPStatusError
+from httpx import Response as HttpXResponse
+from httpx import TimeoutException
+from pytest_httpx import HTTPXMock
 
 from dataservice.clients import HttpXClient
+from dataservice.exceptions import RequestException, RetryableRequestException
 from dataservice.models import Request, Response
 
 
@@ -46,7 +51,7 @@ async def test_httpx_client_get_request(
         client=HttpXClient,
     )
     expected_response = Response(request=request, data=expected)
-    response = await httpx_client.make_request(request)
+    response = await httpx_client._make_request(request)
     assert response.data == expected_response.data
 
 
@@ -80,5 +85,48 @@ async def test_httpx_client_post_request(
         client=HttpXClient,
     )
     expected_response = Response(request=request, data=response)
-    response = await httpx_client.make_request(request)
+    response = await httpx_client._make_request(request)
     assert response.data == expected_response.data
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "client_exception, expected_exception",
+    [
+        pytest.param(
+            HTTPStatusError(
+                "Error", request=None, response=HttpXResponse(status_code=404)
+            ),
+            RequestException,
+            id="404",
+        ),
+        pytest.param(
+            HTTPStatusError(
+                "Error", request=None, response=HttpXResponse(status_code=500)
+            ),
+            RetryableRequestException,
+            id="505 Retryable",
+        ),
+        pytest.param(
+            TimeoutException("Error"),
+            RetryableRequestException,
+            id="Timeout Retryable",
+        ),
+        pytest.param(
+            HTTPError("Error"),
+            RequestException,
+            id="Error. Dont retry",
+        ),
+    ],
+)
+async def test_httpx_client_make_request_exceptions(
+    httpx_client, httpx_mock: HTTPXMock, client_exception: HTTPError, expected_exception
+):
+    request = Request(
+        url="https://example.com",
+        callback=lambda x: x,
+        client=HttpXClient,
+    )
+    httpx_mock.add_exception(exception=client_exception)
+    with pytest.raises(expected_exception):
+        await httpx_client.make_request(request)
