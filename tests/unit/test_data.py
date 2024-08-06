@@ -1,4 +1,4 @@
-from data import DataWrapper
+from dataservice.data import DataWrapper
 
 
 def test_maybe_callable_returns_value():
