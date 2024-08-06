@@ -1,8 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from config import RetryConfig
-from dataservice import ServiceConfig
+from dataservice.config import RetryConfig, ServiceConfig
 
 
 def test_retry_config_defaults():

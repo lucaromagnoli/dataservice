@@ -34,4 +34,4 @@ jobs:
         ruff check .
     - name: Test with pytest
       run: |
-        pytest tests/unit
+        pytest ./tests/unit --cov=. --cov-report=xml
