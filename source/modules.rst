@@ -1,4 +1,4 @@
-dataservice
+API
 ===========
 
 .. toctree::

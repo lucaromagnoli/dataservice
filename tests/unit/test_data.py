@@ -42,3 +42,8 @@ def test_datawrapper_init_dict():
     assert d.exceptions == {
         "b": {"type": "ZeroDivisionError", "message": "division by zero"}
     }
+
+
+def test_datawrapper_is_instance_of_dict():
+    d = DataWrapper(a=lambda: 1, **{"b": lambda: 1 / 0})
+    assert isinstance(d, dict)

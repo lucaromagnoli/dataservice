@@ -1,4 +1,0 @@
-﻿dataservice
-===========
-
-.. automodule:: dataservice
