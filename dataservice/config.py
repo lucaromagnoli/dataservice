@@ -21,5 +21,5 @@ class ServiceConfig(BaseModel):
 
     deduplication: bool = True
     max_concurrency: PositiveInt = 10
-    random_delay: Milliseconds = 0
+    random_delay: Milliseconds = Milliseconds(0)
     retry: RetryConfig = RetryConfig()

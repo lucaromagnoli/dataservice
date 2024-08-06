@@ -31,12 +31,6 @@ CallbackType = Callable[["Response"], CallbackReturn]
 ClientCallable = Callable[["Request"], "Response"]
 StrOrDict = str | dict
 
-RequestsIterable = (
-    Iterable["Request"]
-    | Generator["Request", None, None]
-    | AsyncGenerator["Request", None]
-)
-
 
 class Request(BaseModel):
     """Request model."""
@@ -84,15 +78,15 @@ class Response(BaseModel):
     status_code: int = 200
     __soup: BeautifulSoup | None = None
 
-    def __get_soup(self):
-        if isinstance(self.data, dict):
-            raise Warning("Cannot create BeautifulSoup from dict.")
-        return BeautifulSoup(self.data, "html5lib")
-
     @property
     def soup(self) -> BeautifulSoup:
         if self.__soup is None:
-            self.__soup = self.__get_soup()
+            if isinstance(self.data, dict):
+                raise ValueError("Cannot create BeautifulSoup from dict.")
+            if self.data is not None:
+                self.__soup = BeautifulSoup(self.data, "html5lib")
+            else:
+                self.__soup = BeautifulSoup("", "html5lib")
         return self.__soup
 
 
@@ -101,3 +95,8 @@ class FailedRequest(TypedDict):
 
     request: Request
     error: str
+
+
+RequestsIterable = (
+    Iterable[Request] | Generator[Request, None, None] | AsyncGenerator[Request, None]
+)

@@ -1,3 +1,5 @@
+"""Handles the actual data processing tasks, including managing queues, handling requests, and processing data items."""
+
 from __future__ import annotations
 
 import asyncio
@@ -13,8 +15,13 @@ from tenacity import (
     wait_exponential,
 )
 
+from dataservice.data import DataWrapper
 from dataservice.config import ServiceConfig
-from dataservice.exceptions import RequestException, RetryableRequestException
+from dataservice.exceptions import (
+    RequestException,
+    RetryableRequestException,
+    ParsingException,
+)
 from dataservice.models import FailedRequest, Request, RequestsIterable, Response
 
 if TYPE_CHECKING:
@@ -48,7 +55,9 @@ class DataWorker:
         """
         await self._work_queue.put(item)
 
-    async def _add_to_data_queue(self, item: dict | type[DataclassInstance]) -> None:
+    async def _add_to_data_queue(
+        self, item: dict | type[DataclassInstance] | DataWrapper
+    ) -> None:
         """
         Adds an item to the data queue.
         """
@@ -75,14 +84,14 @@ class DataWorker:
         self._started = True
 
     async def _handle_queue_item(
-        self, item: Request | dict | type[DataclassInstance]
+        self, item: Request | dict | type[DataclassInstance] | DataWrapper
     ) -> None:
         """
         Handles an item from the work queue.
         """
         if isinstance(item, Request):
             await self._handle_request_item(item)
-        elif isinstance(item, dict) or is_dataclass(item):
+        elif isinstance(item, (dict, DataWrapper)) or is_dataclass(item):
             await self._add_to_data_queue(item)
         else:
             raise ValueError(f"Unknown item type {type(item)}")
@@ -105,20 +114,27 @@ class DataWorker:
             return
         try:
             response = await self._handle_request(request)
-            callback_result = request.callback(response)
-            if isinstance(callback_result, dict):
+            callback_result = await self._handle_callback(request, response)
+            if isinstance(callback_result, (dict, DataWrapper)) or is_dataclass(
+                callback_result
+            ):
                 await self._add_to_data_queue(callback_result)
             else:
                 await self._add_to_work_queue(callback_result)
-        except RequestException as e:
-            logger.error(f"Exception making request: {e}")
+        except (RequestException, ParsingException) as e:
+            logger.error(f"An exception occurred: {e}")
             self._add_to_failures({"request": request, "error": str(e)})
             return
 
+    async def _handle_callback(self, request, response):
+        """Handles the callback function of a request."""
+        try:
+            return request.callback(response)
         except Exception as e:
             logger.error(f"Error processing callback {request.callback.__name__}: {e}")
-            self._add_to_failures({"request": request, "error": str(e)})
-            return
+            raise ParsingException(
+                f"Error processing callback {request.callback.__name__}: {e}"
+            )
 
     async def _handle_request(self, request: Request) -> Response:
         """

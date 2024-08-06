@@ -10,5 +10,9 @@ class RequestException(DataServiceException):
         super().__init__(message)
 
 
+class ParsingException(DataServiceException):
+    """Exception raised when parsing fails."""
+
+
 class RetryableRequestException(RequestException):
     """Base class for all retriable Request exceptions."""

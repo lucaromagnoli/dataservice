@@ -3,11 +3,9 @@
 ### Lightweight, async, data gathering for Python.
 #### Based on asyncio, HttpX, and BeautifulSoup.
 
-DataService is a lightweight data gathering library for Python. Internally it uses asyncio to achieve concurrency, but it is designed to be used in a totally synchronous way.
+DataService is a lightweight data gathering library for Python. It uses asyncio for concurrency but is designed to be used synchronously.
 
-The API is really minimal. You only need to create an instance of the `DataService` class by passing it an iterable of `Request` objects and voila', you have an iterator of data objects.
-You can then iterate over this iterator, turn it into a list, a tuple, or any other data structure you want.
-
+The API is minimal. Create a `DataService` instance with an iterable of `Request` objects, and you get an iterator of data objects.
 ### Example
 
 ```python
@@ -16,13 +14,14 @@ data_service = DataService(start_requests)
 data = tuple(data_service)
 ```
 
-A `Request` is an object that holds, among other parameters, the URL to fetch, a `client` to make the request with
-and a `callback` function to parse the `Response` object.
+A `Request` is a Pydantic model that holds the URL to fetch, a reference to the `client` callable, and a `callback` function to parse the `Response` object.
 
-The `client` can be any Python callable that takes a `Request` object and returns a `Response` object.
-The `callback` function can be any Python callable that takes a `Response` object and returns either data or more `Request` objects.
+The `client` can be any Python callable that takes a `Request` object and returns a `Response` object. DataService includes a `HttpXClient` class based on the `httpx` library, but you can use any async client.
 
-Let's have a look at the `parse_books_page` function from the example above:
+The `callback` function takes a `Response` object and returns either data or more `Request` objects.
+
+Example `parse_books_page` function:
+
 
 ```python
 def parse_books_page(response: Response):
@@ -33,13 +32,13 @@ def parse_books_page(response: Response):
         "articles": len(articles),
     }
 ```
-This function takes one single argument, a `Response` object. The `Response` object has a `soup` attribute that is a `BeautifulSoup` object of the HTML content of the response.
-In this example we are doing some really uninspired parsing of the HTML content, but you can do whatever you want with it.
-The callback function can then either `return` or `yield` either data (`dict` or `datataclass`) or more `Request` objects.
+This function takes a `Response` object, which has a `soup` attribute (a `BeautifulSoup` object of the HTML content). The function parses the HTML content and returns data.
 
-If you have used Scrapy before, you will find this pattern very familiar.
+The callback function can return or yield either data (`dict` or `dataclass`) or more `Request` objects.
 
-### How it works
+If you have used Scrapy before, you will find this pattern familiar.
+
+### How it works under the hood
 The `DataService` class is a thin wrapper around the `DataWorker` class.
 The `DataWorker` iterates over the callback chain asynchronously and handles the requests and responses data flow from the `work_queue` and stores the results in the `data_queue`.
 The results are then consumed by the `DataService` class and returned to the user as a sync iterator.

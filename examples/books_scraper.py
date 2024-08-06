@@ -15,7 +15,7 @@ logger = logging.getLogger("books_scraper")
 setup_logging()
 
 
-def parse_books(response: Response, pagination: bool = True):
+def parse_books_page(response: Response, pagination: bool = True):
     articles = response.soup.find_all("article", {"class": "product_pod"})
     yield {
         "url": response.request.url,
@@ -34,7 +34,9 @@ def parse_pagination(response):
     next_page = response.soup.find("li", {"class": "next"})
     if next_page is not None:
         next_page_url = urljoin(response.request.url, next_page.a["href"])
-        yield Request(url=next_page_url, callback=parse_books, client=HttpXClient())
+        yield Request(
+            url=next_page_url, callback=parse_books_page, client=HttpXClient()
+        )
 
 
 def parse_book_details(response: Response):
@@ -59,7 +61,7 @@ def main(pagination: bool = True):
     start_requests = [
         Request(
             url="https://books.toscrape.com/index.html",
-            callback=partial(parse_books, pagination=pagination),
+            callback=partial(parse_books_page, pagination=pagination),
             client=HttpXClient(),
         )
     ]
