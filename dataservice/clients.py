@@ -19,10 +19,17 @@ class HttpXClient:
         self.async_client = httpx.AsyncClient
 
     def __call__(self, *args, **kwargs):
+        """Make a request using the client."""
         return self.make_request(*args, **kwargs)
 
     async def make_request(self, request: Request) -> Response | NoReturn:
-        """Make a request and handle exceptions."""
+        """Make a request and handle exceptions.
+
+        :param request: The request object containing the details of the HTTP request.
+        :return: A Response object if the request is successful.
+        :raises RequestException: If a non-retryable HTTP error occurs.
+        :raises RetryableRequestException: If a retryable HTTP error occurs.
+        """
         try:
             return await self._make_request(request)
         except httpx.HTTPStatusError as e:
@@ -46,7 +53,11 @@ class HttpXClient:
             raise RequestException(str(e))
 
     async def _make_request(self, request: Request) -> Response:
-        """Make a request using HTTPX."""
+        """Make a request using HTTPX.
+
+        :param request: The request object containing the details of the HTTP request.
+        :return: A Response object containing the response data.
+        """
         logger.info(f"Requesting {request.url}")
         async with self.async_client(headers=request.headers) as client:
             match request.method:

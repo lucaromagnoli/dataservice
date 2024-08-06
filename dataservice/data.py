@@ -13,6 +13,11 @@ class AttrDict(dict):
     """
 
     def __init__(self, *args, **kwargs):
+        """Initialize the AttrDict.
+
+        :param args: Positional arguments for the dictionary.
+        :param kwargs: Keyword arguments for the dictionary.
+        """
         super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
 
@@ -27,12 +32,20 @@ class DataWrapper(AttrDict):
     exceptions: AttrDict = AttrDict()
 
     def __init__(self, **kwargs):
+        """Initialize the DataWrapper.
+
+        :param kwargs: Keyword arguments for the dictionary.
+        """
         super().__init__(**kwargs)
         for key, value in kwargs.items():
             self.__setattr__(key, value)
 
-    def __setattr__(self, key, value):
-        """Set attribute value, evaluating callables. If an exception occurs, store it in the exceptions dict."""
+    def __setattr__(self, key: Any, value: Any):
+        """Set attribute value, evaluating callables. If an exception occurs, store it in the exceptions dict.
+
+        :param key: The key to set in the dictionary.
+        :param value: The value to set in the dictionary.
+        """
         maybe_value, maybe_exception = self._maybe(value)
         if maybe_exception:
             self.exceptions[key] = {
@@ -43,7 +56,11 @@ class DataWrapper(AttrDict):
 
     def _maybe(self, value: Any) -> tuple[Any | None, None | Exception]:
         """When value is a callable, return (value(), None) or (None, exception) if an exception occurs,
-        return (value, None) otherwise."""
+        return (value, None) otherwise.
+
+        :param value: The value to be evaluated. It can be a callable or any other type.
+        :return: A tuple containing the evaluated value or None, and an exception or None.
+        """
         if callable(value):
             try:
                 return value(), None

@@ -62,7 +62,7 @@ class Request(BaseModel):
         for key in self.model_fields.keys():
             val = getattr(self, key)
             if key in ("callback", "client"):
-                val = id(val)
+                val = type(val).__name__
             model[key] = val
         return model
 

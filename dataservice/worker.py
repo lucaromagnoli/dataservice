@@ -40,6 +40,9 @@ class DataWorker:
     def __init__(self, requests: RequestsIterable, config: ServiceConfig):
         """
         Initializes the DataWorker with the given parameters.
+
+        :param requests: An iterable of requests to process.
+        :param config: The configuration for the service.
         """
         self.config = config
         self._requests: RequestsIterable = requests
@@ -52,6 +55,8 @@ class DataWorker:
     async def _add_to_work_queue(self, item: RequestsIterable | Request) -> None:
         """
         Adds an item to the work queue.
+
+        :param item: The item to add to the work queue.
         """
         await self._work_queue.put(item)
 
@@ -60,12 +65,16 @@ class DataWorker:
     ) -> None:
         """
         Adds an item to the data queue.
+
+        :param item: The item to add to the data queue.
         """
         await self._data_queue.put(item)
 
     def _add_to_failures(self, item: FailedRequest) -> None:
         """
         Adds an item to the failures list.
+
+        :param item: The failed request to add to the failures list.
         """
         self._failures.append(item)
 
@@ -88,6 +97,8 @@ class DataWorker:
     ) -> None:
         """
         Handles an item from the work queue.
+
+        :param item: The item to handle from the work queue.
         """
         if isinstance(item, Request):
             await self._handle_request_item(item)
@@ -99,6 +110,9 @@ class DataWorker:
     def _is_duplicate_request(self, request: Request) -> bool:
         """
         Checks if a request is a duplicate.
+
+        :param request: The request to check for duplication.
+        :return: True if the request is a duplicate, False otherwise.
         """
         key = request.url
         if key in self._seen_requests:
@@ -109,6 +123,8 @@ class DataWorker:
     async def _handle_request_item(self, request: Request) -> None:
         """
         Handles a request item.
+
+        :param request: The request item to handle.
         """
         if self.config.deduplication and self._is_duplicate_request(request):
             return
@@ -127,7 +143,13 @@ class DataWorker:
             return
 
     async def _handle_callback(self, request, response):
-        """Handles the callback function of a request."""
+        """
+        Handles the callback function of a request.
+
+        :param request: The request object.
+        :param response: The response object.
+        :return: The result of the callback function.
+        """
         try:
             return request.callback(response)
         except Exception as e:
@@ -139,6 +161,9 @@ class DataWorker:
     async def _handle_request(self, request: Request) -> Response:
         """
         Makes an asynchronous request and retry on 500 status code.
+
+        :param request: The request object.
+        :return: The response object.
         """
         key = type(request.client).__name__.lower()
         if key not in self._clients:
@@ -148,7 +173,13 @@ class DataWorker:
         return await self._wrap_retry(client, request)
 
     async def _wrap_retry(self, client, request):
-        """Wraps the request in a retry mechanism."""
+        """
+        Wraps the request in a retry mechanism.
+
+        :param client: The client to use for the request.
+        :param request: The request object.
+        :return: The response object.
+        """
 
         def before_log(logger):
             def _before_log(retry_state):
@@ -182,12 +213,21 @@ class DataWorker:
 
     @staticmethod
     async def _make_request(client, request) -> Response:
-        """Wraps client call."""
+        """
+        Wraps client call.
+
+        :param client: The client to use for the request.
+        :param request: The request object.
+        :return: The response object.
+        """
         return await client(request)
 
     async def _iter_callbacks(self, item: Any) -> AsyncGenerator[asyncio.Task, None]:
         """
         Iterates over callbacks and creates tasks for them.
+
+        :param item: The item to iterate over.
+        :return: An async generator of tasks.
         """
         if isinstance(item, Generator):
             for i in item:
@@ -217,23 +257,31 @@ class DataWorker:
     def get_data_item(self) -> Any:
         """
         Retrieve a data item from the data queue.
+
+        :return: The data item.
         """
         return self._data_queue.get_nowait()
 
     def has_no_more_data(self) -> bool:
         """
         Check if there are no more data items in the data queue.
+
+        :return: True if there are no more data items, False otherwise.
         """
         return self._data_queue.empty()
 
     def has_jobs(self) -> bool:
         """
         Check if there are jobs in the work queue.
+
+        :return: True if there are jobs in the work queue, False otherwise.
         """
         return not self._work_queue.empty()
 
     def get_failures(self) -> tuple[FailedRequest, ...]:
         """
         Return a tuple of failed requests.
+
+        :return: A tuple of failed requests.
         """
         return tuple(self._failures)
