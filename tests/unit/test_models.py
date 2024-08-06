@@ -172,3 +172,70 @@ def test_request_validation(
             client=client,
         )
         assert request
+
+
+def test_ser_model_valid_request():
+    request = Request(
+        url="http://example.com",
+        callback=lambda x: x,
+        method="GET",
+        client=lambda x: x,
+    )
+    serialized = request.ser_model()
+    assert serialized["url"] == "http://example.com/"
+    assert serialized["callback"] == "function"
+    assert serialized["client"] == "function"
+    assert serialized["method"] == "GET"
+
+
+def test_ser_model_post_request_with_form_data():
+    request = Request(
+        url="http://example.com",
+        callback=lambda x: x,
+        method="POST",
+        form_data={"key": "value"},
+        client=lambda x: x,
+    )
+    serialized = request.ser_model()
+    assert serialized["url"] == "http://example.com/"
+    assert serialized["callback"] == "function"
+    assert serialized["client"] == "function"
+    assert serialized["method"] == "POST"
+    assert serialized["form_data"] == {"key": "value"}
+
+
+def test_ser_model_post_request_with_json_data():
+    request = Request(
+        url="http://example.com",
+        callback=lambda x: x,
+        method="POST",
+        json_data={"key": "value"},
+        client=lambda x: x,
+    )
+    serialized = request.ser_model()
+    assert serialized["url"] == "http://example.com/"
+    assert serialized["callback"] == "function"
+    assert serialized["client"] == "function"
+    assert serialized["method"] == "POST"
+    assert serialized["json_data"] == {"key": "value"}
+
+
+def test_ser_model_invalid_post_request():
+    with pytest.raises(ValidationError):
+        Request(
+            url="http://example.com",
+            callback=lambda x: x,
+            method="POST",
+            client=lambda x: x,
+        )
+
+
+def test_ser_model_invalid_get_request():
+    with pytest.raises(ValidationError):
+        Request(
+            url="http://example.com",
+            callback=lambda x: x,
+            method="GET",
+            form_data={"key": "value"},
+            client=lambda x: x,
+        )
