@@ -15,12 +15,12 @@ from tenacity import (
     wait_exponential,
 )
 
-from dataservice.data import DataWrapper
 from dataservice.config import ServiceConfig
+from dataservice.data import DataWrapper
 from dataservice.exceptions import (
+    ParsingException,
     RequestException,
     RetryableRequestException,
-    ParsingException,
 )
 from dataservice.models import FailedRequest, Request, RequestsIterable, Response
 

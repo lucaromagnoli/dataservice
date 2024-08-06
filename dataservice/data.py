@@ -1,7 +1,7 @@
 from __future__ import annotations
+
 from logging import getLogger
 from typing import Any
-
 
 logger = getLogger(__name__)
 

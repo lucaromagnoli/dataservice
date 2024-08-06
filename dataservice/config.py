@@ -1,4 +1,4 @@
-from typing import NewType, Annotated
+from typing import Annotated, NewType
 
 from annotated_types import Ge
 from pydantic import BaseModel
