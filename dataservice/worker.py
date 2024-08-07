@@ -149,9 +149,9 @@ class DataWorker:
         try:
             return request.callback(response)
         except Exception as e:
-            logger.error(f"Error processing callback {request.callback.__name__}: {e}")
+            logger.error(f"Error processing callback {request.callback_name}: {e}")
             raise ParsingException(
-                f"Error processing callback {request.callback.__name__}: {e}"
+                f"Error processing callback {request.callback_name}: {e}"
             )
 
     async def _handle_request(self, request: Request) -> Response:
@@ -161,7 +161,7 @@ class DataWorker:
         :param request: The request object.
         :return: The response object.
         """
-        key = type(request.client).__name__.lower()
+        key = request.client_name
         if key not in self._clients:
             self._clients[key] = request.client
         client = self._clients[key]

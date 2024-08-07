@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from functools import partial
 from typing import (
     Annotated,
     Any,
@@ -101,6 +102,30 @@ class Request(BaseModel):
                 val = type(val).__name__
             model[key] = val
         return model
+
+    @property
+    def callback_name(self) -> str:
+        return self._get_func_name(self.callback)
+
+    @property
+    def client_name(self) -> str:
+        return self._get_func_name(self.client)
+
+    @staticmethod
+    def _get_func_name(func: Callable):
+        if isinstance(func, partial):
+            if hasattr(func, "keywords"):
+                # functools.wraps
+                if "wrapped" in func.keywords:
+                    return func.keywords["wrapped"].__name__
+            return func.func.__name__
+        elif hasattr(func, "__name__"):
+            return func.__name__
+
+        elif hasattr(func, "__class__"):
+            return type(func).__name__
+        else:
+            return str(func)
 
 
 class Response(BaseModel):

@@ -1,4 +1,5 @@
 from contextlib import nullcontext as does_not_raise
+from functools import partial, wraps
 
 import pytest
 from bs4 import BeautifulSoup
@@ -249,3 +250,41 @@ def test_ser_model_invalid_get_request():
             form_data={"key": "value"},
             client=lambda x: x,
         )
+
+
+def sample_callback(response, _):
+    return response
+
+
+def wrapped_callback(response):
+    @wraps
+    def inner(_):
+        return response
+
+    return inner
+
+
+class ClassBasedCallback:
+    def __call__(self, response):
+        return response
+
+
+@pytest.mark.parametrize(
+    "callback, expected",
+    [
+        (sample_callback, "sample_callback"),
+        (lambda x: x, "<lambda>"),
+        (partial(sample_callback, 1), "sample_callback"),
+        (wrapped_callback(sample_callback), "inner"),
+        (ClassBasedCallback(), "ClassBasedCallback"),
+    ],
+)
+def test_callback_name(callback, expected):
+    request = Request(
+        url="http://example.com",
+        callback=callback,
+        client=lambda x: x,
+        method="GET",
+        content_type="text",
+    )
+    assert request.callback_name == expected
