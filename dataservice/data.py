@@ -5,8 +5,6 @@ from typing import Any, TypedDict
 
 from pydantic import BaseModel
 
-logger = getLogger(__name__)
-
 
 class DataError(TypedDict):
     """Data error type."""
