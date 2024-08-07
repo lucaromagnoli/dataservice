@@ -1,11 +1,11 @@
+"""Models for the data service."""
+
 from __future__ import annotations
 
 from typing import (
     Annotated,
     Any,
     Callable,
-    Generator,
-    Iterable,
     Iterator,
     Literal,
     Optional,
@@ -17,10 +17,12 @@ from typing import (
 from bs4 import BeautifulSoup
 from pydantic import (
     AfterValidator,
+    Field,
     BaseModel,
     HttpUrl,
     model_serializer,
     model_validator,
+    ConfigDict,
 )
 
 DataItemGeneric = TypeVar("DataItemGeneric")
@@ -34,10 +36,10 @@ StrOrDict = str | dict
 class ProxyConfig(BaseModel):
     """Proxy configuration for the service."""
 
-    host: str
-    port: int
-    username: Optional[str] = None
-    password: Optional[str] = None
+    host: str = Field(description="The proxy host.")
+    port: int = Field(description="The proxy port.")
+    username: Optional[str] = Field(description="The proxy username.", default=None)
+    password: Optional[str] = Field(description="The proxy password.", default=None)
 
     @property
     def proxy_url(self) -> str:
@@ -49,19 +51,38 @@ class ProxyConfig(BaseModel):
 class Request(BaseModel):
     """Request model."""
 
-    class Config:
-        arbitrary_types_allowed = True
+    url: Annotated[
+        HttpUrl, AfterValidator(str), Field(description="The URL of the request.")
+    ]
+    callback: CallbackType = Field(
+        description="The callback function to process the response."
+    )
+    client: ClientCallable = Field(
+        description="The client callable to use for the request."
+    )
+    method: Literal["GET", "POST"] = Field(
+        description="The method of the request.", default="GET"
+    )
+    content_type: Literal["text", "json"] = Field(
+        description="The content type of the request.", default="text"
+    )
+    headers: Optional[dict] = Field(
+        description="The headers of the request.", default=None
+    )
+    params: Optional[dict] = Field(
+        description="The parameters of the request.", default=None
+    )
+    form_data: Optional[dict] = Field(
+        description="The form data of the request.", default=None
+    )
+    json_data: Optional[dict] = Field(
+        description="The json data of the request.", default=None
+    )
+    proxy: Optional[ProxyConfig] = Field(
+        description="The proxy configuration for the request.", default=None
+    )
 
-    url: Annotated[HttpUrl, AfterValidator(str)]
-    callback: CallbackType
-    client: ClientCallable
-    method: Literal["GET", "POST"] = "GET"
-    content_type: Literal["text", "json"] = "text"
-    headers: Optional[dict] = None
-    params: Optional[dict] = None
-    form_data: Optional[dict] = None
-    json_data: Optional[dict] = None
-    proxy: Optional[ProxyConfig] = None
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @model_validator(mode="after")
     def validate(self):
@@ -85,17 +106,19 @@ class Request(BaseModel):
 class Response(BaseModel):
     """Response model."""
 
-    class Config:
-        arbitrary_types_allowed = True
-
-    request: Request
-    status_code: int = 200
-    text: str = ""
-    data: dict | None = None
+    request: Request = Field(description="The request that generated the response.")
+    status_code: int = Field(
+        description="The status code of the response.", default=200, ge=100, le=599
+    )
+    text: str = Field(description="The text of the response.", default="")
+    data: dict | None = Field(description="The data of the response.", default=None)
     __html: BeautifulSoup | None = None
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
     def html(self) -> BeautifulSoup:
+        """Return the BeautifulSoup object of the response, if the initial request asked for text data."""
         if self.request.content_type == "json":
             raise ValueError(
                 "Cannot create BeautifulSoup object when the Request content type is JSON."
