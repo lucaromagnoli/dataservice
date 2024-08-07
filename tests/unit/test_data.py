@@ -35,17 +35,17 @@ def test_maybe_non_callable_value():
 
 def test_datawrapper_init_kwargs():
     d = DataWrapper(a=lambda: 1, b=lambda: 1 / 0)
-    assert d.a == 1
-    assert d.b is None
+    assert d["a"] == 1
+    assert d["b"] is None
     assert d.errors == {
         "b": {"type": "ZeroDivisionError", "message": "division by zero"}
     }
 
 
 def test_datawrapper_init_dict():
-    d = DataWrapper(**{"a": lambda: 1, "b": lambda: 1 / 0})
-    assert d.a == 1
-    assert d.b is None
+    d = DataWrapper({"a": lambda: 1, "b": lambda: 1 / 0})
+    assert d["a"] == 1
+    assert d["b"] is None
     assert d.errors == {
         "b": {"type": "ZeroDivisionError", "message": "division by zero"}
     }

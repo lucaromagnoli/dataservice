@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import UserDict
 from logging import getLogger
 from typing import Any, TypedDict
 
@@ -15,45 +16,38 @@ class DataError(TypedDict):
     message: str
 
 
-class AttrDict(dict):
-    """Access dictionary keys as attributes.
-
-    https://stackoverflow.com/questions/4984647/accessing-dict-keys-like-an-attribute
-    """
-
-    def __init__(self, *args, **kwargs):
-        """Initialize the AttrDict.
-
-        :param args: Positional arguments for the dictionary.
-        :param kwargs: Keyword arguments for the dictionary.
-        """
-        super(AttrDict, self).__init__(*args, **kwargs)
-        self.__dict__ = self
-
-
-class DataWrapper(AttrDict):
+class DataWrapper(dict):
     """Special type of dictionary that runs callables and stores exceptions.
     Values can be callables or any other type. Callables are evaluated when accessed.
     When a callable is evaluated, the result is stored in the exceptions dictionary class var.
-    If an exception occurs, the exception is stored in the errors dictionary.
-    Furthermore, keys can be accessed as attributes."""
+    If an exception occurs, the exception is stored in the `errors` dictionary."""
 
-    def __init__(self, **kwargs):
-        """Initialize the DataWrapper.
+    def __init__(self, mapping: dict | None = None, /, **kwargs):
+        """Initialize the DataWrapper."""
+        self.errors = {}
 
-        :param kwargs: Keyword arguments for the dictionary.
-        """
-        super().__init__(**kwargs)
-        self.errors: dict[Any, DataError] = {}
-        for key, value in kwargs.items():
-            self.__setattr__(key, value)
+        if mapping is not None:
+            for key, value in mapping.items():
+                mapping[key] = self._set_item(key, value)
+        else:
+            mapping = {}
+        if kwargs:
+            for key, value in kwargs.items():
+                mapping[key] = self._set_item(key, value)
 
-    def __setattr__(self, key: Any, value: Any):
+        super().__init__(mapping)
+
+    def __setitem__(self, key: Any, value: Any):
         """Set attribute value, evaluating callables. If an exception occurs, store it in the exceptions dict.
 
         :param key: The key to set in the dictionary.
         :param value: The value to set in the dictionary.
         """
+        maybe_value = self._set_item(key, value)
+        super().__setitem__(key, maybe_value)
+
+    def _set_item(self, key, value):
+        """Set the value for the given key, evaluating callables."""
         maybe_value, maybe_exception = self.maybe(value)
         if maybe_exception:
             self.errors[key] = DataError(
@@ -62,7 +56,7 @@ class DataWrapper(AttrDict):
                     "message": str(maybe_exception),
                 }
             )
-        super().__setattr__(key, maybe_value)
+        return maybe_value
 
     @staticmethod
     def maybe(value: Any) -> tuple[Any | None, None | Exception]:

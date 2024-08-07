@@ -5,8 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from dataclasses import is_dataclass
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Generator
+from typing import Any, AsyncGenerator, Generator
 
 from tenacity import (
     AsyncRetrying,
@@ -17,7 +16,7 @@ from tenacity import (
 )
 
 from dataservice.config import ServiceConfig
-from dataservice.data import DataWrapper
+from dataservice.data import BaseDataItem
 from dataservice.exceptions import (
     ParsingException,
     RequestException,
@@ -30,9 +29,6 @@ from dataservice.models import (
     RequestsIterable,
     Response,
 )
-
-if TYPE_CHECKING:
-    from _typeshed import DataclassInstance
 
 logger = logging.getLogger(__name__)
 
@@ -67,9 +63,7 @@ class DataWorker:
         """
         await self._work_queue.put(item)
 
-    async def _add_to_data_queue(
-        self, item: dict | type[DataclassInstance] | DataWrapper
-    ) -> None:
+    async def _add_to_data_queue(self, item: dict | BaseDataItem) -> None:
         """
         Adds an item to the data queue.
 
@@ -99,9 +93,7 @@ class DataWorker:
             raise ValueError("No requests to process.")
         self._started = True
 
-    async def _handle_queue_item(
-        self, item: Request | dict | type[DataclassInstance] | DataWrapper
-    ) -> None:
+    async def _handle_queue_item(self, item: Request | dict | BaseDataItem) -> None:
         """
         Handles an item from the work queue.
 
@@ -109,7 +101,7 @@ class DataWorker:
         """
         if isinstance(item, Request):
             await self._handle_request_item(item)
-        elif isinstance(item, (dict, DataWrapper)) or is_dataclass(item):
+        elif isinstance(item, (dict, BaseDataItem)):
             await self._add_to_data_queue(item)
         else:
             raise ValueError(f"Unknown item type {type(item)}")
@@ -138,9 +130,7 @@ class DataWorker:
         try:
             response = await self._handle_request(request)
             callback_result = await self._handle_callback(request, response)
-            if isinstance(callback_result, (dict, DataWrapper)) or is_dataclass(
-                callback_result
-            ):
+            if isinstance(callback_result, (dict, BaseDataItem)):
                 await self._add_to_data_queue(callback_result)
             else:
                 await self._add_to_work_queue(callback_result)
@@ -242,7 +232,7 @@ class DataWorker:
         elif isinstance(item, AsyncGenerator):
             async for i in item:
                 yield asyncio.create_task(self._handle_queue_item(i))
-        elif isinstance(item, (Request, dict)) or is_dataclass(item):
+        elif isinstance(item, (Request, dict, BaseDataItem)):
             yield asyncio.create_task(self._handle_queue_item(item))
         else:
             raise ValueError(f"Unknown item type {type(item)}")
@@ -261,7 +251,7 @@ class DataWorker:
                 tasks = [task async for task in self._iter_callbacks(item)]
                 await asyncio.gather(*tasks)
 
-    def get_data_item(self) -> Any:
+    def get_data_item(self) -> dict | BaseDataItem:
         """
         Retrieve a data item from the data queue.
 
