@@ -3,8 +3,8 @@ from dataservice.config import ServiceConfig
 from dataservice.data import DataWrapper
 from dataservice.exceptions import RequestException, RetryableRequestException
 from dataservice.models import Request, Response
-from dataservice.pipeline import Pipeline
 from dataservice.service import DataService
+from temp.pipeline import Pipeline
 
 __all__ = [
     "DataService",
