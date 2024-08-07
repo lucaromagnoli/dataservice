@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, AsyncGenerator, Generator
 
 from tenacity import (
     AsyncRetrying,
+    RetryCallState,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
@@ -22,7 +23,13 @@ from dataservice.exceptions import (
     RequestException,
     RetryableRequestException,
 )
-from dataservice.models import FailedRequest, Request, RequestsIterable, Response
+from dataservice.models import (
+    ClientCallable,
+    FailedRequest,
+    Request,
+    RequestsIterable,
+    Response,
+)
 
 if TYPE_CHECKING:
     from _typeshed import DataclassInstance
@@ -172,7 +179,7 @@ class DataWorker:
         await asyncio.sleep(random.randint(0, self.config.random_delay) / 1000)
         return await self._wrap_retry(client, request)
 
-    async def _wrap_retry(self, client, request):
+    async def _wrap_retry(self, client: ClientCallable, request: Request):
         """
         Wraps the request in a retry mechanism.
 
@@ -181,16 +188,16 @@ class DataWorker:
         :return: The response object.
         """
 
-        def before_log(logger):
-            def _before_log(retry_state):
+        def before_sleep_log(logger):
+            def _before_sleep_log(retry_state: RetryCallState):
                 logger.debug(
                     f"Retrying request {request.url}, attempt {retry_state.attempt_number}",
                 )
 
-            return _before_log
+            return _before_sleep_log
 
         def after_log(logger):
-            def _after_log(retry_state):
+            def _after_log(retry_state: RetryCallState):
                 logger.debug(
                     f"Retry attempt {retry_state.attempt_number}. Request {request.url} returned with status {retry_state.outcome}",
                 )
@@ -206,7 +213,7 @@ class DataWorker:
                 max=self.config.retry.wait_exp_max,
             ),
             retry=retry_if_exception_type(RetryableRequestException),
-            before=before_log(logger),
+            before_sleep=before_sleep_log(logger),
             after=after_log(logger),
         )
         return await retryer(self._make_request, client, request)

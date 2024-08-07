@@ -271,7 +271,7 @@ async def test__handle_request(
                 Response(request=request_with_data_callback, data={"parsed": "data"}),
             ],
             does_not_raise(),
-            "Retrying request http://example.com/, attempt 3",
+            "Retrying request http://example.com/, attempt 2",
         ),
         (
             [

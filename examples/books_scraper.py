@@ -68,14 +68,14 @@ def main(pagination: bool = True):
     data_service = DataService(start_requests)
     results = tuple(data_service)
     pprint(results)
-    # pipeline = (
-    #     Pipeline(results)
-    #     .add_step(add_time_stamp)
-    #     .add_step(partial(write_to_file))
-    # )
-    # books = pipeline.run()
-    # for book in books:
-    #     logger.info(book)
+    pipeline = (
+        Pipeline(results)
+        .add_step(add_time_stamp)
+        .add_step(partial(write_to_file), final=True)
+    )
+    books = pipeline.run()
+    for book in books:
+        logger.info(book)
 
 
 if __name__ == "__main__":
