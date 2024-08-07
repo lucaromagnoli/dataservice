@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import UserDict
 from logging import getLogger
 from typing import Any, TypedDict
 
