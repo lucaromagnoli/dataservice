@@ -21,14 +21,14 @@ setup_logging()
 
 class BooksPage(BaseDataItem):
     url: str
-    title: str
+    title: str | None
     articles: int
 
 
 class BookDetails(BaseDataItem):
-    title: str
-    price: str
     url: str
+    title: str | None
+    price: str | None
 
 
 def parse_books_page(
@@ -82,8 +82,7 @@ def main(pagination: bool):
     ]
     service_config = ServiceConfig(random_delay=1000)
     data_service = DataService(start_requests, service_config)
-    data = tuple(data_service)
-    data_service.write_to_file("books.json")
+    data = {type(item).__name__: item for item in data_service}
     pprint(data)
 
 
