@@ -3,33 +3,19 @@ from __future__ import annotations
 from logging import getLogger
 from typing import Any
 
+from pydantic import BaseModel
+
 logger = getLogger(__name__)
 
 
-class AttrDict(dict):
-    """Access dictionary keys as attributes.
-
-    https://stackoverflow.com/questions/4984647/accessing-dict-keys-like-an-attribute
-    """
-
-    def __init__(self, *args, **kwargs):
-        """Initialize the AttrDict.
-
-        :param args: Positional arguments for the dictionary.
-        :param kwargs: Keyword arguments for the dictionary.
-        """
-        super(AttrDict, self).__init__(*args, **kwargs)
-        self.__dict__ = self
-
-
-class DataWrapper(AttrDict):
+class DataWrapper(dict):
     """Special type of dictionary that runs callables and stores exceptions.
     Values can be callables or any other type. Callables are evaluated when accessed.
     When a callable is evaluated, the result is stored in the exceptions dictionary class var.
     If an exception occurs, the exception is stored in the exceptions dictionary.
     Furthermore, keys can be accessed as attributes."""
 
-    exceptions: AttrDict = AttrDict()
+    errors: dict = {}
 
     def __init__(self, **kwargs):
         """Initialize the DataWrapper.
@@ -48,7 +34,7 @@ class DataWrapper(AttrDict):
         """
         maybe_value, maybe_exception = self.maybe(value)
         if maybe_exception:
-            self.exceptions[key] = {
+            self.errors[key] = {
                 "type": type(maybe_exception).__name__,
                 "message": str(maybe_exception),
             }
@@ -68,3 +54,9 @@ class DataWrapper(AttrDict):
             except Exception as e:
                 return None, e
         return value, None
+
+
+class DataItem(BaseModel):
+    """Base class for all data items."""
+
+    pass
