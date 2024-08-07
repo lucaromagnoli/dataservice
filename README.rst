@@ -24,7 +24,7 @@ The client can be any Python callable that accepts a ``Request`` object and retu
 
 The callback function processes a ``Response`` object and returns either ``data`` or additional ``Request`` objects.
 
-In this trivial example we are requesting the `Books to Scrape <https://books.toscrape.com/index.html>`_. homepage and parsing the number of books on the page.
+In this trivial example we are requesting the `Books to Scrape <https://books.toscrape.com/index.html>`_ homepage and parsing the number of books on the page.
 
 Example ``parse_books_page`` function:
 
