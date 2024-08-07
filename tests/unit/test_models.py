@@ -26,6 +26,13 @@ def valid_request(valid_url, dummy_callback):
     return Request(url=valid_url, callback=dummy_callback, client=ToyClient())
 
 
+@pytest.fixture
+def valid_data_request(valid_url, dummy_callback):
+    return Request(
+        url=valid_url, callback=dummy_callback, client=ToyClient(), content_type="json"
+    )
+
+
 def test_request_creation(valid_url, dummy_callback):
     request = Request(url=valid_url, callback=dummy_callback, client=ToyClient())
     assert request.url == valid_url
@@ -66,23 +73,26 @@ def test_request_optional_fields(valid_url, dummy_callback):
 
 def test_response_creation(valid_request):
     data = "<html></html>"
-    response = Response(request=valid_request, data=data)
+    response = Response(request=valid_request, text=data)
     assert response.request == valid_request
-    assert response.data == data
+    assert response.text == data
 
 
-def test_response_soup_property(valid_request):
-    html_data = "<html><body><p>Hello, world!</p></body></html>"
-    response = Response(request=valid_request, data=html_data)
-    assert isinstance(response.soup, BeautifulSoup)
-    assert response.soup.find("p").text == "Hello, world!"
+def test_response_html_property(valid_request):
+    html_string = "<html><body><p>Hello, world!</p></body></html>"
+    response = Response(request=valid_request, text=html_string)
+    assert isinstance(response.html, BeautifulSoup)
+    assert response.html.find("p").text == "Hello, world!"
 
 
-def test_response_soup_property_with_dict(valid_request):
+def test_response_html_property_with_json_content_type(valid_data_request):
     json_data = {"key": "value"}
-    response = Response(request=valid_request, data=json_data)
-    with pytest.raises(ValueError, match="Cannot create BeautifulSoup from dict."):
-        _ = response.soup
+    response = Response(request=valid_data_request, data=json_data)
+    with pytest.raises(
+        ValueError,
+        match="Cannot create BeautifulSoup object when the Request content type is JSON.",
+    ):
+        _ = response.html
 
 
 @pytest.mark.parametrize(

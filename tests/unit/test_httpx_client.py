@@ -15,7 +15,7 @@ def httpx_client():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "url, data, text, content_type, expected",
+    "url, data, text, content_type, expected_data, expected_text",
     [
         pytest.param(
             "https://example.com/",
@@ -23,6 +23,7 @@ def httpx_client():
             None,
             "json",
             {"key": "value"},
+            '{"key": "value"}',
             id="JSON response",
         ),
         pytest.param(
@@ -30,13 +31,21 @@ def httpx_client():
             None,
             "This is a text response",
             "text",
+            None,
             "This is a text response",
             id="Text response",
         ),
     ],
 )
 async def test_httpx_client_get_request(
-    httpx_mock, httpx_client, url, data, text, content_type, expected
+    httpx_mock,
+    httpx_client,
+    url,
+    data,
+    text,
+    content_type,
+    expected_text,
+    expected_data,
 ):
     request_url = "https://example.com/?q=test"
     params = {"q": "test"}
@@ -49,9 +58,9 @@ async def test_httpx_client_get_request(
         content_type=content_type,
         client=HttpXClient,
     )
-    expected_response = Response(request=request, data=expected)
     response = await httpx_client._make_request(request)
-    assert response.data == expected_response.data
+    assert response.text == expected_text
+    assert response.data == expected_data
 
 
 @pytest.mark.asyncio
@@ -72,8 +81,8 @@ async def test_httpx_client_post_request(
     httpx_mock, httpx_client, url, form_data, json_data, content_type, expected
 ):
     request_url = "https://example.com/"
-    response = {"response": "example"}
-    httpx_mock.add_response(url=request_url, json=response, method="POST")
+    json_resp = {"response": "example"}
+    httpx_mock.add_response(url=request_url, json=json_resp, method="POST")
     request = Request(
         url="https://example.com",
         method="POST",
@@ -83,9 +92,8 @@ async def test_httpx_client_post_request(
         content_type=content_type,
         client=HttpXClient,
     )
-    expected_response = Response(request=request, data=response)
     response = await httpx_client._make_request(request)
-    assert response.data == expected_response.data
+    assert response.data == json_resp
 
 
 @pytest.mark.asyncio

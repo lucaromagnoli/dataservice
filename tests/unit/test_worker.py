@@ -175,8 +175,16 @@ async def test_deduplication(config, expected, mocker):
     mocked_handle_request = mocker.patch(
         "dataservice.worker.DataWorker._handle_request",
         side_effect=[
-            Response(request=request_with_data_callback, data={"parsed": "data"}),
-            Response(request=request_with_data_callback, data={"parsed": "data"}),
+            Response(
+                request=request_with_data_callback,
+                text='{"parsed": "data"}',
+                data={"parsed": "data"},
+            ),
+            Response(
+                request=request_with_data_callback,
+                text='{"parsed": "data"}',
+                data={"parsed": "data"},
+            ),
         ],
     )
     data_worker = DataWorker(

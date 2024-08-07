@@ -16,4 +16,7 @@ __all__ = [
     "RequestException",
     "RetryableRequestException",
     "ServiceConfig",
+    "utils",
 ]
+
+__version__ = "0.0.1"

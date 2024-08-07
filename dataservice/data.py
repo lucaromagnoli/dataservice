@@ -46,7 +46,7 @@ class DataWrapper(AttrDict):
         :param key: The key to set in the dictionary.
         :param value: The value to set in the dictionary.
         """
-        maybe_value, maybe_exception = self._maybe(value)
+        maybe_value, maybe_exception = self.maybe(value)
         if maybe_exception:
             self.exceptions[key] = {
                 "type": type(maybe_exception).__name__,
@@ -54,7 +54,8 @@ class DataWrapper(AttrDict):
             }
         super().__setattr__(key, maybe_value)
 
-    def _maybe(self, value: Any) -> tuple[Any | None, None | Exception]:
+    @staticmethod
+    def maybe(value: Any) -> tuple[Any | None, None | Exception]:
         """When value is a callable, return (value(), None) or (None, exception) if an exception occurs,
         return (value, None) otherwise.
 

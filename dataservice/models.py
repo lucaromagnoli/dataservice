@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import (
     Annotated,
     Any,
-    AsyncGenerator,
     Callable,
     Generator,
     Iterable,
@@ -32,6 +31,21 @@ ClientCallable = Callable[["Request"], "Response"]
 StrOrDict = str | dict
 
 
+class ProxyConfig(BaseModel):
+    """Proxy configuration for the service."""
+
+    host: str
+    port: int
+    username: Optional[str] = None
+    password: Optional[str] = None
+
+    @property
+    def proxy_url(self) -> str:
+        if self.username and self.password:
+            return f"http://{self.username}:{self.password}@{self.host}:{self.port}"
+        return f"http://{self.host}:{self.port}"
+
+
 class Request(BaseModel):
     """Request model."""
 
@@ -40,13 +54,14 @@ class Request(BaseModel):
 
     url: Annotated[HttpUrl, AfterValidator(str)]
     callback: CallbackType
+    client: ClientCallable
     method: Literal["GET", "POST"] = "GET"
     content_type: Literal["text", "json"] = "text"
     headers: Optional[dict] = None
     params: Optional[dict] = None
     form_data: Optional[dict] = None
     json_data: Optional[dict] = None
-    client: ClientCallable
+    proxy: Optional[ProxyConfig] = None
 
     @model_validator(mode="after")
     def validate(self):
@@ -74,20 +89,20 @@ class Response(BaseModel):
         arbitrary_types_allowed = True
 
     request: Request
-    data: StrOrDict | None
     status_code: int = 200
-    __soup: BeautifulSoup | None = None
+    text: str = ""
+    data: dict | None = None
+    __html: BeautifulSoup | None = None
 
     @property
-    def soup(self) -> BeautifulSoup:
-        if self.__soup is None:
-            if isinstance(self.data, dict):
-                raise ValueError("Cannot create BeautifulSoup from dict.")
-            if self.data is not None:
-                self.__soup = BeautifulSoup(self.data, "html5lib")
-            else:
-                self.__soup = BeautifulSoup("", "html5lib")
-        return self.__soup
+    def html(self) -> BeautifulSoup:
+        if self.request.content_type == "json":
+            raise ValueError(
+                "Cannot create BeautifulSoup object when the Request content type is JSON."
+            )
+        if self.__html is None:
+            self.__html = BeautifulSoup(self.text, "html5lib")
+        return self.__html
 
 
 class FailedRequest(TypedDict):
@@ -97,6 +112,4 @@ class FailedRequest(TypedDict):
     error: str
 
 
-RequestsIterable = (
-    Iterable[Request] | Generator[Request, None, None] | AsyncGenerator[Request, None]
-)
+RequestsIterable = Iterable[Request] | Generator[Request, None, None]

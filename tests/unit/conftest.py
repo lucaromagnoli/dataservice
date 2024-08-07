@@ -25,7 +25,7 @@ class ToyClient:
             f"Returning response for {request.url}. Blocked for {block_time} seconds."
         )
         data = f"<html><head></head><body>This is content for URL: {request.url}</body></html>"
-        return Response(request=request, data=data)
+        return Response(request=request, text=data)
 
 
 @pytest.fixture

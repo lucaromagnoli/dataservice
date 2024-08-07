@@ -53,13 +53,15 @@ class HttpXClient:
             raise RequestException(str(e))
 
     async def _make_request(self, request: Request) -> Response:
-        """Make a request using HTTPX.
+        """Make a request using HTTPX. Private method for internal use.
 
         :param request: The request object containing the details of the HTTP request.
         :return: A Response object containing the response data.
         """
         logger.info(f"Requesting {request.url}")
-        async with self.async_client(headers=request.headers) as client:
+        async with self.async_client(
+            headers=request.headers, proxy=request.proxy
+        ) as client:
             match request.method:
                 case "GET":
                     response = await client.get(request.url, params=request.params)
@@ -73,8 +75,8 @@ class HttpXClient:
             response.raise_for_status()
             match request.content_type:
                 case "text":
-                    data = response.text
+                    data = None
                 case "json":
                     data = response.json()
         logger.info(f"Returning response for {request.url}")
-        return Response(request=request, data=data)
+        return Response(request=request, text=response.text, data=data)

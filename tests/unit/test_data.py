@@ -3,7 +3,7 @@ from dataservice.data import DataWrapper
 
 def test_maybe_callable_returns_value():
     d = DataWrapper()
-    value, exception = d._maybe(lambda: 1)
+    value, exception = d.maybe(lambda: 1)
     assert value == 1
     assert exception is None
 
@@ -14,14 +14,14 @@ def test_maybe_callable_raises_exception():
     def raise_exception():
         raise ValueError("error")
 
-    value, exception = d._maybe(raise_exception)
+    value, exception = d.maybe(raise_exception)
     assert value is None
     assert isinstance(exception, ValueError)
 
 
 def test_maybe_non_callable_value():
     d = DataWrapper()
-    value, exception = d._maybe(1)
+    value, exception = d.maybe(1)
     assert value == 1
     assert exception is None
 

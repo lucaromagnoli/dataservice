@@ -26,7 +26,7 @@ def data_service(client):
 
 
 def parse_books(response: Response):
-    articles = response.soup.find_all("article", {"class": "product_pod"})
+    articles = response.html.find_all("article", {"class": "product_pod"})
     for article in articles:
         href = article.h3.a["href"]
         url = urljoin(response.request.url, href)
@@ -34,8 +34,8 @@ def parse_books(response: Response):
 
 
 def parse_book_details(response: Response):
-    title = response.soup.find("h1").text
-    price = response.soup.find("p", {"class": "price_color"}).text
+    title = response.html.find("h1").text
+    price = response.html.find("p", {"class": "price_color"}).text
     return {"title": title, "price": price}
 
 

@@ -6,8 +6,9 @@ from dataclasses import dataclass
 from pprint import pprint
 from urllib.parse import urljoin
 
+from logging_config import setup_logging
+
 from dataservice import DataService, HttpXClient, Request, Response
-from examples.logging_config import setup_logging
 
 logger = logging.getLogger("books_scraper")
 setup_logging()
@@ -25,7 +26,7 @@ def get_links(response: Response):
 
     def inner(resp: Response):
         nonlocal base_url
-        links = resp.soup.find_all("a")
+        links = resp.html.find_all("a")
         for link in links:
             link_href = urljoin(base_url, link["href"])
             yield Link(
