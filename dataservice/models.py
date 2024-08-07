@@ -121,7 +121,6 @@ class Request(BaseModel):
             return func.func.__name__
         elif hasattr(func, "__name__"):
             return func.__name__
-
         elif hasattr(func, "__class__"):
             return type(func).__name__
         else:

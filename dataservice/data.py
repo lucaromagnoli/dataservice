@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, TypedDict
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 class DataError(TypedDict):
@@ -71,17 +71,16 @@ class DataWrapper(dict):
 
 
 class BaseDataItem(BaseModel):
-    """Base class for all data items."""
+    """Base class for all data items.
+
+    Implements a model validator that wraps the data in a `DataWrapper` and returns the wrapped data with errors.
+    """
 
     errors: dict[Any, DataError] = {}
 
+    @model_validator(mode="before")
     @classmethod
-    def wrap(cls, **data: dict) -> BaseDataItem:
-        """Create a new instance of the class by wrapping data in a DataWrapper.
-
-        :param data: The data to wrap.
-        :return: A new instance of the DataItem class.
-        """
-        wrapped = DataWrapper(**data)
-        wrapped.update(errors=wrapped.errors)
-        return cls(**wrapped)
+    def _run_callables(cls, data: Any) -> Any:
+        """Wrap the data in a DataWrapper, i.e. evaluate callables and store errors if they occur."""
+        wrapped = DataWrapper(data)
+        return {**wrapped, "errors": wrapped.errors}
