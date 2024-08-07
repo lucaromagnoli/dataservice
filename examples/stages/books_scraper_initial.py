@@ -11,6 +11,7 @@ from dataservice import DataService, HttpXClient, Request, Response
 def parse_books_page(
     response: Response, pagination: bool = False
 ) -> Iterator[dict | Request]:
+    """Parse the books page."""
     articles = response.html.find_all("article", {"class": "product_pod"})
     yield {
         "url": response.request.url,
@@ -31,6 +32,7 @@ def parse_books_page(
 
 
 def parse_book_details(response: Response) -> dict:
+    """Parse the book details."""
     title = response.html.find("h1").text
     price = response.html.find("p", {"class": "price_color"}).text
     return {"title": title, "price": price}

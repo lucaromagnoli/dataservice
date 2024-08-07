@@ -2,14 +2,13 @@
 
 import argparse
 import timeit
-from dataclasses import dataclass
 from pprint import pprint
 from typing import Iterator
 from urllib.parse import urljoin
 
 from dataservice import (
+    BaseDataItem,
     DataService,
-    DataWrapper,
     HttpXClient,
     Request,
     Response,
@@ -20,15 +19,13 @@ from dataservice.utils import setup_logging
 setup_logging()
 
 
-@dataclass
-class BooksPage:
+class BooksPage(BaseDataItem):
     url: str
     title: str
     articles: int
 
 
-@dataclass
-class BookDetails:
+class BookDetails(BaseDataItem):
     title: str
     price: str
     url: str
@@ -37,20 +34,22 @@ class BookDetails:
 def parse_books_page(
     response: Response, pagination: bool = False
 ) -> Iterator[BooksPage | Request]:
+    """Parse the books page."""
     articles = response.html.find_all("article", {"class": "product_pod"})
-    yield BooksPage(
-        **DataWrapper(
-            **{
-                "url": response.request.url,
-                "title": lambda: response.html.title.get_text(strip=True),
-                "articles": len(articles),
-            }
-        )
+
+    yield BooksPage.wrap(
+        **{
+            "url": response.request.url,
+            "title": lambda: response.html.title.get_text(strip=True),
+            "articles": len(articles),
+        }
     )
+
     for article in articles:
         href = article.h3.a["href"]
         url = urljoin(response.request.url, href)
         yield Request(url=url, callback=parse_book_details, client=HttpXClient())
+
     if pagination:
         next_page = response.html.find("li", {"class": "next"})
         if next_page is not None:
@@ -63,14 +62,13 @@ def parse_books_page(
 
 
 def parse_book_details(response: Response) -> BookDetails:
-    return BookDetails(
-        **DataWrapper(
-            **{
-                "title": lambda: response.html.find("h1").text,
-                "price": lambda: response.html.find("p", {"class": "price_color"}).text,
-                "url": response.request.url,
-            }
-        )
+    """Parse the book details."""
+    return BookDetails.wrap(
+        **{
+            "title": lambda: response.html.find("h1").text,
+            "price": lambda: response.html.find("p", {"class": "price_color"}).text,
+            "url": response.request.url,
+        }
     )
 
 

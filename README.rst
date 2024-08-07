@@ -6,6 +6,7 @@ ________________________________________________________________________________
 DataService is a lightweight data gathering library for Python.
 
 Designed for simplicity, it uses common web scraping and data gathering patterns.
+
 No complex API to learn, just standard Python idioms.
 
 Asynchronous implementation, synchronous interface.
@@ -13,7 +14,7 @@ Asynchronous implementation, synchronous interface.
 How to use DataService
 -------
 
-To start, create a DataService instance with an iterable of Request objects. This setup provides you with an iterator of data objects that you can then iterate over or convert to a list, tuple, a pandas Dataframe or any data structure of choice.
+To start, create a ``DataService`` instance with an ``Iterable`` of ``Request`` objects. This setup provides you with an ``Iterator`` of data objects that you can then iterate over or convert to a ``list``, ``tuple``, a ``pd.DataFrame`` or any data structure of choice.
 
 .. code-block:: python
 
