@@ -1,7 +1,6 @@
 import logging
 import os
 from contextlib import nullcontext as does_not_raise
-from dataclasses import dataclass
 
 import pytest
 

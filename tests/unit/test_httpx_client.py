@@ -5,7 +5,7 @@ from pytest_httpx import HTTPXMock
 
 from dataservice.clients import HttpXClient
 from dataservice.exceptions import RequestException, RetryableRequestException
-from dataservice.models import Request, Response
+from dataservice.models import Request
 
 
 @pytest.fixture

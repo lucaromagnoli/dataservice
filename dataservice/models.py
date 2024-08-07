@@ -110,6 +110,3 @@ class FailedRequest(TypedDict):
 
     request: Request
     error: str
-
-
-RequestsIterable = Iterable[Request] | Generator[Request, None, None]

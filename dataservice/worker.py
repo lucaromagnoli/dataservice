@@ -5,8 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-import time
-from typing import Any, AsyncGenerator, Generator
+from typing import Any, AsyncGenerator, Generator, Iterable
 
 from tenacity import (
     AsyncRetrying,
@@ -27,7 +26,6 @@ from dataservice.models import (
     ClientCallable,
     FailedRequest,
     Request,
-    RequestsIterable,
     Response,
 )
 
@@ -41,7 +39,7 @@ class DataWorker:
 
     _clients: dict[Any, Any] = {}
 
-    def __init__(self, requests: RequestsIterable, config: ServiceConfig):
+    def __init__(self, requests: Iterable[Request], config: ServiceConfig):
         """
         Initializes the DataWorker with the given parameters.
 
@@ -49,14 +47,14 @@ class DataWorker:
         :param config: The configuration for the service.
         """
         self.config = config
-        self._requests: RequestsIterable = requests
+        self._requests: Iterable[Request] = requests
         self._work_queue: asyncio.Queue = asyncio.Queue()
         self._data_queue: asyncio.Queue = asyncio.Queue()
         self._failures: list[FailedRequest] = []
         self._seen_requests: set = set()
         self._started: bool = False
 
-    async def _add_to_work_queue(self, item: RequestsIterable | Request) -> None:
+    async def _add_to_work_queue(self, item: Iterable[Request] | Request) -> None:
         """
         Adds an item to the work queue.
 

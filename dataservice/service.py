@@ -7,18 +7,13 @@ from __future__ import annotations
 import asyncio
 import pathlib
 from logging import getLogger
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, Union
+from typing import Any, Iterable
 
-from pydantic import validate_call
+from data import BaseDataItem
 
 from dataservice.config import ServiceConfig
-from dataservice.models import FailedRequest, RequestsIterable
+from dataservice.models import FailedRequest, Request
 from dataservice.worker import DataWorker
-
-if TYPE_CHECKING:
-    from _typeshed import DataclassInstance
-
 
 logger = getLogger(__name__)
 
@@ -29,7 +24,7 @@ class DataService:
     """
 
     def __init__(
-        self, requests: RequestsIterable, config: ServiceConfig = ServiceConfig()
+        self, requests: Iterable[Request], config: ServiceConfig = ServiceConfig()
     ):
         """
         Initializes the DataService with the given parameters.
@@ -81,12 +76,10 @@ class DataService:
     # @validate_call
     def write(
         self,
-        results: Iterable[Union[dict | "DataclassInstance"]],
+        results: Iterable[dict | BaseDataItem],
         filepath: pathlib.Path,
     ) -> None:
         """
         Writes the results to a file.
         """
-        filepath = Path(filepath)
-        ext = filepath.suffix
         pass
