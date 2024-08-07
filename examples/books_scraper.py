@@ -3,7 +3,6 @@
 import argparse
 import json
 import logging
-import timeit
 from datetime import datetime
 from functools import partial
 from pprint import pprint

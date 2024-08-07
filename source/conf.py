@@ -20,9 +20,10 @@ extensions = [
 templates_path = ["_templates"]
 exclude_patterns = []
 
-html_theme = "alabaster"
+html_theme = "pydata_sphinx_theme"
 html_static_path = ["_static"]
 
 autodoc_pydantic_model_show_json = False
 autodoc_pydantic_model_show_config_summary = False
 autodoc_pydantic_model_show_config_section = False
+autodoc_pydantic_model_show_field_summary = False
