@@ -68,15 +68,15 @@ def test_datawrapper_is_instance_of_dict():
         ({"foo": 1, "bar": lambda: 2}, 1, 2, {}),
     ],
 )
-def test_data_item_wrap(data, expected_foo, expected_bar, expected_errors):
-    item = TestItem.wrap(**data)
+def test_data_item_init(data, expected_foo, expected_bar, expected_errors):
+    item = TestItem(**data)
     assert item.foo == expected_foo
     assert item.bar == expected_bar
     assert item.errors == expected_errors
 
 
-def test_item_data_wrap_kwargs():
-    item = TestItem.wrap(foo=lambda: 1, bar=lambda: 1 / 0)
+def test_item_data_init_kwargs():
+    item = TestItem(foo=lambda: 1, bar=lambda: 1 / 0)
     assert item.foo == 1
     assert item.bar is None
     assert item.errors == {
