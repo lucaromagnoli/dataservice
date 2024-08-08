@@ -2,6 +2,7 @@
 
 import argparse
 import timeit
+from collections import defaultdict
 from pprint import pprint
 from typing import Iterator
 from urllib.parse import urljoin
@@ -13,8 +14,8 @@ from dataservice import (
     Request,
     Response,
     ServiceConfig,
+    setup_logging,
 )
-from dataservice.utils import setup_logging
 
 setup_logging()
 
@@ -37,7 +38,7 @@ def parse_books_page(
     """Parse the books page."""
     articles = response.html.find_all("article", {"class": "product_pod"})
 
-    yield BooksPage.wrap(
+    yield BooksPage(
         **{
             "url": response.request.url,
             "title": lambda: response.html.title.get_text(strip=True),
@@ -63,7 +64,7 @@ def parse_books_page(
 
 def parse_book_details(response: Response) -> BookDetails:
     """Parse the book details."""
-    return BookDetails.wrap(
+    return BookDetails(
         **{
             "title": lambda: response.html.find("h1").text,
             "price": lambda: response.html.find("p", {"class": "price_color"}).text,
@@ -82,7 +83,9 @@ def main(pagination: bool):
     ]
     service_config = ServiceConfig(random_delay=1000)
     data_service = DataService(start_requests, service_config)
-    data = {type(item).__name__: item for item in data_service}
+    data = defaultdict(list)
+    for item in data_service:
+        data[type(item).__name__].append(item)
     pprint(data)
 
 
