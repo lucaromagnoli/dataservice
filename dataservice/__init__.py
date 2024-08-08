@@ -15,7 +15,9 @@ __all__ = [
     "RequestException",
     "RetryableRequestException",
     "ServiceConfig",
-    "utils",
+    "setup_logging",
 ]
 
 __version__ = "0.0.1"
+
+from log import setup_logging
