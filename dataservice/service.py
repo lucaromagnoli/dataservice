@@ -12,7 +12,6 @@ from typing import Any, Iterable
 from pydantic import validate_call
 
 from dataservice.data import BaseDataItem
-
 from dataservice.config import ServiceConfig
 from dataservice.models import FailedRequest, Request
 from dataservice.worker import DataWorker
