@@ -22,10 +22,7 @@ If the p tag with class "price_color" is missing, calling the ``text`` attribute
 
 Using try-except blocks for each attribute is not elegant.
 
-For this specific purpose, ``BaseDataItem`` implements a method ``wrap()``, which creates a new instance of the class by wrapping the **kwargs in a ``DataWrapper``.
-
-``DataWrapper`` is a special Dictionary that evaluates ``callables`` on set item access,
-returns the result or None if an exception is raised, and stores the exception in the ``errors`` dictionary.
+For this specific purpose, ``BaseDataItem`` implements a global model pre-validator that will run callable values and store any exception in the ``errors`` dictionary.
 For this to work we need to wrap the calls on the ``html`` property within lambda functions, or a normal function if you prefer.
 
 Example usage:
@@ -41,7 +38,7 @@ Example usage:
     )
 
 
-Due to this, we set the attributes to a ``str | None`` union type.
+Due to this, we set the attributes to a ``str | None`` union type for those values we anticipate might be missing.
 
 We also want to be able to pass the pagination argument to the ``scrape_books_page()`` function.
 Since the ``callback`` is a one-argument function, we can use a ``lambda`` to pass the pagination argument.
@@ -54,4 +51,4 @@ By default it sets up a logger with name ``dataservice`` that logs to the consol
 You should now see a lot of activity on the console!
 
 Finally, so far we haven't done anything with the results. We will now iterate over the ``DataService`` iterator and group the results by Class name, then finally
-write them to a CSV file.
+write them to a CSV file using the ``write`` method.
