@@ -9,6 +9,8 @@ import pathlib
 from logging import getLogger
 from typing import Any, Iterable
 
+from pydantic import validate_call
+
 from data import BaseDataItem
 
 from dataservice.config import ServiceConfig
@@ -73,7 +75,7 @@ class DataService:
         """
         asyncio.run(self.data_worker.fetch())
 
-    # @validate_call
+    @validate_call
     def write(
         self,
         results: Iterable[dict | BaseDataItem],
