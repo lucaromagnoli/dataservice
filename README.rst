@@ -38,7 +38,7 @@ Example ``parse_books_page`` function:
         articles = response.soup.find_all("article", {"class": "product_pod"})
         return {
             "url": response.request.url,
-            "title": response.soup.title.get_text(strip=True),
+            "title": response.html.title.get_text(strip=True),
             "articles": len(articles),
         }
 
