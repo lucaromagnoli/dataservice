@@ -20,7 +20,7 @@ jobs:
       - name: Install Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version: "3.12"
         # see details (matrix, python-version, python-version-file, etc.)
         # https://github.com/actions/setup-python
       - name: Install poetry

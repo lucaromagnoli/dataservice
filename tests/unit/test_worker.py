@@ -1,19 +1,18 @@
 import logging
 import os
 from contextlib import nullcontext as does_not_raise
-from dataclasses import dataclass
 
 import pytest
 
 from dataservice.config import ServiceConfig
+from dataservice.data import BaseDataItem
 from dataservice.exceptions import RequestException, RetryableRequestException
 from dataservice.models import Request, Response
 from dataservice.worker import DataWorker
 from tests.unit.conftest import ToyClient
 
 
-@dataclass
-class Foo:
+class Foo(BaseDataItem):
     parsed: str
 
 
@@ -175,8 +174,16 @@ async def test_deduplication(config, expected, mocker):
     mocked_handle_request = mocker.patch(
         "dataservice.worker.DataWorker._handle_request",
         side_effect=[
-            Response(request=request_with_data_callback, data={"parsed": "data"}),
-            Response(request=request_with_data_callback, data={"parsed": "data"}),
+            Response(
+                request=request_with_data_callback,
+                text='{"parsed": "data"}',
+                data={"parsed": "data"},
+            ),
+            Response(
+                request=request_with_data_callback,
+                text='{"parsed": "data"}',
+                data={"parsed": "data"},
+            ),
         ],
     )
     data_worker = DataWorker(
@@ -263,7 +270,7 @@ async def test__handle_request(
                 Response(request=request_with_data_callback, data={"parsed": "data"}),
             ],
             does_not_raise(),
-            "Retrying request http://example.com/, attempt 3",
+            "Retrying request http://example.com/, attempt 2",
         ),
         (
             [

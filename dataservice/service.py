@@ -5,11 +5,15 @@ Manages the overall data processing service, including initialization, iteration
 from __future__ import annotations
 
 import asyncio
+import pathlib
 from logging import getLogger
-from typing import Any
+from typing import Any, Iterable
 
+from pydantic import validate_call
+
+from dataservice.data import BaseDataItem
 from dataservice.config import ServiceConfig
-from dataservice.models import FailedRequest, RequestsIterable
+from dataservice.models import FailedRequest, Request
 from dataservice.worker import DataWorker
 
 logger = getLogger(__name__)
@@ -21,7 +25,7 @@ class DataService:
     """
 
     def __init__(
-        self, requests: RequestsIterable, config: ServiceConfig = ServiceConfig()
+        self, requests: Iterable[Request], config: ServiceConfig = ServiceConfig()
     ):
         """
         Initializes the DataService with the given parameters.
@@ -69,3 +73,14 @@ class DataService:
         Runs the data worker to fetch data items.
         """
         asyncio.run(self.data_worker.fetch())
+
+    @validate_call
+    def write(
+        self,
+        results: Iterable[dict | BaseDataItem],
+        filepath: pathlib.Path,
+    ) -> None:
+        """
+        Writes the results to a file.
+        """
+        pass

@@ -3,23 +3,24 @@
 import argparse
 import json
 import logging
-import timeit
 from datetime import datetime
 from functools import partial
+from pprint import pprint
 from urllib.parse import urljoin
 
 from dataservice import DataService, HttpXClient, Pipeline, Request, Response
-from examples.logging_config import setup_logging
+from dataservice.utils import setup_logging
 
 logger = logging.getLogger("books_scraper")
 setup_logging()
 
 
 def parse_books_page(response: Response, pagination: bool = True):
-    articles = response.soup.find_all("article", {"class": "product_pod"})
+    articles = response.html.find_all("article", {"class": "product_pod"})
+    # BooksPage
     yield {
         "url": response.request.url,
-        "title": response.soup.title.get_text(strip=True),
+        "title": response.html.title.get_text(strip=True),
         "articles": len(articles),
     }
     for article in articles:
@@ -27,21 +28,18 @@ def parse_books_page(response: Response, pagination: bool = True):
         url = urljoin(response.request.url, href)
         yield Request(url=url, callback=parse_book_details, client=HttpXClient())
     if pagination:
-        yield from parse_pagination(response)
-
-
-def parse_pagination(response):
-    next_page = response.soup.find("li", {"class": "next"})
-    if next_page is not None:
-        next_page_url = urljoin(response.request.url, next_page.a["href"])
-        yield Request(
-            url=next_page_url, callback=parse_books_page, client=HttpXClient()
-        )
+        next_page = response.html.find("li", {"class": "next"})
+        if next_page is not None:
+            next_page_url = urljoin(response.request.url, next_page.a["href"])
+            yield Request(
+                url=next_page_url, callback=parse_books_page, client=HttpXClient()
+            )
 
 
 def parse_book_details(response: Response):
-    title = response.soup.find("h1").text
-    price = response.soup.find("p", {"class": "price_color"}).text
+    title = response.html.find("h1").text
+    price = response.html.find("p", {"class": "price_color"}).text
+    # BookDetails
     return {"title": title, "price": price}
 
 
@@ -67,14 +65,12 @@ def main(pagination: bool = True):
     ]
 
     data_service = DataService(start_requests)
+    results = tuple(data_service)
+    pprint(results)
     pipeline = (
-        Pipeline(data_service)
+        Pipeline(results)
         .add_step(add_time_stamp)
-        .add_final_step(
-            [
-                partial(write_to_file),
-            ]
-        )
+        .add_step(partial(write_to_file), final=True)
     )
     books = pipeline.run()
     for book in books:
@@ -91,5 +87,4 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    # main(args.workers, args.pagination)
-    tt = timeit.timeit(lambda: main(False), number=1)
+    main(args.pagination)
