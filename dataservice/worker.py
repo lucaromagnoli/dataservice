@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+from multiprocessing import Queue as MultiprocessingQueue
 from typing import Any, AsyncGenerator, Generator, Iterable
 
 from tenacity import (
@@ -15,6 +16,7 @@ from tenacity import (
     wait_exponential,
 )
 
+from dataservice.cache import PickleCache, cache_request
 from dataservice.config import ServiceConfig
 from dataservice.data import BaseDataItem
 from dataservice.exceptions import (
@@ -39,7 +41,12 @@ class DataWorker:
 
     _clients: dict[Any, Any] = {}
 
-    def __init__(self, requests: Iterable[Request], config: ServiceConfig):
+    def __init__(
+        self,
+        data_queue: MultiprocessingQueue,
+        requests: Iterable[Request],
+        config: ServiceConfig,
+    ):
         """
         Initializes the DataWorker with the given parameters.
 
@@ -48,11 +55,30 @@ class DataWorker:
         """
         self.config = config
         self._requests: Iterable[Request] = requests
+        self._data_queue = data_queue
         self._work_queue: asyncio.Queue = asyncio.Queue()
-        self._data_queue: asyncio.Queue = asyncio.Queue()
         self._failures: list[FailedRequest] = []
         self._seen_requests: set = set()
         self._started: bool = False
+        self._cache = None
+
+    @property
+    def has_started(self) -> bool:
+        """
+        Check if the worker has started.
+
+        :return: True if the worker has started, False otherwise.
+        """
+        return self._started
+
+    @property
+    def cache(self) -> PickleCache:
+        """
+        Lazy initialization of the cache instance.
+        """
+        if self._cache is None:
+            self._cache = PickleCache(self.config.cache_name)
+        return self._cache
 
     async def _add_to_work_queue(self, item: Iterable[Request] | Request) -> None:
         """
@@ -68,7 +94,7 @@ class DataWorker:
 
         :param item: The item to add to the data queue.
         """
-        await self._data_queue.put(item)
+        self._data_queue.put(item)
 
     def _add_to_failures(self, item: FailedRequest) -> None:
         """
@@ -207,8 +233,7 @@ class DataWorker:
         )
         return await retryer(self._make_request, client, request)
 
-    @staticmethod
-    async def _make_request(client, request) -> Response:
+    async def _make_request(self, client, request) -> Response:
         """
         Wraps client call.
 
@@ -216,7 +241,8 @@ class DataWorker:
         :param request: The request object.
         :return: The response object.
         """
-        return await client(request)
+        cached = cache_request(self.cache)
+        return await cached(client, request)
 
     async def _iter_callbacks(self, item: Any) -> AsyncGenerator[asyncio.Task, None]:
         """
@@ -244,11 +270,12 @@ class DataWorker:
         async with semaphore:
             if not self._started:
                 await self._enqueue_start_requests()
-            while self.has_jobs():
-                logger.debug(f"Work queue size: {self._work_queue.qsize()}")
-                item = self._work_queue.get_nowait()
-                tasks = [task async for task in self._iter_callbacks(item)]
-                await asyncio.gather(*tasks)
+            async with self.cache:
+                while self.has_jobs():
+                    logger.debug(f"Work queue size: {self._work_queue.qsize()}")
+                    item = self._work_queue.get_nowait()
+                    tasks = [task async for task in self._iter_callbacks(item)]
+                    await asyncio.gather(*tasks)
 
     def get_data_item(self) -> dict | BaseDataItem:
         """

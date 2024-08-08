@@ -6,13 +6,16 @@ from __future__ import annotations
 
 import asyncio
 import pathlib
+from concurrent.futures import ProcessPoolExecutor
 from logging import getLogger
+from multiprocessing import Queue as MultiprocessingQueue
 from typing import Any, Iterable
 
 from pydantic import validate_call
 
-from dataservice.data import BaseDataItem
 from dataservice.config import ServiceConfig
+from dataservice.data import BaseDataItem
+from dataservice.files import writers
 from dataservice.models import FailedRequest, Request
 from dataservice.worker import DataWorker
 
@@ -36,6 +39,7 @@ class DataService:
         self._requests = requests
         self.config = config
         self._data_worker: DataWorker | None = None
+        self._data_queue: MultiprocessingQueue = MultiprocessingQueue()
 
     @property
     def data_worker(self) -> DataWorker:
@@ -43,7 +47,9 @@ class DataService:
         Lazy initialization of the DataWorker instance.
         """
         if self._data_worker is None:
-            self._data_worker = DataWorker(self._requests, self.config)
+            self._data_worker = DataWorker(
+                self._data_queue, self._requests, self.config
+            )
         return self._data_worker
 
     @property
@@ -63,10 +69,14 @@ class DataService:
         """
         Fetches the next data item from the data worker.
         """
-        self._run_data_worker()
+        if not self.data_worker.has_started:
+            with ProcessPoolExecutor() as executor:
+                asyncio.get_event_loop().run_in_executor(
+                    executor, self._run_data_worker()
+                )
         if self.data_worker.has_no_more_data():
             raise StopIteration
-        return self.data_worker.get_data_item()
+        return self._data_queue.get_nowait()
 
     def _run_data_worker(self) -> None:
         """
@@ -77,10 +87,17 @@ class DataService:
     @validate_call
     def write(
         self,
-        results: Iterable[dict | BaseDataItem],
         filepath: pathlib.Path,
+        results: Iterable[dict | BaseDataItem] | None = None,
     ) -> None:
         """
         Writes the results to a file.
+
+        :param results: An iterable of data items to write.
+        :param filepath: The path to the output file.
         """
-        pass
+        ext = filepath.suffix
+        writer = writers[ext[1:]]
+        if results is None:
+            results = self
+        writer(filepath).write(results)

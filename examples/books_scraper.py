@@ -5,11 +5,9 @@ import json
 import logging
 from datetime import datetime
 from functools import partial
-from pprint import pprint
 from urllib.parse import urljoin
 
-from dataservice import DataService, HttpXClient, Pipeline, Request, Response
-from dataservice.utils import setup_logging
+from dataservice import DataService, HttpXClient, Request, Response, setup_logging
 
 logger = logging.getLogger("books_scraper")
 setup_logging()
@@ -65,16 +63,8 @@ def main(pagination: bool = True):
     ]
 
     data_service = DataService(start_requests)
-    results = tuple(data_service)
-    pprint(results)
-    pipeline = (
-        Pipeline(results)
-        .add_step(add_time_stamp)
-        .add_step(partial(write_to_file), final=True)
-    )
-    books = pipeline.run()
-    for book in books:
-        logger.info(book)
+    data = tuple(data_service)
+    data_service.write("books.csv", data[1:])
 
 
 if __name__ == "__main__":

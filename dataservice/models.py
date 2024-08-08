@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from functools import partial
 from typing import (
     Annotated,
     Any,
@@ -18,13 +17,15 @@ from typing import (
 from bs4 import BeautifulSoup
 from pydantic import (
     AfterValidator,
-    Field,
     BaseModel,
+    ConfigDict,
+    Field,
     HttpUrl,
     model_serializer,
     model_validator,
-    ConfigDict,
 )
+
+from dataservice._utils import _get_func_name
 
 DataItemGeneric = TypeVar("DataItemGeneric")
 RequestOrData = Union["Request", DataItemGeneric]
@@ -109,22 +110,7 @@ class Request(BaseModel):
 
     @property
     def client_name(self) -> str:
-        return self._get_func_name(self.client)
-
-    @staticmethod
-    def _get_func_name(func: Callable):
-        if isinstance(func, partial):
-            if hasattr(func, "keywords"):
-                # functools.wraps
-                if "wrapped" in func.keywords:
-                    return func.keywords["wrapped"].__name__
-            return func.func.__name__
-        elif hasattr(func, "__name__"):
-            return func.__name__
-        elif hasattr(func, "__class__"):
-            return type(func).__name__
-        else:
-            return str(func)
+        return _get_func_name(self.client)
 
 
 class Response(BaseModel):

@@ -13,6 +13,7 @@ httpx = "^0.27.0"
 pydantic = "^2.8.2"
 tenacity = "^9.0.0"
 aiocron = "^1.8"
+websockets = "^12.0"
 
 
 [tool.poetry.group.dev.dependencies]
