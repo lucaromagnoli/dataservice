@@ -1,16 +1,13 @@
 import asyncio
 import json
 import logging
-import pickle
 from abc import ABC
 from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable
 
-from _utils import _get_func_name
-
-from dataservice.models import Request
+from dataservice.models import Request, Response
 
 logger = logging.getLogger(__name__)
 
@@ -91,23 +88,6 @@ class JsonCache:
 
 
 class AsyncJsonCache(JsonCache):
-    """Asynchronous JSON disk based cache implementation."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.write()
-
-    async def write(self):
-        with ThreadPoolExecutor() as executor:
-            asyncio.get_running_loop().run_in_executor(executor, super().write)
-
-
-class PickleCache(JsonCache):
     """Simple Pickle disk based cache implementation."""
 
     async def __aenter__(self):
@@ -116,52 +96,39 @@ class PickleCache(JsonCache):
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.write()
 
-    @property
-    def cache(self):
-        if not self._cache:
-            try:
-                with open(self.path, "rb") as f:
-                    self._cache = pickle.load(f)
-            except FileNotFoundError:
-                pass
-        return self._cache
-
     async def write(self):
-        with ThreadPoolExecutor() as executor:
-            asyncio.get_running_loop().run_in_executor(executor, self.sync_write)
-
-    def sync_write(self):
-        logger.info(f"Writing cache to {self.path}")
-        with open(self.path, "wb") as f:
-            pickle.dump(self.cache, f)
+        with ThreadPoolExecutor() as pool:
+            await asyncio.get_event_loop().run_in_executor(pool, super().write)
 
 
 def cache_request(cache: Cache) -> Callable:
     """
-    Caches data.
+    Caches the raw values (text, data) of the Response object returned by the request function.
 
     :param cache: The cache to use.
     """
 
-    async def wrapper(func: Callable, request: Request):
+    async def wrapper(req_func: Callable, request: Request) -> Response:
         """
         Wraps a function to cache its results.
 
-        :param func: The function to wrap.
+        :param req_func: The function to wrap.
         :param request: The request to cache.
         """
 
-        @wraps(func)
-        async def inner():
-            key = (_get_func_name(func), request.model_dump_json())
+        @wraps(req_func)
+        async def inner() -> Response:
+            key = request.url
             if key in cache:
                 logger.debug(f"Cache hit for {key}")
-                return cache.get(key)
+                text, data = cache.get(key)
+                return Response(request=request, text=text, data=data)
             else:
                 logger.debug(f"Cache miss for {key}")
-                value = await func(request)
+                response = await req_func(request)
+                value = response.text, response.data
                 cache.set(key, value)
-                return value
+                return response
 
         return await inner()
 
