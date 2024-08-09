@@ -44,7 +44,7 @@ class ProxyConfig(BaseModel):
     password: Optional[str] = Field(description="The proxy password.", default=None)
 
     @property
-    def proxy_url(self) -> str:
+    def url(self) -> str:
         if self.username and self.password:
             return f"http://{self.username}:{self.password}@{self.host}:{self.port}"
         return f"http://{self.host}:{self.port}"
@@ -106,7 +106,7 @@ class Request(BaseModel):
 
     @property
     def callback_name(self) -> str:
-        return self._get_func_name(self.callback)
+        return _get_func_name(self.callback)
 
     @property
     def client_name(self) -> str:
