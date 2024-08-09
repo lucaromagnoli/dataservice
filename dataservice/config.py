@@ -35,6 +35,6 @@ class ServiceConfig(BaseModel):
 
     cache: bool = Field(default=False, description="Whether to cache requests.")
     cache_name: str = Field(
-        default="cache.pickle",
-        description="A name to use for the cache. Defaults to 'cache'.",
+        default="cache.json",
+        description="A name to use for the cache. Defaults to 'cache.json'.",
     )
