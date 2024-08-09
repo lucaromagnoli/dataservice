@@ -45,12 +45,10 @@ class HttpXClient:
                 )
             else:
                 raise
-        except httpx.TimeoutException as e:
-            logger.debug(f"Timeout exception making request: {e}")
-            raise RetryableException(str(e))
         except httpx.HTTPError as e:
-            logger.debug(f"HTTP Error making request: {e}")
-            raise DataServiceException(str(e))
+            msg = f"HTTP Error making request: {e}, {e.__class__.__name__}"
+            logger.debug(msg)
+            raise DataServiceException(msg)
 
     async def _make_request(self, request: Request) -> Response:
         """Make a request using HTTPX. Private method for internal use.
@@ -60,7 +58,9 @@ class HttpXClient:
         """
         logger.info(f"Requesting {request.url}")
         async with self.async_client(
-            headers=request.headers, proxy=request.proxy
+            headers=request.headers,
+            proxy=request.proxy.url if request.proxy else None,
+            timeout=request.timeout,
         ) as client:
             match request.method:
                 case "GET":
