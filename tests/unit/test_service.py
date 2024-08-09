@@ -2,13 +2,19 @@ from __future__ import annotations
 
 import uuid
 from contextlib import nullcontext as does_not_raise
-from dataclasses import dataclass
 
 import pytest
 
+from dataservice.data import BaseDataItem
 from dataservice.models import Request, Response
 from dataservice.service import DataService
 from tests.unit.conftest import ToyClient
+
+
+class Foo(BaseDataItem):
+    """Mock data item class"""
+
+    foo: str
 
 
 @pytest.fixture
@@ -23,6 +29,11 @@ def start_requests():
         "https://www.barbaz.com",
     ]
     return [Request(url=url, callback=parse_items, client=ToyClient()) for url in urls]
+
+
+@pytest.fixture
+def file_path(tmp_path):
+    return tmp_path / "test.json"
 
 
 @pytest.fixture
@@ -55,18 +66,13 @@ def test_toy_service(data_service):
     ]
 
 
-@dataclass
-class Foo:
-    foo: str
-
-
 @pytest.mark.parametrize(
-    "results, filename, expected_behaviour",
+    "results, expected_behaviour",
     [
-        ([{"a": "a"}], "test.json", does_not_raise()),
-        ([Foo(foo="bar")], "test.json", does_not_raise()),
+        ([{"a": "a"}], does_not_raise()),
+        ([Foo(foo="bar")], does_not_raise()),
     ],
 )
-def test_write_args_validation(results, filename, expected_behaviour, data_service):
+def test_write_args_validation(file_path, results, expected_behaviour, data_service):
     with expected_behaviour:
-        data_service.write(results, filename)
+        data_service.write(file_path, results)
