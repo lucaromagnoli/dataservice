@@ -1,5 +1,4 @@
 import logging
-import os
 from contextlib import nullcontext as does_not_raise
 
 import pytest
@@ -27,7 +26,7 @@ request_with_data_callback = Request(
     client=ToyClient(),
 )
 
-request_with_dataclass_callback = Request(
+request_with_data_item_callback = Request(
     url="http://example.com",
     callback=lambda x: Foo(parsed="data"),
     client=ToyClient(),
@@ -45,19 +44,6 @@ request_with_iterator_callback = Request(
     ),
     client=ToyClient(),
 )
-
-
-@pytest.fixture
-def os_environ():
-    os.environ["MAX_RETRIES"] = "0"
-    os.environ["WAIT_EXP_MUL"] = "0"
-    os.environ["WAIT_EXP_MIN"] = "0"
-    os.environ["WAIT_EXP_MAX"] = "0"
-    yield
-    del os.environ["MAX_RETRIES"]
-    del os.environ["WAIT_EXP_MUL"]
-    del os.environ["WAIT_EXP_MIN"]
-    del os.environ["WAIT_EXP_MAX"]
 
 
 @pytest.fixture
@@ -86,7 +72,7 @@ def queue_item(request):
     "requests, expected",
     [
         ([request_with_data_callback], {"parsed": "data"}),
-        ([request_with_dataclass_callback], Foo(parsed="data")),
+        ([request_with_data_item_callback], Foo(parsed="data")),
     ],
 )
 async def test_data_worker_handles_request_correctly(requests, expected, config):
@@ -103,22 +89,10 @@ async def test_data_worker_handles_empty_queue(data_worker_with_params):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "data_worker_with_params, queue_item",
-    [
-        (
-            {},
-            request_with_data_callback,
-        )
-    ],
-    indirect=True,
-)
-async def test_handles_queue_item_puts_dict_in_data_queue(
-    data_worker_with_params, queue_item
-):
-    await data_worker_with_params._handle_queue_item(queue_item)
-    assert not data_worker_with_params.has_no_more_data()
-    assert data_worker_with_params.get_data_item() == {"parsed": "data"}
+async def test_handles_queue_item_puts_dict_in_data_queue(data_worker):
+    await data_worker._handle_queue_item({"parsed": "data"})
+    assert not data_worker.has_no_more_data()
+    assert data_worker.get_data_item() == {"parsed": "data"}
 
 
 @pytest.mark.asyncio

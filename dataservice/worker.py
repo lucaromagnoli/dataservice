@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from multiprocessing import Queue as MultiprocessingQueue
+from contextlib import nullcontext
+from pathlib import Path
 from typing import Any, AsyncGenerator, Generator, Iterable
 
 from tenacity import (
@@ -38,20 +39,17 @@ class DataWorker:
 
     def __init__(
         self,
-        data_queue: MultiprocessingQueue,
         requests: Iterable[Request],
         config: ServiceConfig,
     ):
         """
         Initializes the DataWorker with the given parameters.
-
-        :param data_queue: The multiprocessing queue to store data items.
         :param requests: An iterable of requests to process.
         :param config: The configuration for the service.
         """
         self.config: ServiceConfig = config
         self._requests: Iterable[Request] = requests
-        self._data_queue: MultiprocessingQueue = data_queue
+        self._data_queue: asyncio.Queue = asyncio.Queue()
         self._work_queue: asyncio.Queue = asyncio.Queue()
         self._failures: list[FailedRequest] = []
         self._seen_requests: set = set()
@@ -73,7 +71,7 @@ class DataWorker:
         Lazy initialization of the cache instance.
         """
         if self._cache is None:
-            self._cache = AsyncJsonCache(self.config.cache_name)
+            self._cache = AsyncJsonCache(Path(self.config.cache_name))
         return self._cache
 
     async def _add_to_work_queue(self, item: Iterable[Request] | Request) -> None:
@@ -90,7 +88,7 @@ class DataWorker:
 
         :param item: The item to add to the data queue.
         """
-        self._data_queue.put(item)
+        await self._data_queue.put(item)
 
     def _add_to_failures(self, item: FailedRequest) -> None:
         """
@@ -99,6 +97,14 @@ class DataWorker:
         :param item: The failed request to add to the failures list.
         """
         self._failures.append(item)
+
+    def get_data_item(self) -> dict | BaseDataItem:
+        """
+        Retrieve a data item from the data queue.
+
+        :return: The data item.
+        """
+        return self._data_queue.get_nowait()
 
     async def _enqueue_start_requests(self) -> None:
         """
@@ -237,8 +243,10 @@ class DataWorker:
         :param request: The request object.
         :return: The response object.
         """
-        cached = cache_request(self.cache)
-        return await cached(client, request)
+        if self.config.cache:
+            cached = cache_request(self.cache)
+            return await cached(client, request)
+        return await client(request)
 
     async def _iter_callbacks(
         self, callback: Generator | AsyncGenerator | Request | dict | BaseDataItem
@@ -265,23 +273,16 @@ class DataWorker:
         Fetches data items by processing the work queue.
         """
         semaphore = asyncio.Semaphore(self.config.max_concurrency)
+        maybe_cache = self.cache if self.config.cache else nullcontext()
         async with semaphore:
             if not self._started:
                 await self._enqueue_start_requests()
-            async with self.cache:
+            async with maybe_cache:
                 while self.has_jobs():
                     logger.debug(f"Work queue size: {self._work_queue.qsize()}")
                     item = self._work_queue.get_nowait()
                     tasks = [task async for task in self._iter_callbacks(item)]
                     await asyncio.gather(*tasks)
-
-    def get_data_item(self) -> dict | BaseDataItem:
-        """
-        Retrieve a data item from the data queue.
-
-        :return: The data item.
-        """
-        return self._data_queue.get_nowait()
 
     def has_no_more_data(self) -> bool:
         """

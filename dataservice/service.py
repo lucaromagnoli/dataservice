@@ -8,7 +8,6 @@ import asyncio
 import pathlib
 from concurrent.futures import ProcessPoolExecutor
 from logging import getLogger
-from multiprocessing import Queue as MultiprocessingQueue
 from typing import Any, Iterable
 
 from pydantic import validate_call
@@ -39,7 +38,6 @@ class DataService:
         self._requests = requests
         self.config = config
         self._data_worker: DataWorker | None = None
-        self._data_queue: MultiprocessingQueue = MultiprocessingQueue()
 
     @property
     def data_worker(self) -> DataWorker:
@@ -47,9 +45,7 @@ class DataService:
         Lazy initialization of the DataWorker instance.
         """
         if self._data_worker is None:
-            self._data_worker = DataWorker(
-                self._data_queue, self._requests, self.config
-            )
+            self._data_worker = DataWorker(self._requests, self.config)
         return self._data_worker
 
     @property
@@ -76,7 +72,7 @@ class DataService:
                 )
         if self.data_worker.has_no_more_data():
             raise StopIteration
-        return self._data_queue.get_nowait()
+        return self.data_worker.get_data_item()
 
     def _run_data_worker(self) -> None:
         """

@@ -38,21 +38,13 @@ class JsonCache:
     def __init__(self, path: Path):
         """Initialize the DictCache."""
         self.path = path
-        self._cache = {}
+        self.cache = self.init_cache()
 
-    @property
-    def cache(self):
-        if not self._cache:
-            try:
-                with open(self.path, "r") as f:
-                    self._cache = json.load(f)
-            except FileNotFoundError:
-                pass
-        return self._cache
-
-    @cache.setter
-    def cache(self, value):
-        self._cache = value
+    def init_cache(self):
+        if self.path.exists():
+            with open(self.path, "r") as f:
+                return json.load(f)
+        return {}
 
     def set(self, key, value):
         self.cache[key] = value
