@@ -83,6 +83,9 @@ class Request(BaseModel):
     proxy: Optional[ProxyConfig] = Field(
         description="The proxy configuration for the request.", default=None
     )
+    timeout: int = Field(
+        description="The time out of the request.", default=30, ge=1, le=300
+    )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -142,4 +145,5 @@ class FailedRequest(TypedDict):
     """Failed request model."""
 
     request: Request
-    error: str
+    message: str
+    exception: str

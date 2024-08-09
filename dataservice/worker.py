@@ -156,17 +156,19 @@ class DataWorker:
             return
         try:
             response = await self._handle_request(request)
-            callback_result = await self._handle_callback(request, response)
+            callback_result = self._handle_callback(request, response)
             if isinstance(callback_result, (dict, BaseDataItem)):
                 await self._add_to_data_queue(callback_result)
             else:
                 await self._add_to_work_queue(callback_result)
         except (DataServiceException, ParsingException) as e:
             logger.error(f"An exception occurred: {e}")
-            self._add_to_failures({"request": request, "error": str(e)})
+            self._add_to_failures(
+                {"request": request, "message": str(e), "exception": type(e)}
+            )
             return
 
-    async def _handle_callback(self, request, response):
+    def _handle_callback(self, request, response):
         """
         Handles the callback function of a request.
 
