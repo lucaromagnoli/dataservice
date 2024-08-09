@@ -5,7 +5,7 @@ import pytest
 
 from dataservice.config import ServiceConfig
 from dataservice.data import BaseDataItem
-from dataservice.exceptions import RequestException, RetryableRequestException
+from dataservice.exceptions import DataServiceException, RetryableException
 from dataservice.models import Request, Response
 from dataservice.worker import DataWorker
 from tests.unit.conftest import ToyClient
@@ -173,8 +173,8 @@ async def test_deduplication(config, expected, mocker):
     [
         (
             [
-                RetryableRequestException("Retryable request exception"),
-                RetryableRequestException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
                 Response(request=request_with_data_callback, data={"parsed": "data"}),
             ],
             Response(request=request_with_data_callback, data={"parsed": "data"}),
@@ -183,22 +183,22 @@ async def test_deduplication(config, expected, mocker):
         ),
         (
             [
-                RetryableRequestException("Retryable request exception"),
-                RetryableRequestException("Retryable request exception"),
-                RetryableRequestException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
             ],
             None,
-            pytest.raises(RetryableRequestException),
+            pytest.raises(RetryableException),
             None,
         ),
         (
             [
-                RequestException("Request exception"),
-                RequestException("Request exception"),
-                RequestException("Request exception"),
+                DataServiceException("Request exception"),
+                DataServiceException("Request exception"),
+                DataServiceException("Request exception"),
             ],
             None,
-            pytest.raises(RequestException),
+            pytest.raises(DataServiceException),
             None,
         ),
     ],
@@ -239,8 +239,8 @@ async def test__handle_request(
     [
         (
             [
-                RetryableRequestException("Retryable request exception"),
-                RetryableRequestException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
                 Response(request=request_with_data_callback, data={"parsed": "data"}),
             ],
             does_not_raise(),
@@ -248,20 +248,20 @@ async def test__handle_request(
         ),
         (
             [
-                RetryableRequestException("Retryable request exception"),
-                RetryableRequestException("Retryable request exception"),
-                RetryableRequestException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
             ],
-            pytest.raises(RetryableRequestException),
+            pytest.raises(RetryableException),
             "Retrying request http://example.com/, attempt 3",
         ),
         (
             [
-                RequestException("Request exception"),
-                RequestException("Request exception"),
-                RequestException("Request exception"),
+                DataServiceException("Request exception"),
+                DataServiceException("Request exception"),
+                DataServiceException("Request exception"),
             ],
-            pytest.raises(RequestException),
+            pytest.raises(DataServiceException),
             "Exception making request: Request exception",
         ),
     ],

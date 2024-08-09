@@ -21,9 +21,9 @@ from dataservice.cache import AsyncJsonCache, cache_request
 from dataservice.config import ServiceConfig
 from dataservice.data import BaseDataItem
 from dataservice.exceptions import (
+    DataServiceException,
     ParsingException,
-    RequestException,
-    RetryableRequestException,
+    RetryableException,
 )
 from dataservice.models import ClientCallable, FailedRequest, Request, Response
 
@@ -161,7 +161,7 @@ class DataWorker:
                 await self._add_to_data_queue(callback_result)
             else:
                 await self._add_to_work_queue(callback_result)
-        except (RequestException, ParsingException) as e:
+        except (DataServiceException, ParsingException) as e:
             logger.error(f"An exception occurred: {e}")
             self._add_to_failures({"request": request, "error": str(e)})
             return
@@ -229,7 +229,7 @@ class DataWorker:
                 min=self.config.retry.wait_exp_min,
                 max=self.config.retry.wait_exp_max,
             ),
-            retry=retry_if_exception_type(RetryableRequestException),
+            retry=retry_if_exception_type(RetryableException),
             before_sleep=before_sleep_log(logger),
             after=after_log(logger),
         )
