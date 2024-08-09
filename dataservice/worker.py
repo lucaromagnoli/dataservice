@@ -16,7 +16,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from dataservice.cache import PickleCache, cache_request
+from dataservice.cache import AsyncJsonCache, cache_request
 from dataservice.config import ServiceConfig
 from dataservice.data import BaseDataItem
 from dataservice.exceptions import (
@@ -24,12 +24,7 @@ from dataservice.exceptions import (
     RequestException,
     RetryableRequestException,
 )
-from dataservice.models import (
-    ClientCallable,
-    FailedRequest,
-    Request,
-    Response,
-)
+from dataservice.models import ClientCallable, FailedRequest, Request, Response
 
 logger = logging.getLogger(__name__)
 
@@ -50,12 +45,13 @@ class DataWorker:
         """
         Initializes the DataWorker with the given parameters.
 
+        :param data_queue: The multiprocessing queue to store data items.
         :param requests: An iterable of requests to process.
         :param config: The configuration for the service.
         """
-        self.config = config
+        self.config: ServiceConfig = config
         self._requests: Iterable[Request] = requests
-        self._data_queue = data_queue
+        self._data_queue: MultiprocessingQueue = data_queue
         self._work_queue: asyncio.Queue = asyncio.Queue()
         self._failures: list[FailedRequest] = []
         self._seen_requests: set = set()
@@ -72,12 +68,12 @@ class DataWorker:
         return self._started
 
     @property
-    def cache(self) -> PickleCache:
+    def cache(self) -> AsyncJsonCache:
         """
         Lazy initialization of the cache instance.
         """
         if self._cache is None:
-            self._cache = PickleCache(self.config.cache_name)
+            self._cache = AsyncJsonCache(self.config.cache_name)
         return self._cache
 
     async def _add_to_work_queue(self, item: Iterable[Request] | Request) -> None:
@@ -244,23 +240,25 @@ class DataWorker:
         cached = cache_request(self.cache)
         return await cached(client, request)
 
-    async def _iter_callbacks(self, item: Any) -> AsyncGenerator[asyncio.Task, None]:
+    async def _iter_callbacks(
+        self, callback: Generator | AsyncGenerator | Request | dict | BaseDataItem
+    ) -> AsyncGenerator[asyncio.Task, None]:
         """
         Iterates over callbacks and creates tasks for them.
 
-        :param item: The item to iterate over.
+        :param callback: Either a callback iterator or a single result
         :return: An async generator of tasks.
         """
-        if isinstance(item, Generator):
-            for i in item:
-                yield asyncio.create_task(self._handle_queue_item(i))
-        elif isinstance(item, AsyncGenerator):
-            async for i in item:
-                yield asyncio.create_task(self._handle_queue_item(i))
-        elif isinstance(item, (Request, dict, BaseDataItem)):
-            yield asyncio.create_task(self._handle_queue_item(item))
+        if isinstance(callback, Generator):
+            for item in callback:
+                yield asyncio.create_task(self._handle_queue_item(item))
+        elif isinstance(callback, AsyncGenerator):
+            async for item in callback:
+                yield asyncio.create_task(self._handle_queue_item(item))
+        elif isinstance(callback, (Request, dict, BaseDataItem)):
+            yield asyncio.create_task(self._handle_queue_item(callback))
         else:
-            raise ValueError(f"Unknown item type {type(item)}")
+            raise ValueError(f"Unknown item type {type(callback)}")
 
     async def fetch(self) -> None:
         """
