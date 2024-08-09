@@ -2,19 +2,23 @@
 
 import argparse
 import logging
-from dataclasses import dataclass
 from pprint import pprint
 from urllib.parse import urljoin
 
-from dataservice import DataService, HttpXClient, Request, Response
-from dataservice.utils import setup_logging
+from dataservice import (
+    BaseDataItem,
+    DataService,
+    HttpXClient,
+    Request,
+    Response,
+    setup_logging,
+)
 
 logger = logging.getLogger("books_scraper")
 setup_logging()
 
 
-@dataclass
-class Link:
+class Link(BaseDataItem):
     source: str
     destination: str
     text: str
