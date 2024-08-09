@@ -88,7 +88,7 @@ class JsonCache:
 
 
 class AsyncJsonCache(JsonCache):
-    """Simple Pickle disk based cache implementation."""
+    """Simple JSON disk based cache implementation."""
 
     async def __aenter__(self):
         return self
