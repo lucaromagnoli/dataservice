@@ -117,7 +117,7 @@ async def test_httpx_client_post_request(
         pytest.param(
             TimeoutException("Error"),
             DataServiceException,
-            id="Timeout Retryable",
+            id="Timeout. Dont Retry",
         ),
         pytest.param(
             HTTPError("Error"),
