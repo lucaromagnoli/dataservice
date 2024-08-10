@@ -9,6 +9,8 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, AsyncGenerator, Generator, Iterable
 
+from aiolimiter import AsyncLimiter
+from pydantic import BaseModel
 from tenacity import (
     AsyncRetrying,
     RetryCallState,
@@ -19,7 +21,6 @@ from tenacity import (
 
 from dataservice.cache import AsyncJsonCache, cache_request
 from dataservice.config import ServiceConfig
-from dataservice.data import BaseDataItem
 from dataservice.exceptions import (
     DataServiceException,
     ParsingException,
@@ -55,6 +56,11 @@ class DataWorker:
         self._seen_requests: set = set()
         self._started: bool = False
         self._cache = None
+        self.limiter = AsyncLimiter(10)
+
+    @property
+    def cache_context(self):
+        return self.cache if self.config.cache else nullcontext()
 
     @property
     def has_started(self) -> bool:
@@ -82,7 +88,7 @@ class DataWorker:
         """
         await self._work_queue.put(item)
 
-    async def _add_to_data_queue(self, item: dict | BaseDataItem) -> None:
+    async def _add_to_data_queue(self, item: dict | BaseModel) -> None:
         """
         Adds an item to the data queue.
 
@@ -98,7 +104,7 @@ class DataWorker:
         """
         self._failures.append(item)
 
-    def get_data_item(self) -> dict | BaseDataItem:
+    def get_data_item(self) -> dict | BaseModel:
         """
         Retrieve a data item from the data queue.
 
@@ -120,7 +126,7 @@ class DataWorker:
             raise ValueError("No requests to process.")
         self._started = True
 
-    async def _handle_queue_item(self, item: Request | dict | BaseDataItem) -> None:
+    async def _handle_queue_item(self, item: Request | dict | BaseModel) -> None:
         """
         Handles an item from the work queue.
 
@@ -128,7 +134,7 @@ class DataWorker:
         """
         if isinstance(item, Request):
             await self._handle_request_item(item)
-        elif isinstance(item, (dict, BaseDataItem)):
+        elif isinstance(item, (dict, BaseModel)):
             await self._add_to_data_queue(item)
         else:
             raise ValueError(f"Unknown item type {type(item)}")
@@ -140,7 +146,7 @@ class DataWorker:
         :param request: The request to check for duplication.
         :return: True if the request is a duplicate, False otherwise.
         """
-        key = request.url
+        key = request.model_dump_json(include=self.config.deduplication_keys)
         if key in self._seen_requests:
             return True
         self._seen_requests.add(key)
@@ -157,7 +163,7 @@ class DataWorker:
         try:
             response = await self._handle_request(request)
             callback_result = self._handle_callback(request, response)
-            if isinstance(callback_result, (dict, BaseDataItem)):
+            if isinstance(callback_result, (dict, BaseModel)):
                 await self._add_to_data_queue(callback_result)
             else:
                 await self._add_to_work_queue(callback_result)
@@ -251,7 +257,7 @@ class DataWorker:
         return await client(request)
 
     async def _iter_callbacks(
-        self, callback: Generator | AsyncGenerator | Request | dict | BaseDataItem
+        self, callback: Generator | AsyncGenerator | Request | dict | BaseModel
     ) -> AsyncGenerator[asyncio.Task, None]:
         """
         Iterates over callbacks and creates tasks for them.
@@ -265,7 +271,7 @@ class DataWorker:
         elif isinstance(callback, AsyncGenerator):
             async for item in callback:
                 yield asyncio.create_task(self._handle_queue_item(item))
-        elif isinstance(callback, (Request, dict, BaseDataItem)):
+        elif isinstance(callback, (Request, dict, BaseModel)):
             yield asyncio.create_task(self._handle_queue_item(callback))
         else:
             raise ValueError(f"Unknown item type {type(callback)}")
@@ -275,11 +281,10 @@ class DataWorker:
         Fetches data items by processing the work queue.
         """
         semaphore = asyncio.Semaphore(self.config.max_concurrency)
-        maybe_cache = self.cache if self.config.cache else nullcontext()
         async with semaphore:
             if not self._started:
                 await self._enqueue_start_requests()
-            async with maybe_cache:
+            async with self.cache_context:
                 while self.has_jobs():
                     logger.debug(f"Work queue size: {self._work_queue.qsize()}")
                     item = self._work_queue.get_nowait()
