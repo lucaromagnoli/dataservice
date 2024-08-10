@@ -78,5 +78,13 @@ class HttpXClient:
                     data = None
                 case "json":
                     data = response.json()
-        logger.info(f"Returning response for {request.url}")
+        msg = f"Received response for {request.url}"
+        if request.params:
+            msg += f" - params {request.params}"
+        if request.form_data:
+            msg += f" - form data {request.form_data}"
+        if request.json_data:
+            msg += f" - json data {request.json_data}"
+
+        logger.info(msg)
         return Response(request=request, text=response.text, data=data)
