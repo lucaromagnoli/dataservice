@@ -56,7 +56,21 @@ class DataWorker:
         self._seen_requests: set = set()
         self._started: bool = False
         self._cache = None
-        self.limiter = AsyncLimiter(10)
+        self._limiter = None
+
+    @property
+    def limiter_context(self):
+        if self.limiter is not None:
+            return self.limiter
+        return nullcontext()
+
+    @property
+    def limiter(self):
+        if self._limiter is None and self.config.limiter is not None:
+            self._limiter = AsyncLimiter(
+                self.config.limiter.max_rate, self.config.limiter.time_period
+            )
+        return self._limiter
 
     @property
     def cache_context(self):
@@ -160,19 +174,20 @@ class DataWorker:
         """
         if self.config.deduplication and self._is_duplicate_request(request):
             return
-        try:
-            response = await self._handle_request(request)
-            callback_result = self._handle_callback(request, response)
-            if isinstance(callback_result, (dict, BaseModel)):
-                await self._add_to_data_queue(callback_result)
-            else:
-                await self._add_to_work_queue(callback_result)
-        except (DataServiceException, ParsingException) as e:
-            logger.error(f"An exception occurred: {e}")
-            self._add_to_failures(
-                {"request": request, "message": str(e), "exception": type(e)}
-            )
-            return
+        async with self.limiter_context:
+            try:
+                response = await self._handle_request(request)
+                callback_result = self._handle_callback(request, response)
+                if isinstance(callback_result, (dict, BaseModel)):
+                    await self._add_to_data_queue(callback_result)
+                else:
+                    await self._add_to_work_queue(callback_result)
+            except (DataServiceException, ParsingException) as e:
+                logger.error(f"An exception occurred: {e}")
+                self._add_to_failures(
+                    {"request": request, "message": str(e), "exception": type(e)}
+                )
+                return
 
     def _handle_callback(self, request, response):
         """

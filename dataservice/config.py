@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 PositiveInt = Annotated[int, Ge(0)]
 Milliseconds = NewType("Milliseconds", PositiveInt)
+Seconds = NewType("Seconds", PositiveInt)
 
 
 class RetryConfig(BaseModel):
@@ -14,6 +15,13 @@ class RetryConfig(BaseModel):
     wait_exp_max: PositiveInt = 10
     wait_exp_min: PositiveInt = 4
     wait_exp_mul: PositiveInt = 1
+
+
+class RateLimiterConfig(BaseModel):
+    """Retry configuration for the service."""
+
+    max_rate: PositiveInt = 10
+    time_period: Seconds = Seconds(60)
 
 
 class ServiceConfig(BaseModel):
@@ -43,6 +51,10 @@ class ServiceConfig(BaseModel):
     random_delay: Milliseconds = Field(
         default=Milliseconds(0),
         description="The maximum random delay between requests.",
+    )
+
+    limiter: RateLimiterConfig | None = Field(
+        description="The rate limiter configuration", default=None
     )
 
     cache: bool = Field(default=False, description="Whether to cache requests.")

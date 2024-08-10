@@ -1,6 +1,13 @@
 import logging
 
-from dataservice import DataService, HttpXClient, Request, Response, setup_logging
+from dataservice import (
+    DataService,
+    HttpXClient,
+    Request,
+    Response,
+    ServiceConfig,
+    setup_logging,
+)
 from examples.api.models import User
 
 logger = logging.getLogger("api_client")
@@ -37,7 +44,9 @@ def main():
             content_type="json",
         )
     ]
-    data_service = DataService(start_requests)
+    data_service = DataService(
+        start_requests, config=ServiceConfig(**{"limiter": {"max_rate": 10}})
+    )
     data = tuple(data_service)
     for item in data:
         print(item)
