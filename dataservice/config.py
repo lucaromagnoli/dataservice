@@ -1,3 +1,5 @@
+"""Config."""
+
 from typing import Annotated, NewType
 
 from annotated_types import Ge

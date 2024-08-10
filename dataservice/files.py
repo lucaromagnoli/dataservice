@@ -1,4 +1,4 @@
-"""Simple fie writers implementation."""
+"""Simple file writers implementation."""
 
 import csv
 import json
