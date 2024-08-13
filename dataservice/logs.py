@@ -1,22 +1,18 @@
 """Logging module."""
 
-import logging
+from logging.config import dictConfig
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 HandlerType = Literal["stdout", "file"]
-LoggingLevel = Literal["INFO", "DEBUG", "WARNING", "ERROR"]
+LoggingLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
 
 
-class Handler(BaseModel):
+class HandlerDict(BaseModel):
     class_: str = Field(alias="class", default="logging.StreamHandler")
     stream: str = "ext://sys.stdout"
     formatter: str = "simple"
-
-
-class Handlers(BaseModel):
-    stdout: Handler = Handler()
 
 
 class LoggerDict(BaseModel):
@@ -28,14 +24,22 @@ class LoggerDict(BaseModel):
 class LoggingConfigDict(BaseModel):
     version: int = 1
     disable_existing_loggers: bool = False
+    filters: dict[str, dict] = {}
     formatters: dict[str, dict] = {
         "simple": {"format": "%(asctime)s :: %(name)s :: %(levelname)s :: %(message)s"},
     }
-    handlers: Handlers = Handlers()
+    handlers: dict[str, HandlerDict] = {"stdout": HandlerDict()}
     loggers: dict[str, LoggerDict] = {"dataservice": LoggerDict()}
 
 
-def setup_logging(config_dict: LoggingConfigDict | None = None):
-    if config_dict is None:
-        config_dict = LoggingConfigDict().model_dump(by_alias=True)
-    logging.config.dictConfig(config_dict)
+def setup_logging(logger_name: str | None = None):
+    """Setup logging configuration.
+
+    :param logger_name: The logger name.
+    """
+    loggers = {"dataservice": LoggerDict()}
+    if logger_name is not None:
+        loggers.update({logger_name: LoggerDict().model_dump()})
+
+    dict_config = LoggingConfigDict(**{"loggers": loggers}).model_dump(by_alias=True)
+    dictConfig(dict_config)
