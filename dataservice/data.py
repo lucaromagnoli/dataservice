@@ -92,6 +92,6 @@ class BaseDataItem(BaseModel):
 class DataSink(ABC):
     """Data sink protocol."""
 
-    def write(self, data: Iterable[dict | BaseDataItem]) -> None:
+    def write(self, data: Iterable[dict | BaseModel]) -> None:
         """Write data to the sink."""
         raise NotImplementedError
