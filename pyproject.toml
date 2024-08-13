@@ -12,6 +12,7 @@ html5lib = "^1.1"
 httpx = "^0.27.0"
 pydantic = "^2.8.2"
 tenacity = "^9.0.0"
+aiolimiter = "^1.1.0"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.0.0"
