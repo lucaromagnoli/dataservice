@@ -10,10 +10,9 @@ from concurrent.futures import ProcessPoolExecutor
 from logging import getLogger
 from typing import Any, Iterable
 
-from pydantic import validate_call
+from pydantic import BaseModel, validate_call
 
 from dataservice.config import ServiceConfig
-from dataservice.data import BaseDataItem
 from dataservice.files import writers
 from dataservice.models import FailedRequest, Request
 from dataservice.worker import DataWorker
@@ -84,7 +83,7 @@ class DataService:
     def write(
         self,
         filepath: pathlib.Path,
-        results: Iterable[dict | BaseDataItem] | None = None,
+        results: Iterable[dict | BaseModel] | None = None,
     ) -> None:
         """
         Writes the results to a file.
