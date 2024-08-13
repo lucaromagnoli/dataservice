@@ -13,7 +13,6 @@ httpx = "^0.27.0"
 pydantic = "^2.8.2"
 tenacity = "^9.0.0"
 
-
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.0.0"
 pre-commit = "^3.8.0"
@@ -32,6 +31,12 @@ sphinx = "^8.0.2"
 sphinx-autodoc-typehints = "^2.2.3"
 autodoc-pydantic = "^2.2.0"
 pydata-sphinx-theme = "^0.15.4"
+
+
+[tool.poetry.group.examples.dependencies]
+fastapi = "^0.112.0"
+fastapi-pagination = "^0.12.26"
+faker = "^26.3.0"
 
 [build-system]
 requires = ["poetry-core"]
