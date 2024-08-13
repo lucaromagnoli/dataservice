@@ -1,7 +1,6 @@
 """Simple example of scraping books from a website with pagination argument."""
 
 import logging
-from pprint import pprint
 from urllib.parse import urljoin
 
 from dataservice import (
@@ -13,8 +12,8 @@ from dataservice import (
     setup_logging,
 )
 
-logger = logging.getLogger("books_scraper")
-setup_logging()
+logger = logging.getLogger("books_crawler")
+setup_logging("books_crawler")
 
 
 class Link(BaseDataItem):
@@ -53,8 +52,10 @@ def main():
     )
     data_service = DataService(start_requests)
     data = tuple(data_service)
-    pprint(data)
-    pprint(data_service.failures)
+    for item in data:
+        logger.info(item)
+    for failure in data_service.failures:
+        logger.error(failure)
 
 
 if __name__ == "__main__":
