@@ -1,6 +1,5 @@
 """Simple example of scraping books from a website with pagination argument."""
 
-import argparse
 import logging
 from pprint import pprint
 from urllib.parse import urljoin
@@ -25,6 +24,7 @@ class Link(BaseDataItem):
 
 
 def get_links(response: Response):
+    """Find all links on the page"""
     base_url = response.request.url
 
     def inner(resp: Response):
@@ -35,34 +35,27 @@ def get_links(response: Response):
             yield Link(
                 source=base_url, destination=link_href, text=link.get_text(strip=True)
             )
-            yield Request(url=link_href, callback=inner, client=HttpXClient())
+            yield Request(url=link_href, callback=inner, client=response.request.client)
 
     yield from inner(response)
 
 
-def main(args):
+def main():
+    client = HttpXClient()
     start_requests = iter(
         [
             Request(
                 url="https://books.toscrape.com/index.html",
                 callback=get_links,
-                client=HttpXClient(),
+                client=client,
             )
         ]
     )
     data_service = DataService(start_requests)
     data = tuple(data_service)
     pprint(data)
-    print(len(data))
-    print(data_service.failures)
+    pprint(data_service.failures)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Crawl books from a website.")
-    parser.add_argument(
-        "--pagination",
-        action="store_true",
-        help="Enable pagination.",
-        default=False,
-    )
-    main(args=parser.parse_args())
+    main()

@@ -11,7 +11,8 @@ from dataservice import (
 from examples.api.models import User
 
 logger = logging.getLogger("api_client")
-setup_logging()
+
+setup_logging("api_client")
 
 
 def parse_users(response: Response):
@@ -35,7 +36,6 @@ def paginate(response: Response):
 
 def main():
     httpx_client = HttpXClient()
-
     start_requests = [
         Request(
             url="http://127.0.0.1:8000/users",
@@ -49,7 +49,7 @@ def main():
     )
     data = tuple(data_service)
     for item in data:
-        print(item)
+        logger.info(item)
 
 
 if __name__ == "__main__":
