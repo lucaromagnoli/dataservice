@@ -24,8 +24,8 @@ class ToyClient:
         logger.info(
             f"Returning response for {request.url}. Blocked for {block_time} seconds."
         )
-        data = f"<html><head></head><body>This is content for URL: {request.url}</body></html>"
-        return Response(request=request, text=data)
+        text = f"<html><head></head><body>This is content for URL: {request.url}</body></html>"
+        return Response(request=request, text=text)
 
 
 @pytest.fixture
