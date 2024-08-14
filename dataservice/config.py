@@ -1,3 +1,6 @@
+"""Config."""
+
+import datetime
 from typing import Annotated, NewType
 
 from annotated_types import Ge
@@ -5,6 +8,7 @@ from pydantic import BaseModel, Field
 
 PositiveInt = Annotated[int, Ge(0)]
 Milliseconds = NewType("Milliseconds", PositiveInt)
+Seconds = NewType("Seconds", PositiveInt)
 
 
 class RetryConfig(BaseModel):
@@ -16,6 +20,25 @@ class RetryConfig(BaseModel):
     wait_exp_mul: PositiveInt = 1
 
 
+class RateLimiterConfig(BaseModel):
+    """Retry configuration for the service."""
+
+    max_rate: PositiveInt = 10
+    time_period: Seconds = Seconds(60)
+
+
+class CacheConfig(BaseModel):
+    use: bool = Field(default=False, description="Whether to cache requests.")
+    name: str = Field(
+        default="cache.json",
+        description="A name to use for the cache. Defaults to 'cache.json'.",
+    )
+    write_interval: datetime.timedelta = Field(
+        default=datetime.timedelta(minutes=1),
+        description="The interval to write the cache.",
+    )
+
+
 class ServiceConfig(BaseModel):
     """Global configuration for the service."""
 
@@ -25,6 +48,18 @@ class ServiceConfig(BaseModel):
     deduplication: bool = Field(
         default=True, description="Whether to deduplicate requests."
     )
+    deduplication_keys: set[str] = Field(
+        default={
+            "url",
+            "params",
+            "method",
+            "form_data",
+            "json_data",
+            "content_type",
+            "headers",
+        },
+        description="A list of keys to use for deduplication.",
+    )
     max_concurrency: PositiveInt = Field(
         default=10, description="The maximum number of concurrent requests."
     )
@@ -33,7 +68,9 @@ class ServiceConfig(BaseModel):
         description="The maximum random delay between requests.",
     )
 
-    cache: bool = Field(default=False, description="Whether to cache requests.")
-    cache_name: str = Field(
-        default="cache", description="A name to use for the cache. Defaults to 'cache'."
+    limiter: RateLimiterConfig | None = Field(
+        description="The rate limiter configuration", default=None
+    )
+    cache: CacheConfig = Field(
+        description="The cache configuration", default_factory=CacheConfig
     )

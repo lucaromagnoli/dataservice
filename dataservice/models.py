@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from functools import partial
 from typing import (
     Annotated,
     Any,
@@ -18,13 +17,15 @@ from typing import (
 from bs4 import BeautifulSoup
 from pydantic import (
     AfterValidator,
-    Field,
     BaseModel,
+    ConfigDict,
+    Field,
     HttpUrl,
     model_serializer,
     model_validator,
-    ConfigDict,
 )
+
+from dataservice._utils import _get_func_name
 
 DataItemGeneric = TypeVar("DataItemGeneric")
 RequestOrData = Union["Request", DataItemGeneric]
@@ -43,7 +44,7 @@ class ProxyConfig(BaseModel):
     password: Optional[str] = Field(description="The proxy password.", default=None)
 
     @property
-    def proxy_url(self) -> str:
+    def url(self) -> str:
         if self.username and self.password:
             return f"http://{self.username}:{self.password}@{self.host}:{self.port}"
         return f"http://{self.host}:{self.port}"
@@ -82,6 +83,9 @@ class Request(BaseModel):
     proxy: Optional[ProxyConfig] = Field(
         description="The proxy configuration for the request.", default=None
     )
+    timeout: int = Field(
+        description="The time out of the request.", default=30, ge=1, le=300
+    )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -105,26 +109,11 @@ class Request(BaseModel):
 
     @property
     def callback_name(self) -> str:
-        return self._get_func_name(self.callback)
+        return _get_func_name(self.callback)
 
     @property
     def client_name(self) -> str:
-        return self._get_func_name(self.client)
-
-    @staticmethod
-    def _get_func_name(func: Callable):
-        if isinstance(func, partial):
-            if hasattr(func, "keywords"):
-                # functools.wraps
-                if "wrapped" in func.keywords:
-                    return func.keywords["wrapped"].__name__
-            return func.func.__name__
-        elif hasattr(func, "__name__"):
-            return func.__name__
-        elif hasattr(func, "__class__"):
-            return type(func).__name__
-        else:
-            return str(func)
+        return _get_func_name(self.client)
 
 
 class Response(BaseModel):
@@ -156,4 +145,5 @@ class FailedRequest(TypedDict):
     """Failed request model."""
 
     request: Request
-    error: str
+    message: str
+    exception: str

@@ -35,15 +35,19 @@ Example ``parse_books_page`` function:
 .. code-block:: python
 
     def parse_books_page(response: Response):
-        articles = response.soup.find_all("article", {"class": "product_pod"})
+        articles = response.html.find_all("article", {"class": "product_pod"})
         return {
             "url": response.request.url,
             "title": response.html.title.get_text(strip=True),
             "articles": len(articles),
         }
 
-This function takes a ``Response`` object, which has a ``soup`` attribute (a ``BeautifulSoup`` object of the HTML content). The function parses the HTML content and returns data.
+This function takes a ``Response`` object, which has a ``html`` attribute (a ``BeautifulSoup`` object of the HTML content). The function parses the HTML content and returns data.
 
 The callback function can ``return`` or ``yield`` either ``data`` (dict or dataclass) or more ``Request`` objects.
 
 If you have used Scrapy before, you will find this pattern familiar.
+
+For more examples and advanced usage, check out the `examples <https://dataservice.readthedocs.io/en/latest/examples.html>`_ section.
+
+For a detailed API reference, check out the `modules <https://dataservice.readthedocs.io/en/latest/modules.html>`_  section.

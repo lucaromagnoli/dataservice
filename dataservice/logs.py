@@ -1,33 +1,45 @@
-import logging.config
+"""Logging module."""
+
+from logging.config import dictConfig
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+HandlerType = Literal["stdout", "file"]
+LoggingLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
 
 
-def setup_logging():
-    config_dict = {
-        "version": 1,
-        "disable_existing_loggers": False,
-        "formatters": {
-            "simple": {
-                "format": "%(asctime)s :: %(name)s :: %(levelname)s :: %(message)s",
-            }
-        },
-        "handlers": {
-            "stdout": {
-                "class": "logging.StreamHandler",
-                "stream": "ext://sys.stdout",
-                "formatter": "simple",
-            }
-        },
-        "loggers": {
-            "dataservice": {
-                "handlers": ["stdout"],
-                "level": "DEBUG",
-                "propagate": False,
-            },
-            "books_scraper": {
-                "handlers": ["stdout"],
-                "level": "INFO",
-                "propagate": False,
-            },
-        },
+class HandlerDict(BaseModel):
+    class_: str = Field(alias="class", default="logging.StreamHandler")
+    stream: str = "ext://sys.stdout"
+    formatter: str = "simple"
+
+
+class LoggerDict(BaseModel):
+    handlers: list[HandlerType] = ["stdout"]
+    level: LoggingLevel = "DEBUG"
+    propagate: bool = False
+
+
+class LoggingConfigDict(BaseModel):
+    version: int = 1
+    disable_existing_loggers: bool = False
+    filters: dict[str, dict] = {}
+    formatters: dict[str, dict] = {
+        "simple": {"format": "%(asctime)s :: %(name)s :: %(levelname)s :: %(message)s"},
     }
-    logging.config.dictConfig(config_dict)
+    handlers: dict[str, HandlerDict] = {"stdout": HandlerDict()}
+    loggers: dict[str, LoggerDict] = {"dataservice": LoggerDict()}
+
+
+def setup_logging(logger_name: str | None = None):
+    """Setup logging configuration.
+
+    :param logger_name: The logger name.
+    """
+    loggers = {"dataservice": LoggerDict()}
+    if logger_name is not None:
+        loggers.update({logger_name: LoggerDict().model_dump()})
+
+    dict_config = LoggingConfigDict(**{"loggers": loggers}).model_dump(by_alias=True)
+    dictConfig(dict_config)

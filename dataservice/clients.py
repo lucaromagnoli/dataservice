@@ -1,3 +1,5 @@
+"""Clients."""
+
 from __future__ import annotations
 
 from logging import getLogger
@@ -6,7 +8,7 @@ from typing import Annotated, NoReturn
 import httpx
 from annotated_types import Ge, Le
 
-from dataservice.exceptions import RequestException, RetryableRequestException
+from dataservice.exceptions import DataServiceException, RetryableException
 from dataservice.models import Request, Response
 
 logger = getLogger(__name__)
@@ -36,21 +38,19 @@ class HttpXClient:
             logger.debug(f"HTTP Status Error making request: {e}")
             status_code: Annotated[int, Ge(400), Le(600)] = e.response.status_code
             if 400 <= status_code < 500:
-                raise RequestException(
+                raise DataServiceException(
                     e.response.reason_phrase, status_code=e.response.status_code
                 )
             elif 500 <= status_code < 600:
-                raise RetryableRequestException(
+                raise RetryableException(
                     e.response.reason_phrase, status_code=e.response.status_code
                 )
             else:
                 raise
-        except httpx.TimeoutException as e:
-            logger.debug(f"Timeout exception making request: {e}")
-            raise RetryableRequestException(str(e))
         except httpx.HTTPError as e:
-            logger.debug(f"HTTP Error making request: {e}")
-            raise RequestException(str(e))
+            msg = f"HTTP Error making request: {e}, {e.__class__.__name__}"
+            logger.debug(msg)
+            raise DataServiceException(msg)
 
     async def _make_request(self, request: Request) -> Response:
         """Make a request using HTTPX. Private method for internal use.
@@ -60,7 +60,9 @@ class HttpXClient:
         """
         logger.info(f"Requesting {request.url}")
         async with self.async_client(
-            headers=request.headers, proxy=request.proxy
+            headers=request.headers,
+            proxy=request.proxy.url if request.proxy else None,
+            timeout=request.timeout,
         ) as client:
             match request.method:
                 case "GET":
@@ -78,5 +80,13 @@ class HttpXClient:
                     data = None
                 case "json":
                     data = response.json()
-        logger.info(f"Returning response for {request.url}")
+        msg = f"Received response for {request.url}"
+        if request.params:
+            msg += f" - params {request.params}"
+        if request.form_data:
+            msg += f" - form data {request.form_data}"
+        if request.json_data:
+            msg += f" - json data {request.json_data}"
+
+        logger.info(msg)
         return Response(request=request, text=response.text, data=data)

@@ -140,3 +140,5 @@ cython_debug/
 
 .idea/
 /temp/
+*cache.pickle
+*cache.json

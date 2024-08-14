@@ -1,12 +1,13 @@
 import logging
-import os
 from contextlib import nullcontext as does_not_raise
+from pathlib import Path
 
 import pytest
 
+from dataservice.cache import JsonCache
 from dataservice.config import ServiceConfig
 from dataservice.data import BaseDataItem
-from dataservice.exceptions import RequestException, RetryableRequestException
+from dataservice.exceptions import DataServiceException, RetryableException
 from dataservice.models import Request, Response
 from dataservice.worker import DataWorker
 from tests.unit.conftest import ToyClient
@@ -27,7 +28,7 @@ request_with_data_callback = Request(
     client=ToyClient(),
 )
 
-request_with_dataclass_callback = Request(
+request_with_data_item_callback = Request(
     url="http://example.com",
     callback=lambda x: Foo(parsed="data"),
     client=ToyClient(),
@@ -45,19 +46,6 @@ request_with_iterator_callback = Request(
     ),
     client=ToyClient(),
 )
-
-
-@pytest.fixture
-def os_environ():
-    os.environ["MAX_RETRIES"] = "0"
-    os.environ["WAIT_EXP_MUL"] = "0"
-    os.environ["WAIT_EXP_MIN"] = "0"
-    os.environ["WAIT_EXP_MAX"] = "0"
-    yield
-    del os.environ["MAX_RETRIES"]
-    del os.environ["WAIT_EXP_MUL"]
-    del os.environ["WAIT_EXP_MIN"]
-    del os.environ["WAIT_EXP_MAX"]
 
 
 @pytest.fixture
@@ -86,7 +74,7 @@ def queue_item(request):
     "requests, expected",
     [
         ([request_with_data_callback], {"parsed": "data"}),
-        ([request_with_dataclass_callback], Foo(parsed="data")),
+        ([request_with_data_item_callback], Foo(parsed="data")),
     ],
 )
 async def test_data_worker_handles_request_correctly(requests, expected, config):
@@ -103,22 +91,10 @@ async def test_data_worker_handles_empty_queue(data_worker_with_params):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "data_worker_with_params, queue_item",
-    [
-        (
-            {},
-            request_with_data_callback,
-        )
-    ],
-    indirect=True,
-)
-async def test_handles_queue_item_puts_dict_in_data_queue(
-    data_worker_with_params, queue_item
-):
-    await data_worker_with_params._handle_queue_item(queue_item)
-    assert not data_worker_with_params.has_no_more_data()
-    assert data_worker_with_params.get_data_item() == {"parsed": "data"}
+async def test_handles_queue_item_puts_dict_in_data_queue(data_worker):
+    await data_worker._handle_queue_item({"parsed": "data"})
+    assert not data_worker.has_no_more_data()
+    assert data_worker.get_data_item() == {"parsed": "data"}
 
 
 @pytest.mark.asyncio
@@ -141,7 +117,7 @@ async def test_handles_queue_item_puts_request_in_work_queue(
     indirect=True,
 )
 async def test_handles_queue_item_raises_value_error_for_unknown_type(
-    data_worker_with_params, mocker
+    data_worker_with_params,
 ):
     with pytest.raises(ValueError, match="Unknown item type <class 'int'>"):
         await data_worker_with_params._handle_queue_item(1)
@@ -199,8 +175,8 @@ async def test_deduplication(config, expected, mocker):
     [
         (
             [
-                RetryableRequestException("Retryable request exception"),
-                RetryableRequestException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
                 Response(request=request_with_data_callback, data={"parsed": "data"}),
             ],
             Response(request=request_with_data_callback, data={"parsed": "data"}),
@@ -209,22 +185,22 @@ async def test_deduplication(config, expected, mocker):
         ),
         (
             [
-                RetryableRequestException("Retryable request exception"),
-                RetryableRequestException("Retryable request exception"),
-                RetryableRequestException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
             ],
             None,
-            pytest.raises(RetryableRequestException),
+            pytest.raises(RetryableException),
             None,
         ),
         (
             [
-                RequestException("Request exception"),
-                RequestException("Request exception"),
-                RequestException("Request exception"),
+                DataServiceException("Request exception"),
+                DataServiceException("Request exception"),
+                DataServiceException("Request exception"),
             ],
             None,
-            pytest.raises(RequestException),
+            pytest.raises(DataServiceException),
             None,
         ),
     ],
@@ -265,8 +241,8 @@ async def test__handle_request(
     [
         (
             [
-                RetryableRequestException("Retryable request exception"),
-                RetryableRequestException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
                 Response(request=request_with_data_callback, data={"parsed": "data"}),
             ],
             does_not_raise(),
@@ -274,20 +250,20 @@ async def test__handle_request(
         ),
         (
             [
-                RetryableRequestException("Retryable request exception"),
-                RetryableRequestException("Retryable request exception"),
-                RetryableRequestException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
+                RetryableException("Retryable request exception"),
             ],
-            pytest.raises(RetryableRequestException),
+            pytest.raises(RetryableException),
             "Retrying request http://example.com/, attempt 3",
         ),
         (
             [
-                RequestException("Request exception"),
-                RequestException("Request exception"),
-                RequestException("Request exception"),
+                DataServiceException("Request exception"),
+                DataServiceException("Request exception"),
+                DataServiceException("Request exception"),
             ],
-            pytest.raises(RequestException),
+            pytest.raises(DataServiceException),
             "Exception making request: Request exception",
         ),
     ],
@@ -314,3 +290,42 @@ async def test_retry_logs(
     with expected_behaviour:
         await data_worker._handle_request(request_with_data_callback)
         assert caplog.messages[-1] == expected_logs
+
+
+@pytest.mark.asyncio
+async def test_data_worker_does_not_use_cache():
+    requests, config, expected = (
+        [request_with_data_callback],
+        ServiceConfig(cache={"use": False}),
+        None,
+    )
+    data_worker = DataWorker(requests, config)
+    await data_worker.fetch()
+    assert data_worker.cache == expected
+
+
+@pytest.fixture
+def cache_file(shared_datadir):
+    cache_file = shared_datadir.joinpath("cache.json")
+    yield cache_file
+    if cache_file.exists():
+        cache_file.unlink()
+
+
+@pytest.mark.asyncio
+async def test_data_worker_uses_cache():
+    requests = [request_with_data_callback]
+    config = ServiceConfig(cache={"use": True})
+    data_worker = DataWorker(requests, config)
+    await data_worker.fetch()
+    assert isinstance(data_worker.cache, JsonCache)
+
+
+@pytest.mark.asyncio
+async def test_data_worker_uses_cache_mocks(mocker):
+    mock_cache = mocker.patch("dataservice.worker.JsonCache", autospec=True)
+    requests = [request_with_data_callback]
+    config = ServiceConfig(cache={"use": True})
+    data_worker = DataWorker(requests, config)
+    await data_worker.fetch()
+    mock_cache.assert_called_with(Path("cache.json"))

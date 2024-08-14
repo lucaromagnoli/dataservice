@@ -5,8 +5,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+from contextlib import nullcontext
+from pathlib import Path
 from typing import Any, AsyncGenerator, Generator, Iterable
 
+from aiolimiter import AsyncLimiter
+from pydantic import BaseModel
 from tenacity import (
     AsyncRetrying,
     RetryCallState,
@@ -15,19 +19,14 @@ from tenacity import (
     wait_exponential,
 )
 
+from dataservice.cache import JsonCache, cache_request
 from dataservice.config import ServiceConfig
-from dataservice.data import BaseDataItem
 from dataservice.exceptions import (
+    DataServiceException,
     ParsingException,
-    RequestException,
-    RetryableRequestException,
+    RetryableException,
 )
-from dataservice.models import (
-    ClientCallable,
-    FailedRequest,
-    Request,
-    Response,
-)
+from dataservice.models import ClientCallable, FailedRequest, Request, Response
 
 logger = logging.getLogger(__name__)
 
@@ -39,20 +38,61 @@ class DataWorker:
 
     _clients: dict[Any, Any] = {}
 
-    def __init__(self, requests: Iterable[Request], config: ServiceConfig):
+    def __init__(
+        self,
+        requests: Iterable[Request],
+        config: ServiceConfig,
+    ):
         """
         Initializes the DataWorker with the given parameters.
-
         :param requests: An iterable of requests to process.
         :param config: The configuration for the service.
         """
-        self.config = config
+        self.config: ServiceConfig = config
         self._requests: Iterable[Request] = requests
-        self._work_queue: asyncio.Queue = asyncio.Queue()
         self._data_queue: asyncio.Queue = asyncio.Queue()
-        self._failures: list[FailedRequest] = []
+        self._work_queue: asyncio.Queue = asyncio.Queue()
+        self._failures: dict[str, FailedRequest] = {}
         self._seen_requests: set = set()
         self._started: bool = False
+        self._cache = None
+        self._limiter = None
+
+    @property
+    def limiter_context(self):
+        if self.limiter is not None:
+            return self.limiter
+        return nullcontext()
+
+    @property
+    def limiter(self):
+        if self._limiter is None and self.config.limiter is not None:
+            self._limiter = AsyncLimiter(
+                self.config.limiter.max_rate, self.config.limiter.time_period
+            )
+        return self._limiter
+
+    @property
+    def cache_context(self):
+        return self.cache if self.config.cache.use else nullcontext()
+
+    @property
+    def has_started(self) -> bool:
+        """
+        Check if the worker has started.
+
+        :return: True if the worker has started, False otherwise.
+        """
+        return self._started
+
+    @property
+    def cache(self) -> JsonCache:
+        """
+        Lazy initialization of the cache instance.
+        """
+        if self._cache is None and self.config.cache.use:
+            self._cache = JsonCache(Path(self.config.cache.name))
+        return self._cache
 
     async def _add_to_work_queue(self, item: Iterable[Request] | Request) -> None:
         """
@@ -62,7 +102,7 @@ class DataWorker:
         """
         await self._work_queue.put(item)
 
-    async def _add_to_data_queue(self, item: dict | BaseDataItem) -> None:
+    async def _add_to_data_queue(self, item: dict | BaseModel) -> None:
         """
         Adds an item to the data queue.
 
@@ -76,7 +116,15 @@ class DataWorker:
 
         :param item: The failed request to add to the failures list.
         """
-        self._failures.append(item)
+        self._failures[item["request"].url] = item
+
+    def get_data_item(self) -> dict | BaseModel:
+        """
+        Retrieve a data item from the data queue.
+
+        :return: The data item.
+        """
+        return self._data_queue.get_nowait()
 
     async def _enqueue_start_requests(self) -> None:
         """
@@ -92,7 +140,7 @@ class DataWorker:
             raise ValueError("No requests to process.")
         self._started = True
 
-    async def _handle_queue_item(self, item: Request | dict | BaseDataItem) -> None:
+    async def _handle_queue_item(self, item: Request | dict | BaseModel) -> None:
         """
         Handles an item from the work queue.
 
@@ -100,7 +148,7 @@ class DataWorker:
         """
         if isinstance(item, Request):
             await self._handle_request_item(item)
-        elif isinstance(item, (dict, BaseDataItem)):
+        elif isinstance(item, (dict, BaseModel)):
             await self._add_to_data_queue(item)
         else:
             raise ValueError(f"Unknown item type {type(item)}")
@@ -112,11 +160,20 @@ class DataWorker:
         :param request: The request to check for duplication.
         :return: True if the request is a duplicate, False otherwise.
         """
-        key = request.url
+        key = request.model_dump_json(include=self.config.deduplication_keys)
         if key in self._seen_requests:
             return True
         self._seen_requests.add(key)
         return False
+
+    def _has_request_failed(self, request: Request) -> bool:
+        """
+        Checks if a request has failed.
+
+        :param request: The request to check for failure.
+        :return: True if the request has failed, False otherwise.
+        """
+        return request.url in self._failures
 
     async def _handle_request_item(self, request: Request) -> None:
         """
@@ -126,19 +183,25 @@ class DataWorker:
         """
         if self.config.deduplication and self._is_duplicate_request(request):
             return
-        try:
-            response = await self._handle_request(request)
-            callback_result = await self._handle_callback(request, response)
-            if isinstance(callback_result, (dict, BaseDataItem)):
-                await self._add_to_data_queue(callback_result)
-            else:
-                await self._add_to_work_queue(callback_result)
-        except (RequestException, ParsingException) as e:
-            logger.error(f"An exception occurred: {e}")
-            self._add_to_failures({"request": request, "error": str(e)})
+        if self._has_request_failed(request):
+            logger.debug(f"Skipping failed request {request.url}")
             return
+        async with self.limiter_context:
+            try:
+                response = await self._handle_request(request)
+                callback_result = self._handle_callback(request, response)
+                if isinstance(callback_result, (dict, BaseModel)):
+                    await self._add_to_data_queue(callback_result)
+                else:
+                    await self._add_to_work_queue(callback_result)
+            except (DataServiceException, ParsingException) as e:
+                logger.error(f"An exception occurred: {e}")
+                self._add_to_failures(
+                    {"request": request, "message": str(e), "exception": type(e)}
+                )
+                return
 
-    async def _handle_callback(self, request, response):
+    def _handle_callback(self, request, response):
         """
         Handles the callback function of a request.
 
@@ -201,14 +264,13 @@ class DataWorker:
                 min=self.config.retry.wait_exp_min,
                 max=self.config.retry.wait_exp_max,
             ),
-            retry=retry_if_exception_type(RetryableRequestException),
+            retry=retry_if_exception_type(RetryableException),
             before_sleep=before_sleep_log(logger),
             after=after_log(logger),
         )
         return await retryer(self._make_request, client, request)
 
-    @staticmethod
-    async def _make_request(client, request) -> Response:
+    async def _make_request(self, client, request) -> Response:
         """
         Wraps client call.
 
@@ -216,25 +278,30 @@ class DataWorker:
         :param request: The request object.
         :return: The response object.
         """
+        if self.config.cache.use:
+            cached = cache_request(self.cache)
+            return await cached(client, request)
         return await client(request)
 
-    async def _iter_callbacks(self, item: Any) -> AsyncGenerator[asyncio.Task, None]:
+    async def _iter_callbacks(
+        self, callback: Generator | AsyncGenerator | Request | dict | BaseModel
+    ) -> AsyncGenerator[asyncio.Task, None]:
         """
         Iterates over callbacks and creates tasks for them.
 
-        :param item: The item to iterate over.
+        :param callback: Either a callback iterator or a single result
         :return: An async generator of tasks.
         """
-        if isinstance(item, Generator):
-            for i in item:
-                yield asyncio.create_task(self._handle_queue_item(i))
-        elif isinstance(item, AsyncGenerator):
-            async for i in item:
-                yield asyncio.create_task(self._handle_queue_item(i))
-        elif isinstance(item, (Request, dict, BaseDataItem)):
-            yield asyncio.create_task(self._handle_queue_item(item))
+        if isinstance(callback, Generator):
+            for item in callback:
+                yield asyncio.create_task(self._handle_queue_item(item))
+        elif isinstance(callback, AsyncGenerator):
+            async for item in callback:
+                yield asyncio.create_task(self._handle_queue_item(item))
+        elif isinstance(callback, (Request, dict, BaseModel)):
+            yield asyncio.create_task(self._handle_queue_item(callback))
         else:
-            raise ValueError(f"Unknown item type {type(item)}")
+            raise ValueError(f"Unknown item type {type(callback)}")
 
     async def fetch(self) -> None:
         """
@@ -244,19 +311,12 @@ class DataWorker:
         async with semaphore:
             if not self._started:
                 await self._enqueue_start_requests()
-            while self.has_jobs():
-                logger.debug(f"Work queue size: {self._work_queue.qsize()}")
-                item = self._work_queue.get_nowait()
-                tasks = [task async for task in self._iter_callbacks(item)]
-                await asyncio.gather(*tasks)
-
-    def get_data_item(self) -> dict | BaseDataItem:
-        """
-        Retrieve a data item from the data queue.
-
-        :return: The data item.
-        """
-        return self._data_queue.get_nowait()
+            with self.cache_context:
+                while self.has_jobs():
+                    logger.debug(f"Work queue size: {self._work_queue.qsize()}")
+                    item = self._work_queue.get_nowait()
+                    tasks = [task async for task in self._iter_callbacks(item)]
+                    await asyncio.gather(*tasks)
 
     def has_no_more_data(self) -> bool:
         """
@@ -274,10 +334,10 @@ class DataWorker:
         """
         return not self._work_queue.empty()
 
-    def get_failures(self) -> tuple[FailedRequest, ...]:
+    def get_failures(self) -> dict[str, FailedRequest]:
         """
         Return a tuple of failed requests.
 
         :return: A tuple of failed requests.
         """
-        return tuple(self._failures)
+        return self._failures

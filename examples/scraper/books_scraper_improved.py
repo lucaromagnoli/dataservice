@@ -3,6 +3,7 @@
 import argparse
 import timeit
 from collections import defaultdict
+from logging import getLogger
 from pprint import pprint
 from typing import Iterator
 from urllib.parse import urljoin
@@ -17,13 +18,14 @@ from dataservice import (
     setup_logging,
 )
 
-setup_logging()
+logger = getLogger("books_scraper")
+setup_logging("books_scraper")
 
 
 class BooksPage(BaseDataItem):
     url: str
     title: str | None
-    articles: int
+    books: int
 
 
 class BookDetails(BaseDataItem):
@@ -42,7 +44,7 @@ def parse_books_page(
         **{
             "url": response.request.url,
             "title": lambda: response.html.title.get_text(strip=True),
-            "articles": len(articles),
+            "books": len(articles),
         }
     )
 
@@ -81,12 +83,13 @@ def main(pagination: bool):
             client=HttpXClient(),
         )
     ]
-    service_config = ServiceConfig(random_delay=1000)
+    service_config = ServiceConfig(random_delay=1, cache={"use": True})
     data_service = DataService(start_requests, service_config)
     data = defaultdict(list)
     for item in data_service:
         data[type(item).__name__].append(item)
-    pprint(data)
+    data_service.write("books_pages.json", data["BooksPage"])
+    data_service.write("book_details.json", data["BookDetails"])
 
 
 if __name__ == "__main__":

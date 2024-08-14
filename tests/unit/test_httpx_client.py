@@ -4,7 +4,7 @@ from httpx import Response as HttpXResponse
 from pytest_httpx import HTTPXMock
 
 from dataservice.clients import HttpXClient
-from dataservice.exceptions import RequestException, RetryableRequestException
+from dataservice.exceptions import DataServiceException, RetryableException
 from dataservice.models import Request
 
 
@@ -104,24 +104,24 @@ async def test_httpx_client_post_request(
             HTTPStatusError(
                 "Error", request=None, response=HttpXResponse(status_code=404)
             ),
-            RequestException,
+            DataServiceException,
             id="404",
         ),
         pytest.param(
             HTTPStatusError(
                 "Error", request=None, response=HttpXResponse(status_code=500)
             ),
-            RetryableRequestException,
+            RetryableException,
             id="505 Retryable",
         ),
         pytest.param(
             TimeoutException("Error"),
-            RetryableRequestException,
-            id="Timeout Retryable",
+            DataServiceException,
+            id="Timeout. Dont Retry",
         ),
         pytest.param(
             HTTPError("Error"),
-            RequestException,
+            DataServiceException,
             id="Error. Dont retry",
         ),
     ],

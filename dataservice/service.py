@@ -6,13 +6,14 @@ from __future__ import annotations
 
 import asyncio
 import pathlib
+from concurrent.futures import ProcessPoolExecutor
 from logging import getLogger
 from typing import Any, Iterable
 
-from pydantic import validate_call
+from pydantic import BaseModel, validate_call
 
-from dataservice.data import BaseDataItem
 from dataservice.config import ServiceConfig
+from dataservice.files import writers
 from dataservice.models import FailedRequest, Request
 from dataservice.worker import DataWorker
 
@@ -47,7 +48,7 @@ class DataService:
         return self._data_worker
 
     @property
-    def failures(self) -> tuple[FailedRequest, ...]:
+    def failures(self) -> dict[str, FailedRequest]:
         """
         Returns the list of failed requests.
         """
@@ -63,7 +64,11 @@ class DataService:
         """
         Fetches the next data item from the data worker.
         """
-        self._run_data_worker()
+        if not self.data_worker.has_started:
+            with ProcessPoolExecutor() as executor:
+                asyncio.get_event_loop().run_in_executor(
+                    executor, self._run_data_worker()
+                )
         if self.data_worker.has_no_more_data():
             raise StopIteration
         return self.data_worker.get_data_item()
@@ -77,10 +82,17 @@ class DataService:
     @validate_call
     def write(
         self,
-        results: Iterable[dict | BaseDataItem],
         filepath: pathlib.Path,
+        results: Iterable[dict | BaseModel] | None = None,
     ) -> None:
         """
         Writes the results to a file.
+
+        :param results: An iterable of data items to write.
+        :param filepath: The path to the output file.
         """
-        pass
+        ext = filepath.suffix
+        writer = writers[ext[1:]]
+        if results is None:
+            results = self
+        writer(filepath).write(results)

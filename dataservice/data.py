@@ -1,6 +1,9 @@
+"""Data Module."""
+
 from __future__ import annotations
 
-from typing import Any, TypedDict
+from abc import ABC
+from typing import Any, Iterable, TypedDict
 
 from pydantic import BaseModel, model_validator
 
@@ -84,3 +87,11 @@ class BaseDataItem(BaseModel):
         """Wrap the data in a DataWrapper, i.e. evaluate callables and store errors if they occur."""
         wrapped = DataWrapper(data)
         return {**wrapped, "errors": wrapped.errors}
+
+
+class DataSink(ABC):
+    """Data sink protocol."""
+
+    def write(self, data: Iterable[dict | BaseModel]) -> None:
+        """Write data to the sink."""
+        raise NotImplementedError
