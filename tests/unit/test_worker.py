@@ -3,8 +3,8 @@ from contextlib import nullcontext as does_not_raise
 from pathlib import Path
 
 import pytest
-from cache import JsonCache
 
+from dataservice.cache import JsonCache
 from dataservice.config import ServiceConfig
 from dataservice.data import BaseDataItem
 from dataservice.exceptions import DataServiceException, RetryableException
