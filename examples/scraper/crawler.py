@@ -9,6 +9,7 @@ from dataservice import (
     HttpXClient,
     Request,
     Response,
+    ServiceConfig,
     setup_logging,
 )
 
@@ -50,12 +51,14 @@ def main():
             )
         ]
     )
-    data_service = DataService(start_requests)
+    data_service = DataService(
+        start_requests, config=ServiceConfig(cache={"use": True})
+    )
     data = tuple(data_service)
     for item in data:
         logger.info(item)
-    for failure in data_service.failures:
-        logger.error(failure)
+    for k, v in data_service.failures.items():
+        logger.error(f"Error for URL: {k} - {v}")
 
 
 if __name__ == "__main__":
