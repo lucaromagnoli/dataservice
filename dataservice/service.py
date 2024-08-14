@@ -48,7 +48,7 @@ class DataService:
         return self._data_worker
 
     @property
-    def failures(self) -> tuple[FailedRequest, ...]:
+    def failures(self) -> dict[str, FailedRequest]:
         """
         Returns the list of failed requests.
         """

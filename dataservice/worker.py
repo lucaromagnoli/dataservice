@@ -52,7 +52,7 @@ class DataWorker:
         self._requests: Iterable[Request] = requests
         self._data_queue: asyncio.Queue = asyncio.Queue()
         self._work_queue: asyncio.Queue = asyncio.Queue()
-        self._failures: list[FailedRequest] = []
+        self._failures: dict[str, FailedRequest] = {}
         self._seen_requests: set = set()
         self._started: bool = False
         self._cache = None
@@ -116,7 +116,7 @@ class DataWorker:
 
         :param item: The failed request to add to the failures list.
         """
-        self._failures.append(item)
+        self._failures[item["request"].url] = item
 
     def get_data_item(self) -> dict | BaseModel:
         """
@@ -166,6 +166,15 @@ class DataWorker:
         self._seen_requests.add(key)
         return False
 
+    def _has_request_failed(self, request: Request) -> bool:
+        """
+        Checks if a request has failed.
+
+        :param request: The request to check for failure.
+        :return: True if the request has failed, False otherwise.
+        """
+        return request.url in self._failures
+
     async def _handle_request_item(self, request: Request) -> None:
         """
         Handles a request item.
@@ -173,6 +182,9 @@ class DataWorker:
         :param request: The request item to handle.
         """
         if self.config.deduplication and self._is_duplicate_request(request):
+            return
+        if self._has_request_failed(request):
+            logger.debug(f"Skipping failed request {request.url}")
             return
         async with self.limiter_context:
             try:
@@ -322,10 +334,10 @@ class DataWorker:
         """
         return not self._work_queue.empty()
 
-    def get_failures(self) -> tuple[FailedRequest, ...]:
+    def get_failures(self) -> dict[str, FailedRequest]:
         """
         Return a tuple of failed requests.
 
         :return: A tuple of failed requests.
         """
-        return tuple(self._failures)
+        return self._failures
