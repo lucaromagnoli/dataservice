@@ -1,7 +1,9 @@
 import logging
 from contextlib import nullcontext as does_not_raise
+from pathlib import Path
 
 import pytest
+from cache import JsonCache
 
 from dataservice.config import ServiceConfig
 from dataservice.data import BaseDataItem
@@ -115,7 +117,7 @@ async def test_handles_queue_item_puts_request_in_work_queue(
     indirect=True,
 )
 async def test_handles_queue_item_raises_value_error_for_unknown_type(
-    data_worker_with_params, mocker
+    data_worker_with_params,
 ):
     with pytest.raises(ValueError, match="Unknown item type <class 'int'>"):
         await data_worker_with_params._handle_queue_item(1)
@@ -288,3 +290,42 @@ async def test_retry_logs(
     with expected_behaviour:
         await data_worker._handle_request(request_with_data_callback)
         assert caplog.messages[-1] == expected_logs
+
+
+@pytest.mark.asyncio
+async def test_data_worker_does_not_use_cache():
+    requests, config, expected = (
+        [request_with_data_callback],
+        ServiceConfig(cache={"use": False}),
+        None,
+    )
+    data_worker = DataWorker(requests, config)
+    await data_worker.fetch()
+    assert data_worker.cache == expected
+
+
+@pytest.fixture
+def cache_file(shared_datadir):
+    cache_file = shared_datadir.joinpath("cache.json")
+    yield cache_file
+    if cache_file.exists():
+        cache_file.unlink()
+
+
+@pytest.mark.asyncio
+async def test_data_worker_uses_cache():
+    requests = [request_with_data_callback]
+    config = ServiceConfig(cache={"use": True})
+    data_worker = DataWorker(requests, config)
+    await data_worker.fetch()
+    assert isinstance(data_worker.cache, JsonCache)
+
+
+@pytest.mark.asyncio
+async def test_data_worker_uses_cache_mocks(mocker):
+    mock_cache = mocker.patch("dataservice.worker.JsonCache", autospec=True)
+    requests = [request_with_data_callback]
+    config = ServiceConfig(cache={"use": True})
+    data_worker = DataWorker(requests, config)
+    await data_worker.fetch()
+    mock_cache.assert_called_with(Path("cache.json"))

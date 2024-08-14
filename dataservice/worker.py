@@ -74,7 +74,7 @@ class DataWorker:
 
     @property
     def cache_context(self):
-        return self.cache if self.config.cache else nullcontext()
+        return self.cache if self.config.cache.use else nullcontext()
 
     @property
     def has_started(self) -> bool:
@@ -90,7 +90,7 @@ class DataWorker:
         """
         Lazy initialization of the cache instance.
         """
-        if self._cache is None:
+        if self._cache is None and self.config.cache.use:
             self._cache = JsonCache(Path(self.config.cache.name))
         return self._cache
 
@@ -278,7 +278,7 @@ class DataWorker:
         :param request: The request object.
         :return: The response object.
         """
-        if self.config.cache:
+        if self.config.cache.use:
             cached = cache_request(self.cache)
             return await cached(client, request)
         return await client(request)
