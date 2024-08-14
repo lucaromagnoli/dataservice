@@ -1,10 +1,9 @@
 """Cache Module."""
 
-import asyncio
+import atexit
 import json
 import logging
 from abc import ABC
-from concurrent.futures import ThreadPoolExecutor
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable
@@ -40,9 +39,16 @@ class JsonCache:
     def __init__(self, path: Path):
         """Initialize the DictCache."""
         self.path = path
-        self.cache = self.init_cache()
+        self.cache = self._init_cache()
+        atexit.register(self.write)
 
-    def init_cache(self):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.write()
+
+    def _init_cache(self):
         if self.path.exists():
             with open(self.path, "r") as f:
                 return json.load(f)
@@ -79,20 +85,6 @@ class JsonCache:
 
     def __str__(self):
         return str(self.cache)
-
-
-class AsyncJsonCache(JsonCache):
-    """Simple JSON disk based cache implementation."""
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.write()
-
-    async def write(self):
-        with ThreadPoolExecutor() as pool:
-            await asyncio.get_event_loop().run_in_executor(pool, super().write)
 
 
 def cache_request(cache: Cache) -> Callable:
