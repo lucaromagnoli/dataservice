@@ -83,7 +83,7 @@ def main(pagination: bool):
             client=HttpXClient(),
         )
     ]
-    service_config = ServiceConfig(random_delay=0, cache=True)
+    service_config = ServiceConfig(random_delay=1, cache={"use": True})
     data_service = DataService(start_requests, service_config)
     data = defaultdict(list)
     for item in data_service:
