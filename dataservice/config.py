@@ -1,5 +1,6 @@
 """Config."""
 
+import datetime
 from typing import Annotated, NewType
 
 from annotated_types import Ge
@@ -24,6 +25,18 @@ class RateLimiterConfig(BaseModel):
 
     max_rate: PositiveInt = 10
     time_period: Seconds = Seconds(60)
+
+
+class CacheConfig(BaseModel):
+    use: bool = Field(default=False, description="Whether to cache requests.")
+    name: str = Field(
+        default="cache.json",
+        description="A name to use for the cache. Defaults to 'cache.json'.",
+    )
+    write_interval: datetime.timedelta = Field(
+        default=datetime.timedelta(minutes=1),
+        description="The interval to write the cache.",
+    )
 
 
 class ServiceConfig(BaseModel):
@@ -58,9 +71,6 @@ class ServiceConfig(BaseModel):
     limiter: RateLimiterConfig | None = Field(
         description="The rate limiter configuration", default=None
     )
-
-    cache: bool = Field(default=False, description="Whether to cache requests.")
-    cache_name: str = Field(
-        default="cache.json",
-        description="A name to use for the cache. Defaults to 'cache.json'.",
+    cache: CacheConfig = Field(
+        description="The cache configuration", default_factory=CacheConfig
     )
