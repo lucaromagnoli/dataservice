@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os
 from contextlib import nullcontext as does_not_raise
 from datetime import timedelta
 from pathlib import Path
@@ -307,22 +308,14 @@ async def test_data_worker_does_not_use_cache():
     assert data_worker.cache == expected
 
 
-@pytest.fixture
-def cache_file(shared_datadir):
-    shared_datadir.mkdir(exist_ok=True)
-    cache_file = shared_datadir.joinpath("cache.json")
-    yield cache_file
-    if cache_file.exists():
-        cache_file.unlink()
-
-
 @pytest.mark.asyncio
-async def test_data_worker_uses_cache(cache_file):
+async def test_data_worker_uses_cache():
     requests = [request_with_data_callback]
-    config = ServiceConfig(cache={"use": True, "path": cache_file})
+    config = ServiceConfig(cache={"use": True})
     data_worker = DataWorker(requests, config)
     await data_worker.fetch()
     assert isinstance(data_worker.cache, JsonCache)
+    os.remove("cache.json")
 
 
 @pytest.mark.asyncio
