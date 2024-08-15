@@ -313,9 +313,9 @@ def cache_file(shared_datadir):
 
 
 @pytest.mark.asyncio
-async def test_data_worker_uses_cache():
+async def test_data_worker_uses_cache(cache_file):
     requests = [request_with_data_callback]
-    config = ServiceConfig(cache={"use": True})
+    config = ServiceConfig(cache={"use": True, "path": cache_file})
     data_worker = DataWorker(requests, config)
     await data_worker.fetch()
     assert isinstance(data_worker.cache, JsonCache)

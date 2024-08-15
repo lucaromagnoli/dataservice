@@ -91,7 +91,7 @@ class DataWorker:
         Lazy initialization of the cache instance.
         """
         if self._cache is None and self.config.cache.use:
-            self._cache = JsonCache(Path(self.config.cache.name))
+            self._cache = JsonCache(Path(self.config.cache.path))
         return self._cache
 
     async def _add_to_work_queue(self, item: Iterable[Request] | Request) -> None:
