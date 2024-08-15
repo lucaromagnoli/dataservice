@@ -309,6 +309,7 @@ async def test_data_worker_does_not_use_cache():
 
 @pytest.fixture
 def cache_file(shared_datadir):
+    shared_datadir.mkdir(exist_ok=True)
     cache_file = shared_datadir.joinpath("cache.json")
     yield cache_file
     if cache_file.exists():
