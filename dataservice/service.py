@@ -67,7 +67,8 @@ class DataService:
         if not self.data_worker.has_started:
             with ProcessPoolExecutor() as executor:
                 asyncio.get_event_loop().run_in_executor(
-                    executor, self._run_data_worker()
+                    executor,
+                    self._run_data_worker(),  # type: ignore
                 )
         if self.data_worker.has_no_more_data():
             raise StopIteration

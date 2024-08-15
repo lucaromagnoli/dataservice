@@ -60,7 +60,7 @@ def parse_books_page(
             yield Request(
                 url=next_page_url,
                 callback=lambda resp: parse_books_page(resp, pagination=pagination),
-                client=HttpXClient(),
+                client=response.request.client,
             )
 
 
@@ -76,14 +76,15 @@ def parse_book_details(response: Response) -> BookDetails:
 
 
 def main(pagination: bool):
+    httpx_client = HttpXClient()
     start_requests = [
         Request(
             url="https://books.toscrape.com/index.html",
             callback=lambda resp: parse_books_page(resp, pagination=pagination),
-            client=HttpXClient(),
+            client=httpx_client,
         )
     ]
-    service_config = ServiceConfig(random_delay=1, cache={"use": True})
+    service_config = ServiceConfig(random_delay=5000, cache={"use": True})
     data_service = DataService(start_requests, service_config)
     data = defaultdict(list)
     for item in data_service:

@@ -4,7 +4,7 @@ import datetime
 from typing import Annotated, NewType
 
 from annotated_types import Ge
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, NewPath
 
 PositiveInt = Annotated[int, Ge(0)]
 Milliseconds = NewType("Milliseconds", PositiveInt)
@@ -29,13 +29,13 @@ class RateLimiterConfig(BaseModel):
 
 class CacheConfig(BaseModel):
     use: bool = Field(default=False, description="Whether to cache requests.")
-    name: str = Field(
+    path: NewPath = Field(
         default="cache.json",
-        description="A name to use for the cache. Defaults to 'cache.json'.",
+        description="The path of the file to use for the cache. Defaults to 'cache.json'.",
     )
     write_interval: datetime.timedelta = Field(
-        default=datetime.timedelta(minutes=1),
-        description="The interval to write the cache.",
+        default=datetime.timedelta(minutes=20),
+        description="The interval to write the cache in minutes.",
     )
 
 
@@ -66,6 +66,11 @@ class ServiceConfig(BaseModel):
     random_delay: Milliseconds = Field(
         default=Milliseconds(0),
         description="The maximum random delay between requests.",
+    )
+
+    constant_delay: Milliseconds = Field(
+        default=Milliseconds(0),
+        description="Constant delay between requests.",
     )
 
     limiter: RateLimiterConfig | None = Field(

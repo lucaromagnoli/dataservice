@@ -1,3 +1,5 @@
+"""Utility functions for dataservice module."""
+
 from functools import partial
 from typing import Callable
 

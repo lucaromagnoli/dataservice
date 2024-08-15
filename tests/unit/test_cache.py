@@ -1,3 +1,6 @@
+import time
+from datetime import timedelta
+
 from dataservice.cache import JsonCache
 
 
@@ -62,3 +65,27 @@ def test_cache_iteration(tmp_path):
     cache.set("key2", "value2")
     keys = list(iter(cache))
     assert keys == ["key1", "key2"]
+
+
+def write_periodically_writes_when_interval_passed(tmp_path, mocker):
+    cache = JsonCache(tmp_path / "cache.json")
+    cache.start_time = time.time() - 3600  # Simulate 1 hour has passed
+    mock_write = mocker.patch.object(cache, "write")
+    cache.write_periodically(timedelta(seconds=1800))
+    mock_write.assert_called_once()
+
+
+def write_periodically_does_not_write_when_interval_not_passed(tmp_path, mocker):
+    cache = JsonCache(tmp_path / "cache.json")
+    cache.start_time = time.time()  # No time has passed
+    mock_write = mocker.patch.object(cache, "write")
+    cache.write_periodically(timedelta(seconds=1800))
+    mock_write.assert_not_called()
+
+
+def write_periodically_resets_start_time_after_writing(tmp_path, mocker):
+    cache = JsonCache(tmp_path / "cache.json")
+    cache.start_time = time.time() - 3600  # Simulate 1 hour has passed
+    mocker.patch.object(cache, "write")
+    cache.write_periodically(timedelta(seconds=1800))
+    assert abs(cache.start_time - time.time()) < 1  # Check start_time reset

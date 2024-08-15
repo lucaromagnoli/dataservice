@@ -1,6 +1,10 @@
+import datetime
 import logging
+import os
 from contextlib import nullcontext as does_not_raise
+from datetime import timedelta
 from pathlib import Path
+from unittest.mock import call
 
 import pytest
 
@@ -304,14 +308,6 @@ async def test_data_worker_does_not_use_cache():
     assert data_worker.cache == expected
 
 
-@pytest.fixture
-def cache_file(shared_datadir):
-    cache_file = shared_datadir.joinpath("cache.json")
-    yield cache_file
-    if cache_file.exists():
-        cache_file.unlink()
-
-
 @pytest.mark.asyncio
 async def test_data_worker_uses_cache():
     requests = [request_with_data_callback]
@@ -319,6 +315,7 @@ async def test_data_worker_uses_cache():
     data_worker = DataWorker(requests, config)
     await data_worker.fetch()
     assert isinstance(data_worker.cache, JsonCache)
+    os.remove("cache.json")
 
 
 @pytest.mark.asyncio
@@ -329,3 +326,19 @@ async def test_data_worker_uses_cache_mocks(mocker):
     data_worker = DataWorker(requests, config)
     await data_worker.fetch()
     mock_cache.assert_called_with(Path("cache.json"))
+
+
+@pytest.mark.asyncio
+async def test_data_worker_uses_cache_write_periodically(mocker):
+    mock_cache = mocker.patch("dataservice.worker.JsonCache", autospec=True)
+    requests = [request_with_data_callback]
+    config = ServiceConfig(
+        cache={"use": True, "write_interval": timedelta(seconds=1)}, constant_delay=1
+    )
+    data_worker = DataWorker(requests, config)
+    await data_worker.fetch()
+    mock_cache.assert_called_with(Path("cache.json"))
+    assert (
+        call().__enter__().write_periodically(datetime.timedelta(seconds=1))
+        in mock_cache.mock_calls
+    )
