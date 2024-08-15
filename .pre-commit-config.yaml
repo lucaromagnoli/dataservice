@@ -9,7 +9,8 @@ repos:
     rev: ''  # Use the sha / tag you want to point at
     hooks:
       - id: mypy
-        additional_dependencies: [pydantic]
+        additional_dependencies:
+          - pydantic
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
     rev: v0.5.6
