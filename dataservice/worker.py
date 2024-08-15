@@ -228,7 +228,10 @@ class DataWorker:
         if key not in self._clients:
             self._clients[key] = request.client
         client = self._clients[key]
-        await asyncio.sleep(random.randint(0, self.config.random_delay) / 1000)
+        if self.config.constant_delay:
+            await asyncio.sleep(self.config.constant_delay / 1000)
+        if self.config.random_delay:
+            await asyncio.sleep(random.randint(0, self.config.random_delay) / 1000)
         return await self._wrap_retry(client, request)
 
     async def _wrap_retry(self, client: ClientCallable, request: Request):

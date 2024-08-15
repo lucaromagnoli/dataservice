@@ -68,6 +68,11 @@ class ServiceConfig(BaseModel):
         description="The maximum random delay between requests.",
     )
 
+    constant_delay: Milliseconds = Field(
+        default=Milliseconds(0),
+        description="Constant delay between requests.",
+    )
+
     limiter: RateLimiterConfig | None = Field(
         description="The rate limiter configuration", default=None
     )
