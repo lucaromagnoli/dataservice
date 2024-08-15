@@ -7,7 +7,7 @@ This series of tutorials assumes that your are familiar with Python and have a b
 in particular with the `BeautifulSoup <https://www.crummy.com/software/BeautifulSoup/bs4/doc/>`_ library.
 Some knowledge of recursion, generators and functional programming is also helpful.
 
-Please note that the purpose of these examples is to demonstrate the capabilities of DataService and how to use them,
+Please note that the purpose of these examples is to demonstrate the capabilities of DataService,
 not to provide a comprehensive guide to web scraping / data gathering.
 
 .. toctree::
@@ -16,3 +16,4 @@ not to provide a comprehensive guide to web scraping / data gathering.
 
    examples/scrape_books
    examples/crawler
+   examples/rest_client
