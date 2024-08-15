@@ -5,6 +5,7 @@ from __future__ import annotations
 import atexit
 import json
 import logging
+import time
 from abc import ABC
 from functools import wraps
 from pathlib import Path
@@ -42,6 +43,7 @@ class JsonCache:
         """Initialize the DictCache."""
         self.path = path
         self.cache = self._init_cache()
+        self.start_time = time.time()
         atexit.register(self.write)
 
     def __enter__(self):
@@ -72,6 +74,11 @@ class JsonCache:
         logger.info(f"Writing cache to {self.path}")
         with open(self.path, "w") as f:
             json.dump(self.cache, f)
+
+    def write_periodically(self, interval):
+        if time.time() - self.start_time >= interval.total_seconds():
+            self.write()
+            self.start_time = time.time()
 
     def __contains__(self, key):
         return key in self.cache

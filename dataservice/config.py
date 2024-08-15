@@ -35,7 +35,7 @@ class CacheConfig(BaseModel):
     )
     write_interval: datetime.timedelta = Field(
         default=datetime.timedelta(minutes=1),
-        description="The interval to write the cache.",
+        description="The interval to write the cache in minutes.",
     )
 
 
