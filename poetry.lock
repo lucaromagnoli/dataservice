@@ -72,6 +72,25 @@ test = ["anyio[trio]", "coverage[toml] (>=7)", "exceptiongroup (>=1.2.0)", "hypo
 trio = ["trio (>=0.23)"]
 
 [[package]]
+name = "attrs"
+version = "24.2.0"
+description = "Classes Without Boilerplate"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "attrs-24.2.0-py3-none-any.whl", hash = "sha256:81921eb96de3191c8258c199618104dd27ac608d9366f5e35d011eae1867ede2"},
+    {file = "attrs-24.2.0.tar.gz", hash = "sha256:5cfb1b9148b5b086569baec03f20d7b6bf3bcacc9a42bebf87ffaaca362f6346"},
+]
+
+[package.extras]
+benchmark = ["cloudpickle", "hypothesis", "mypy (>=1.11.1)", "pympler", "pytest (>=4.3.0)", "pytest-codspeed", "pytest-mypy-plugins", "pytest-xdist[psutil]"]
+cov = ["cloudpickle", "coverage[toml] (>=5.3)", "hypothesis", "mypy (>=1.11.1)", "pympler", "pytest (>=4.3.0)", "pytest-mypy-plugins", "pytest-xdist[psutil]"]
+dev = ["cloudpickle", "hypothesis", "mypy (>=1.11.1)", "pre-commit", "pympler", "pytest (>=4.3.0)", "pytest-mypy-plugins", "pytest-xdist[psutil]"]
+docs = ["cogapp", "furo", "myst-parser", "sphinx", "sphinx-notfound-page", "sphinxcontrib-towncrier", "towncrier (<24.7)"]
+tests = ["cloudpickle", "hypothesis", "mypy (>=1.11.1)", "pympler", "pytest (>=4.3.0)", "pytest-mypy-plugins", "pytest-xdist[psutil]"]
+tests-mypy = ["mypy (>=1.11.1)", "pytest-mypy-plugins"]
+
+[[package]]
 name = "autodoc-pydantic"
 version = "2.2.0"
 description = "Seamlessly integrate pydantic models in your Sphinx documentation."
@@ -263,6 +282,24 @@ files = [
     {file = "charset_normalizer-3.3.2-cp39-cp39-win_amd64.whl", hash = "sha256:b01b88d45a6fcb69667cd6d2f7a9aeb4bf53760d7fc536bf679ec94fe9f3ff3d"},
     {file = "charset_normalizer-3.3.2-py3-none-any.whl", hash = "sha256:3e4d1f6587322d2788836a99c69062fbb091331ec940e02d12d179c1d53e25fc"},
 ]
+
+[[package]]
+name = "check-wheel-contents"
+version = "0.6.0"
+description = "Check your wheels have the right contents"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "check-wheel-contents-0.6.0.tar.gz", hash = "sha256:64419c4e150e1de6f2d0bce7d4c7668eebfac127f0274014dd1a56ba07525364"},
+    {file = "check_wheel_contents-0.6.0-py3-none-any.whl", hash = "sha256:f3430c5ae633026e15902e3153fa14a6bac2a8ae7bbc7044117712be667821da"},
+]
+
+[package.dependencies]
+attrs = ">=18.1"
+click = ">=7.0"
+packaging = "*"
+pydantic = ">=2.0,<3.0"
+wheel-filename = ">=1.1,<2.0"
 
 [[package]]
 name = "click"
@@ -1039,6 +1076,17 @@ identify = ">=1.0.0"
 nodeenv = ">=0.11.1"
 pyyaml = ">=5.1"
 virtualenv = ">=20.10.0"
+
+[[package]]
+name = "pyclean"
+version = "3.0.0"
+description = "Pure Python cross-platform pyclean. Clean up your Python bytecode."
+optional = false
+python-versions = ">=3.5"
+files = [
+    {file = "pyclean-3.0.0-py3-none-any.whl", hash = "sha256:a1d8114991cf09994bc511cd0b050f3e398ae2bc8bfc0bbd1bdbec8ba048e6dd"},
+    {file = "pyclean-3.0.0.tar.gz", hash = "sha256:a48be7afd512b1923a7b9decc1219bbbe2d73199c939b46c936448f904a180ce"},
+]
 
 [[package]]
 name = "pydantic"
@@ -2193,7 +2241,18 @@ files = [
     {file = "websockets-12.0.tar.gz", hash = "sha256:81df9cbcbb6c260de1e007e58c011bfebe2dafc8435107b0537f393dd38c8b1b"},
 ]
 
+[[package]]
+name = "wheel-filename"
+version = "1.4.1"
+description = "Parse wheel filenames"
+optional = false
+python-versions = "~=3.6"
+files = [
+    {file = "wheel-filename-1.4.1.tar.gz", hash = "sha256:e2e1eb0780910a0148358252aad6394cc674250686c56c39aa379493438370b3"},
+    {file = "wheel_filename-1.4.1-py3-none-any.whl", hash = "sha256:a53d8ece58822eb27b3a8841c6b4bebf357f19ff0dd83ce9179756f64a4bc0df"},
+]
+
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "b0f60900aa3ebb9f893341fc660de9c4ae722144a3eea1aec8fd54a624bd1869"
+content-hash = "1126176934f83afa80f8f7f86a2f17d5360c74f40ea9d1dfe132069f207d0a1f"
