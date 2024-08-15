@@ -23,7 +23,7 @@ class DataWrapper(dict):
 
     def __init__(self, mapping: dict | None = None, /, **kwargs):
         """Initialize the DataWrapper."""
-        self.errors = {}
+        self.errors: dict = {}
 
         if mapping is not None:
             for key, value in mapping.items():

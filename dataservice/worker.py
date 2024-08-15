@@ -7,7 +7,7 @@ import logging
 import random
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, AsyncGenerator, Generator, Iterable
+from typing import Any, AsyncGenerator, Generator, Iterable, cast
 
 from aiolimiter import AsyncLimiter
 from pydantic import BaseModel
@@ -55,8 +55,8 @@ class DataWorker:
         self._failures: dict[str, FailedRequest] = {}
         self._seen_requests: set = set()
         self._started: bool = False
-        self._cache = None
-        self._limiter = None
+        self._cache: JsonCache | None = None
+        self._limiter: AsyncLimiter | None = None
 
     @property
     def limiter_context(self):
@@ -86,7 +86,7 @@ class DataWorker:
         return self._started
 
     @property
-    def cache(self) -> JsonCache:
+    def cache(self) -> JsonCache | None:
         """
         Lazy initialization of the cache instance.
         """
@@ -110,13 +110,14 @@ class DataWorker:
         """
         await self._data_queue.put(item)
 
-    def _add_to_failures(self, item: FailedRequest) -> None:
+    def _add_to_failures(self, failed_req: FailedRequest) -> None:
         """
         Adds an item to the failures list.
 
-        :param item: The failed request to add to the failures list.
+        :param failed_req: The failed request to add to the failures list.
         """
-        self._failures[item["request"].url] = item
+        request: Request = failed_req["request"]
+        self._failures[str(request.url)] = failed_req
 
     def get_data_item(self) -> dict | BaseModel:
         """
@@ -197,7 +198,11 @@ class DataWorker:
             except (DataServiceException, ParsingException) as e:
                 logger.error(f"An exception occurred: {e}")
                 self._add_to_failures(
-                    {"request": request, "message": str(e), "exception": type(e)}
+                    {
+                        "request": request,
+                        "message": str(e),
+                        "exception": type(e).__name__,
+                    }
                 )
                 return
 
@@ -282,7 +287,7 @@ class DataWorker:
         :return: The response object.
         """
         if self.config.cache.use:
-            cached = cache_request(self.cache)
+            cached = cache_request(cast(JsonCache, self.cache))
             return await cached(client, request)
         return await client(request)
 

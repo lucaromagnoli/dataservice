@@ -4,7 +4,7 @@ import csv
 import json
 import logging
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Iterator
 
 from pydantic import BaseModel
 
@@ -19,7 +19,7 @@ class FileWriter(DataSink):
     def __init__(self, file_path: Path):
         self.file_path = file_path
 
-    def get_data_dicts(self, results: Iterable[dict | BaseModel]) -> list[dict]:
+    def get_data_dicts(self, results: Iterable[dict | BaseModel]) -> Iterator[dict]:
         """Yield data dictionaries from the data items.
 
         :param results: An iterable of result items.
@@ -38,13 +38,13 @@ class CSVWriter(FileWriter):
     def write(self, results: Iterable[dict | BaseModel]):
         """Write data to a CSV file.
 
-        :param results: An iterable of data items.
+        :param results_dicts: An iterable of data items.
         """
-        results = list(self.get_data_dicts(results))
+        results_dicts: list[dict] = list(self.get_data_dicts(results))
         with open(self.file_path, "w") as f:
-            writer = csv.DictWriter(f, fieldnames=results[0].keys())
+            writer = csv.DictWriter(f, fieldnames=results_dicts[0].keys())
             writer.writeheader()
-            writer.writerows(results)
+            writer.writerows(results_dicts)
         logger.info(f"Data written to {self.file_path}")
 
 

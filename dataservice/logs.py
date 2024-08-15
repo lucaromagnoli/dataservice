@@ -41,5 +41,5 @@ def setup_logging(logger_name: str | None = None):
     if logger_name is not None:
         loggers.update({logger_name: LoggerDict()})
 
-    dict_config = LoggingConfigDict(**{"loggers": loggers}).model_dump(by_alias=True)
+    dict_config = LoggingConfigDict(loggers=loggers).model_dump(by_alias=True)
     dictConfig(dict_config)
