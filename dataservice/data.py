@@ -18,7 +18,6 @@ class DataError(TypedDict):
 class DataWrapper(dict):
     """Special type of dictionary that runs callables and stores exceptions.
     Values can be callables or any other type. Callables are evaluated when accessed.
-    When a callable is evaluated, the result is stored in the exceptions dictionary class var.
     If an exception occurs, the exception is stored in the `errors` dictionary."""
 
     def __init__(self, mapping: dict | None = None, /, **kwargs):
