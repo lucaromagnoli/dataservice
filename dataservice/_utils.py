@@ -4,7 +4,8 @@ from functools import partial
 from typing import Callable
 
 
-def _get_func_name(func: Callable):
+def _get_func_name(func: Callable) -> str:
+    """Get the name of the function."""
     if isinstance(func, partial):
         if hasattr(func, "keywords"):
             # functools.wraps
