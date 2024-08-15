@@ -6,8 +6,8 @@ from fastapi_pagination import Page, add_pagination, paginate
 
 from examples.api.models import User
 
-app = FastAPI()  # create FastAPI app
-fake = Faker()  # create Faker instance
+app = FastAPI()
+fake = Faker()
 
 users = [  # create some data
     User(name=fake.first_name(), surname=fake.last_name()) for _ in range(1000)
