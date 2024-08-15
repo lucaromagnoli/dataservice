@@ -13,7 +13,7 @@ The function we saw in the introduction is merely returning the total number of 
 
 We will now extend it to return all the book URLs for each page.
 
-.. literalinclude:: ../../../examples/stages/books_scraper_initial.py
+.. literalinclude:: ../../../examples/scraper/books_scraper_initial.py
    :pyobject: parse_books_page
 
 
@@ -24,17 +24,17 @@ Each new request will call the ``parse_book_details`` function, which finally re
 The function is also taking a ``bool`` keyword argument, ``pagination``, which will be used to determine if we need to follow the pagination links.
 If so, we parse the next page URL and yield a new ``Request`` object for the next page which calls back ``parse_book_details`` recursively, until we reach the last page and we return.
 
-.. literalinclude:: ../../../examples/stages/books_scraper_initial.py
+.. literalinclude:: ../../../examples/scraper/books_scraper_initial.py
    :pyobject: parse_book_details
 
 Now we can create the ``Request`` objects to start the scraping process and run the ``DataService`` within a ``main`` function.
 
-.. literalinclude:: ../../../examples/stages/books_scraper_initial.py
+.. literalinclude:: ../../../examples/scraper/books_scraper_initial.py
    :pyobject: main
 
 Full code for the ``books_scraper`` example:
 
-.. literalinclude:: ../../../examples/stages/books_scraper_initial.py
+.. literalinclude:: ../../../examples/scraper/books_scraper_initial.py
 
 If you run the script, within a few seconds (pagination is off for now!),
 you will see a tuple of dictionaries with the books page and book details printed to the console.
@@ -76,4 +76,4 @@ you will see a tuple of dictionaries with the books page and book details printe
    Elapsed time: 1.21 seconds.
 
 
-Let's move on the next stage, where we will add some general improvements to the code and introduce the concept of ``Pipeline``.
+Let's move on the next stage, where we will add some general improvements to the code and introduce a few more features.
