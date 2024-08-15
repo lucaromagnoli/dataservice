@@ -44,7 +44,7 @@ Example ``parse_books_page`` function:
 
 This function takes a ``Response`` object, which has a ``html`` attribute (a ``BeautifulSoup`` object of the HTML content). The function parses the HTML content and returns data.
 
-The callback function can ``return`` or ``yield`` either ``data`` (dict or dataclass) or more ``Request`` objects.
+The callback function can ``return`` or ``yield`` either ``data`` (``dict`` or ``pydantic.BaseModel``) or more ``Request`` objects.
 
 If you have used Scrapy before, you will find this pattern familiar.
 

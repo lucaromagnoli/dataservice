@@ -23,7 +23,7 @@ class Link(BaseDataItem):
     text: str
 
 
-def get_links(response: Response):
+def parse_links(response: Response):
     """Find all links on the page"""
     base_url = response.request.url
 
@@ -46,7 +46,7 @@ def main():
         [
             Request(
                 url="https://books.toscrape.com/index.html",
-                callback=get_links,
+                callback=parse_links,
                 client=client,
             )
         ]

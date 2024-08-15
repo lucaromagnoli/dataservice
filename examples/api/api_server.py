@@ -1,7 +1,7 @@
+"""Fictional API server for demonstration purposes."""
+
 from faker import Faker
 from fastapi import FastAPI
-
-# import all you need from fastapi-pagination
 from fastapi_pagination import Page, add_pagination, paginate
 
 from examples.api.models import User
@@ -15,8 +15,8 @@ users = [  # create some data
 
 
 @app.get("/users")
-async def get_users() -> Page[User]:  # use Page[UserOut] as return type annotation
-    return paginate(users)  # use paginate function to paginate your data
+async def get_users() -> Page[User]:
+    return paginate(users)
 
 
-add_pagination(app)  # important! add pagination to your app
+add_pagination(app)

@@ -84,7 +84,7 @@ def main(pagination: bool):
             client=httpx_client,
         )
     ]
-    service_config = ServiceConfig(random_delay=5000, cache={"use": True})
+    service_config = ServiceConfig(random_delay=1000, cache={"use": True})
     data_service = DataService(start_requests, service_config)
     data = defaultdict(list)
     for item in data_service:
