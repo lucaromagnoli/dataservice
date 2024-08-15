@@ -34,7 +34,7 @@ class CacheConfig(BaseModel):
         description="The path of the file to use for the cache. Defaults to 'cache.json'.",
     )
     write_interval: datetime.timedelta = Field(
-        default=datetime.timedelta(minutes=1),
+        default=datetime.timedelta(minutes=20),
         description="The interval to write the cache in minutes.",
     )
 
