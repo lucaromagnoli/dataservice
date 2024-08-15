@@ -39,7 +39,7 @@ def setup_logging(logger_name: str | None = None):
     """
     loggers = {"dataservice": LoggerDict()}
     if logger_name is not None:
-        loggers.update({logger_name: LoggerDict().model_dump()})
+        loggers.update({logger_name: LoggerDict()})
 
     dict_config = LoggingConfigDict(**{"loggers": loggers}).model_dump(by_alias=True)
     dictConfig(dict_config)
