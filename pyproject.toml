@@ -33,7 +33,7 @@ pyclean = "^3.0.0"
 sphinx = "^8.0.2"
 sphinx-autodoc-typehints = "^2.2.3"
 autodoc-pydantic = "^2.2.0"
-pydata-sphinx-theme = "^0.15.4"
+furo = "^2024.8.6"
 
 
 [tool.poetry.group.examples.dependencies]
