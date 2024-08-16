@@ -339,6 +339,6 @@ async def test_data_worker_uses_cache_write_periodically(mocker):
     await data_worker.fetch()
     mock_cache.assert_called_with(Path("cache.json"))
     assert (
-        call().__enter__().write_periodically(datetime.timedelta(seconds=1))
+        call().__aenter__().write_periodically(datetime.timedelta(seconds=1))
         in mock_cache.mock_calls
     )
