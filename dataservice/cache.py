@@ -9,7 +9,6 @@ import logging
 import time
 from abc import ABC
 from concurrent.futures.thread import ThreadPoolExecutor
-from datetime import timedelta
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable
@@ -75,6 +74,8 @@ class JsonCache:
         self.cache.clear()
 
     async def write(self):
+        """Write the cache to disk."""
+
         def sync_write():
             logger.info(f"Writing cache to {self.path}")
             with open(self.path, "w") as f:
@@ -83,8 +84,12 @@ class JsonCache:
         with ThreadPoolExecutor() as executor:
             await asyncio.get_event_loop().run_in_executor(executor, sync_write)
 
-    async def write_periodically(self, interval: timedelta):
-        if time.time() - self.start_time >= interval.total_seconds():
+    async def write_periodically(self, interval: int):
+        """Write the cache to disk periodically.
+
+        :param interval: The interval in seconds to write the cache.
+        """
+        if time.time() - self.start_time >= interval:
             await self.write()
             self.start_time = time.time()
 

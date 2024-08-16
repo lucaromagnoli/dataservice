@@ -1,6 +1,5 @@
 """Config."""
 
-import datetime
 from typing import Annotated, NewType
 
 from annotated_types import Ge
@@ -33,9 +32,9 @@ class CacheConfig(BaseModel):
         default="cache.json",
         description="The path of the file to use for the cache. Defaults to 'cache.json'.",
     )
-    write_interval: datetime.timedelta = Field(
-        default=datetime.timedelta(minutes=20),
-        description="The interval to write the cache in minutes.",
+    write_interval: PositiveInt = Field(
+        default=20 * 60,
+        description="The interval to write the cache in seconds.Defaults to 20 minutes.",
     )
 
 

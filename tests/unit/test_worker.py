@@ -1,8 +1,6 @@
-import datetime
 import logging
 import os
 from contextlib import nullcontext as does_not_raise
-from datetime import timedelta
 from pathlib import Path
 from unittest.mock import call
 
@@ -332,13 +330,8 @@ async def test_data_worker_uses_cache_mocks(mocker):
 async def test_data_worker_uses_cache_write_periodically(mocker):
     mock_cache = mocker.patch("dataservice.worker.JsonCache", autospec=True)
     requests = [request_with_data_callback]
-    config = ServiceConfig(
-        cache={"use": True, "write_interval": timedelta(seconds=1)}, constant_delay=1
-    )
+    config = ServiceConfig(cache={"use": True, "write_interval": 1}, constant_delay=1)
     data_worker = DataWorker(requests, config)
     await data_worker.fetch()
     mock_cache.assert_called_with(Path("cache.json"))
-    assert (
-        call().__aenter__().write_periodically(datetime.timedelta(seconds=1))
-        in mock_cache.mock_calls
-    )
+    assert call().__aenter__().write_periodically(1) in mock_cache.mock_calls
