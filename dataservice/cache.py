@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import atexit
 import json
 import logging
@@ -48,12 +49,12 @@ class JsonCache:
         self.start_time = time.time()
         atexit.register(self.write)
 
-    def __enter__(self):
+    async def __aenter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
         atexit.unregister(self.write)
-        self.write()
+        await self.write()
 
     def _init_cache(self):
         if self.path.exists():
@@ -73,18 +74,18 @@ class JsonCache:
     def clear(self):
         self.cache.clear()
 
-    def write(self):
-        def inner():
+    async def write(self):
+        def sync_write():
             logger.info(f"Writing cache to {self.path}")
             with open(self.path, "w") as f:
                 json.dump(self.cache, f)
 
         with ThreadPoolExecutor() as executor:
-            executor.submit(inner)
+            await asyncio.get_event_loop().run_in_executor(executor, sync_write)
 
-    def write_periodically(self, interval: timedelta):
+    async def write_periodically(self, interval: timedelta):
         if time.time() - self.start_time >= interval.total_seconds():
-            self.write()
+            await self.write()
             self.start_time = time.time()
 
     def __contains__(self, key):
@@ -103,7 +104,7 @@ class JsonCache:
         return str(self.cache)
 
 
-def cache_request(cache: JsonCache) -> Callable:
+async def cache_request(cache: JsonCache) -> Callable:
     """
     Caches the raw values (text, data) of the Response object returned by the request function.
 

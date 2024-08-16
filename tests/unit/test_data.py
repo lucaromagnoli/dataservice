@@ -3,7 +3,7 @@ import pytest
 from dataservice.data import BaseDataItem, DataWrapper
 
 
-class TestItem(BaseDataItem):
+class MockItem(BaseDataItem):
     foo: int | None
     bar: int | None
 
@@ -69,14 +69,14 @@ def test_datawrapper_is_instance_of_dict():
     ],
 )
 def test_data_item_init(data, expected_foo, expected_bar, expected_errors):
-    item = TestItem(**data)
+    item = MockItem(**data)
     assert item.foo == expected_foo
     assert item.bar == expected_bar
     assert item.errors == expected_errors
 
 
 def test_item_data_init_kwargs():
-    item = TestItem(foo=lambda: 1, bar=lambda: 1 / 0)
+    item = MockItem(foo=lambda: 1, bar=lambda: 1 / 0)
     assert item.foo == 1
     assert item.bar is None
     assert item.errors == {
