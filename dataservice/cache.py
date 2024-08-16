@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import asyncio
 import atexit
 import json
 import logging
 import time
 from abc import ABC
-from concurrent.futures.thread import ThreadPoolExecutor
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable
+
+from asyncer import asyncify
 
 from dataservice.models import Request, Response
 
@@ -38,7 +38,7 @@ class Cache(ABC):
         raise NotImplementedError
 
 
-class JsonCache:
+class AsyncJsonCache:
     """Simple JSON disk based cache implementation."""
 
     def __init__(self, path: Path):
@@ -81,8 +81,7 @@ class JsonCache:
             with open(self.path, "w") as f:
                 json.dump(self.cache, f)
 
-        with ThreadPoolExecutor() as executor:
-            await asyncio.get_event_loop().run_in_executor(executor, sync_write)
+        return await asyncify(sync_write)()
 
     async def write_periodically(self, interval: int):
         """Write the cache to disk periodically.
@@ -109,7 +108,7 @@ class JsonCache:
         return str(self.cache)
 
 
-async def cache_request(cache: JsonCache) -> Callable:
+async def cache_request(cache: AsyncJsonCache) -> Callable:
     """
     Caches the raw values (text, data) of the Response object returned by the request function.
 

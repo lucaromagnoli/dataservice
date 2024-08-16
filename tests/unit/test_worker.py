@@ -6,7 +6,7 @@ from unittest.mock import call
 
 import pytest
 
-from dataservice.cache import JsonCache
+from dataservice.cache import AsyncJsonCache
 from dataservice.config import ServiceConfig
 from dataservice.data import BaseDataItem
 from dataservice.exceptions import DataServiceException, RetryableException
@@ -312,13 +312,13 @@ async def test_data_worker_uses_cache():
     config = ServiceConfig(cache={"use": True})
     data_worker = DataWorker(requests, config)
     await data_worker.fetch()
-    assert isinstance(data_worker.cache, JsonCache)
+    assert isinstance(data_worker.cache, AsyncJsonCache)
     os.remove("cache.json")
 
 
 @pytest.mark.asyncio
 async def test_data_worker_uses_cache_mocks(mocker):
-    mock_cache = mocker.patch("dataservice.worker.JsonCache", autospec=True)
+    mock_cache = mocker.patch("dataservice.worker.AsyncJsonCache", autospec=True)
     requests = [request_with_data_callback]
     config = ServiceConfig(cache={"use": True})
     data_worker = DataWorker(requests, config)
@@ -328,7 +328,7 @@ async def test_data_worker_uses_cache_mocks(mocker):
 
 @pytest.mark.asyncio
 async def test_data_worker_uses_cache_write_periodically(mocker):
-    mock_cache = mocker.patch("dataservice.worker.JsonCache", autospec=True)
+    mock_cache = mocker.patch("dataservice.worker.AsyncJsonCache", autospec=True)
     requests = [request_with_data_callback]
     config = ServiceConfig(cache={"use": True, "write_interval": 1}, constant_delay=1)
     data_worker = DataWorker(requests, config)
