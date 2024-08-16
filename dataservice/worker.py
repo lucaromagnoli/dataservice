@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+from concurrent.futures.thread import ThreadPoolExecutor
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, AsyncGenerator, Generator, Iterable, cast
@@ -326,7 +327,13 @@ class DataWorker:
                     tasks = [task async for task in self._iter_callbacks(item)]
                     await asyncio.gather(*tasks)
                     if self.config.cache.use:
-                        cache.write_periodically(self.config.cache.write_interval)
+                        # wrapping a call to write() in a new thread causes an exception with the context manager
+                        with ThreadPoolExecutor() as executor:
+                            await asyncio.get_event_loop().run_in_executor(
+                                executor,
+                                cache.write_periodically,
+                                self.config.cache.write_interval,
+                            )
 
     def has_no_more_data(self) -> bool:
         """
