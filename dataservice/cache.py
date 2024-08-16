@@ -7,6 +7,7 @@ import json
 import logging
 import time
 from abc import ABC
+from concurrent.futures.thread import ThreadPoolExecutor
 from datetime import timedelta
 from functools import wraps
 from pathlib import Path
@@ -51,6 +52,7 @@ class JsonCache:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        atexit.unregister(self.write)
         self.write()
 
     def _init_cache(self):
@@ -72,9 +74,13 @@ class JsonCache:
         self.cache.clear()
 
     def write(self):
-        logger.info(f"Writing cache to {self.path}")
-        with open(self.path, "w") as f:
-            json.dump(self.cache, f)
+        def inner():
+            logger.info(f"Writing cache to {self.path}")
+            with open(self.path, "w") as f:
+                json.dump(self.cache, f)
+
+        with ThreadPoolExecutor() as executor:
+            executor.submit(inner)
 
     def write_periodically(self, interval: timedelta):
         if time.time() - self.start_time >= interval.total_seconds():

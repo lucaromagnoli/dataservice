@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+from concurrent.futures.thread import ThreadPoolExecutor
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, AsyncGenerator, Generator, Iterable, cast
@@ -190,7 +191,7 @@ class DataWorker:
         async with self.limiter_context:
             try:
                 response = await self._handle_request(request)
-                callback_result = self._handle_callback(request, response)
+                callback_result = await self._handle_callback(request, response)
                 if isinstance(callback_result, (dict, BaseModel)):
                     await self._add_to_data_queue(callback_result)
                 else:
@@ -206,7 +207,7 @@ class DataWorker:
                 )
                 return
 
-    def _handle_callback(self, request, response):
+    async def _handle_callback(self, request, response):
         """
         Handles the callback function of a request.
 
@@ -215,7 +216,10 @@ class DataWorker:
         :return: The result of the callback function.
         """
         try:
-            return request.callback(response)
+            with ThreadPoolExecutor() as executor:
+                return await asyncio.get_event_loop().run_in_executor(
+                    executor, request.callback, response
+                )
         except Exception as e:
             logger.error(f"Error processing callback {request.callback_name}: {e}")
             raise ParsingException(
