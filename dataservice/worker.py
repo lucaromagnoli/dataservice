@@ -291,7 +291,7 @@ class DataWorker:
         :return: The response object.
         """
         if self.config.cache.use:
-            cached = cache_request(cast(JsonCache, self.cache))
+            cached = await cache_request(cast(JsonCache, self.cache))
             return await cached(client, request)
         return await client(request)
 
@@ -323,14 +323,14 @@ class DataWorker:
         async with semaphore:
             if not self._started:
                 await self._enqueue_start_requests()
-            with self.cache_context as cache:
+            async with self.cache_context as cache:
                 while self.has_jobs():
                     logger.debug(f"Work queue size: {self._work_queue.qsize()}")
                     item = self._work_queue.get_nowait()
                     tasks = [task async for task in self._iter_callbacks(item)]
                     await asyncio.gather(*tasks)
                     if self.config.cache.use:
-                        cache.write_periodically(self.config.cache.write_interval)
+                        await cache.write_periodically(self.config.cache.write_interval)
 
     def has_no_more_data(self) -> bool:
         """
