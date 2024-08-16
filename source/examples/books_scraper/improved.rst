@@ -62,6 +62,7 @@ We don't want to hammer the server with too many concurrent requests, so we add 
 
 We also want to activate the cache in case we need to re-run the scraper. We can do this by setting the ``cache`` attribute to ``True``.
 By default, a file named ``cache.json`` will be created in the current working directory. You can also specify a custom path with the ``path`` key.
+Furthermore, the cache file will be written periodically to disk as well as on interrupt signals. You can set the interval in seconds with the ``write_interval`` key. Default is 20 * 60 seconds, i.e. 20 minutes.
 
 .. code-block:: python
 
@@ -125,8 +126,6 @@ If you now run the script with pagination enabled, you should see something like
    2024-08-15 18:38:18,335 :: dataservice.cache :: INFO :: Writing cache to cache.json
    2024-08-15 18:38:18,790 :: dataservice.files :: INFO :: Data written to books_pages.json
    2024-08-15 18:38:18,804 :: dataservice.files :: INFO :: Data written to book_details.json
-   'Elapsed time: 256.19 seconds'
-   2024-08-15 18:38:19,534 :: dataservice.cache :: INFO :: Writing cache to cache.json
-
+   'Elapsed time: 80.19 seconds'
 
 Let's checkout how to write a crawler that can follow links to other pages.
