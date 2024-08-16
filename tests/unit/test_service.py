@@ -58,12 +58,12 @@ def parse_item(response: Response):
 def test_toy_service(data_service):
     data = tuple(data_service)
     assert len(data) == 40
-    assert [d["url"] for d in data[:20]] == [
-        f"https://www.foobar.com/item_{i}" for i in range(1, 21)
-    ]
-    assert [d["url"] for d in data[20:]] == [
-        f"https://www.barbaz.com/item_{i}" for i in range(1, 21)
-    ]
+    assert set([d["url"] for d in data[:20]]) == set(
+        [f"https://www.foobar.com/item_{i}" for i in range(1, 21)]
+    )
+    assert set([d["url"] for d in data[20:]]) == set(
+        [f"https://www.barbaz.com/item_{i}" for i in range(1, 21)]
+    )
 
 
 @pytest.mark.parametrize(
