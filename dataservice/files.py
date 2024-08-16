@@ -27,7 +27,10 @@ class FileWriter(DataSink):
         """
         for result in results:
             if isinstance(result, BaseModel):
-                yield result.model_dump()
+                exclude = set()
+                if hasattr(result, "errors"):
+                    exclude = {"errors"}
+                yield result.model_dump(exclude=exclude)
             else:
                 yield result
 
