@@ -20,7 +20,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from dataservice.cache import JsonCache, cache_request
+from dataservice.cache import AsyncJsonCache, cache_request
 from dataservice.config import ServiceConfig
 from dataservice.exceptions import (
     DataServiceException,
@@ -56,7 +56,7 @@ class DataWorker:
         self._failures: dict[str, FailedRequest] = {}
         self._seen_requests: set = set()
         self._started: bool = False
-        self._cache: JsonCache | None = None
+        self._cache: AsyncJsonCache | None = None
         self._limiter: AsyncLimiter | None = None
 
     @property
@@ -87,12 +87,12 @@ class DataWorker:
         return self._started
 
     @property
-    def cache(self) -> JsonCache | None:
+    def cache(self) -> AsyncJsonCache | None:
         """
         Lazy initialization of the cache instance.
         """
         if self._cache is None and self.config.cache.use:
-            self._cache = JsonCache(Path(self.config.cache.path))
+            self._cache = AsyncJsonCache(Path(self.config.cache.path))
         return self._cache
 
     async def _add_to_work_queue(self, item: Iterable[Request] | Request) -> None:
@@ -291,7 +291,7 @@ class DataWorker:
         :return: The response object.
         """
         if self.config.cache.use:
-            cached = await cache_request(cast(JsonCache, self.cache))
+            cached = await cache_request(cast(AsyncJsonCache, self.cache))
             return await cached(client, request)
         return await client(request)
 
