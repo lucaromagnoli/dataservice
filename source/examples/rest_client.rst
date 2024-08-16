@@ -8,7 +8,7 @@ server code below to get the API up and running.
 
 .. literalinclude:: ../../examples/api/api_server.py
 
-This is a simple FastAPI server that serves a list of Users using page based pagination.
+This is a simple FastAPI server that serves a list of Users using page based pagination provided by `fastapi-pagination <https://github.com/uriyyo/fastapi-pagination>`_.
 
 You can run it by executing the following commands:
 
