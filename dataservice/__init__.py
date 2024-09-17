@@ -29,4 +29,4 @@ __all__ = [
     "setup_logging",
 ]
 
-__version__ = importlib.metadata.version("dataservice")
+__version__ = importlib.metadata.version("python-dataservice")
