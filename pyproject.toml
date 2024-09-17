@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "dataservice"
+name = "python-dataservice"
 version = "0.0.1"
 description = "Lightweight async data gathering for Python"
 authors = ["NomadMonad <romagnoli.luca@gmail.com>"]

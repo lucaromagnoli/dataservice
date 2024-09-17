@@ -18,7 +18,7 @@ You can install DataService via pip:
 
 .. code-block:: bash
 
-    pip install dataservice
+    pip install python-dataservice
 
 How to use DataService
 ----------------------
