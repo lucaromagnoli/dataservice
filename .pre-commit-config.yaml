@@ -21,3 +21,11 @@ repos:
         args: [--fix]
       # Run the formatter.
       - id: ruff-format
+
+  - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
+    rev: 2.14.0
+    hooks:
+      - id: pretty-format-yaml
+        args: [ --autofix ]
+      - id: pretty-format-toml
+        args: [ --autofix ]
