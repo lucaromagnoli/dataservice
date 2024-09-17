@@ -27,5 +27,3 @@ __all__ = [
     "RetryConfig",
     "setup_logging",
 ]
-
-__version__ = "0.1.12"
