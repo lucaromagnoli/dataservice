@@ -2,7 +2,7 @@
 name = "dataservice"
 version = "0.0.1"
 description = "Lightweight async data gathering for Python"
-authors = ["lucaromagnoli <romagnoli.luca@gmail.com>"]
+authors = ["NomadMonad <romagnoli.luca@gmail.com>"]
 readme = "README.rst"
 
 [tool.poetry.dependencies]
@@ -43,8 +43,8 @@ faker = "^26.3.0"
 fastapi = {extras = ["all"], version = "^0.112.0"}
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
+build-backend = "poetry_dynamic_versioning.backend"
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "F401", "I"]
