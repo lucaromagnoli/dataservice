@@ -2,7 +2,7 @@
 name = "dataservice"
 version = "0.0.1"
 description = "Lightweight async data gathering for Python"
-authors = ["lucaromagnoli <romagnoli.luca@gmail.com>"]
+authors = ["NomadMonad <romagnoli.luca@gmail.com>"]
 readme = "README.rst"
 
 [tool.poetry.dependencies]
@@ -41,6 +41,7 @@ furo = "^2024.8.6"
 fastapi-pagination = "^0.12.26"
 faker = "^26.3.0"
 fastapi = {extras = ["all"], version = "^0.112.0"}
+
 
 [build-system]
 requires = ["poetry-core"]

@@ -11,6 +11,15 @@ No complex API to learn, just standard Python idioms.
 
 Async implementation, sync interface.
 
+Installation
+------------
+
+You can install DataService via pip:
+
+.. code-block:: bash
+
+    pip install dataservice
+
 How to use DataService
 ----------------------
 
