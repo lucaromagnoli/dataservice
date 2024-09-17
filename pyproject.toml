@@ -8,7 +8,8 @@ description = "Lightweight async data gathering for Python"
 authors = ["NomadMonad <romagnoli.luca@gmail.com>"]
 readme = "README.rst"
 documentation = "https://readthedocs.org/projects/dataservice/"
-keywords = ["async", "data gathering", "scraping", "web scraping", "web crawling", "crawling", "data extraction", "data scraping", "API", "data"]
+keywords = ["async", "data gathering", "scraping", "web scraping", "web crawling", "crawling", "data extraction",
+    "data scraping", "API", "data"]
 license = "MIT"
 
 [tool.poetry.dependencies]
