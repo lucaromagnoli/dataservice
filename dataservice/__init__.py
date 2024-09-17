@@ -10,7 +10,6 @@ from dataservice.exceptions import DataServiceException, RetryableException
 from dataservice.logs import setup_logging
 from dataservice.models import FailedRequest, Request, Response
 from dataservice.service import DataService
-import importlib.metadata
 
 __all__ = [
     "BaseDataItem",
@@ -29,4 +28,4 @@ __all__ = [
     "setup_logging",
 ]
 
-__version__ = importlib.metadata.version("python-dataservice")
+__version__ = "0.1.12"
