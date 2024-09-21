@@ -21,6 +21,7 @@ pydantic = "^2.8.2"
 tenacity = "^9.0.0"
 aiolimiter = "^1.1.0"
 asyncer = "^0.0.7"
+playwright = "^1.47.0"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.0.0"

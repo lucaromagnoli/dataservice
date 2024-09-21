@@ -7,7 +7,9 @@ from typing import Annotated, NoReturn
 
 import httpx
 from annotated_types import Ge, Le
+from playwright.async_api import async_playwright
 from pydantic import HttpUrl
+
 
 from dataservice.exceptions import DataServiceException, RetryableException
 from dataservice.models import Request, Response
@@ -98,3 +100,59 @@ class HttpXClient:
             url=HttpUrl(str(response.url)),
             headers=dict(response.headers),
         )
+
+
+class PlaywrightClient:
+    """Client that uses Playwright library to make requests."""
+
+    def __init__(self):
+
+        self.async_playwright = async_playwright
+
+    def __call__(self, *args, **kwargs):
+        """Make a request using the client."""
+        return self.make_request(*args, **kwargs)
+
+    async def make_request(self, request: Request) -> Response | NoReturn:
+        """Make a request and handle exceptions.
+
+        :param request: The request object containing the details of the HTTP request.
+        :return: A Response object if the request is successful.
+        :raises RequestException: If a non-retryable HTTP error occurs.
+        :raises RetryableRequestException: If a retryable HTTP error occurs.
+        """
+        try:
+            return await self._make_request(request)
+        except httpx.HTTPStatusError as e:
+            logger.debug(f"HTTP Status Error making request: {e}")
+            status_code: Annotated[int, Ge(400), Le(600)] = e.response.status_code
+            if 400 <= status_code < 500:
+                raise DataServiceException(
+                    e.response.reason_phrase, status_code=e.response.status_code
+                )
+            elif 500 <= status_code < 600:
+                raise RetryableException(
+                    e.response.reason_phrase, status_code=e.response.status_code
+                )
+            else:
+                raise
+        except httpx.HTTPError as e:
+            msg = f"HTTP Error making request: {e}, {e.__class__}"
+            logger.debug(msg)
+            raise DataServiceException(msg)
+
+    async def _make_request(self, request: Request) -> Response:
+        """Make a request using Playwright. Private method for internal use.
+
+        :param request: The request object containing the details of the HTTP request.
+        :return: A Response object containing the response data.
+        """
+        logger.info(f"Requesting {request.url}")
+        async with self.async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+            await page.goto(request.url)
+            text = await page.content()
+            data = None
+        logger.info(f"Received response for {request.url}")
+        return Response(request=request, text=text, data=data)
