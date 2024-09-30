@@ -66,6 +66,7 @@ def test_service_config_invalid_values():
     with pytest.raises(ValidationError):
         ServiceConfig(random_delay=-1)
 
+
 @pytest.fixture
 def cache_path(tmp_path):
     cache_path = tmp_path / "cache.json"
@@ -73,6 +74,7 @@ def cache_path(tmp_path):
         json.dump({"foo": "bar"}, f)
     yield cache_path
     os.remove(cache_path)
+
 
 def test_cache_config_write(cache_path):
     ServiceConfig(cache={"use": True, "path": cache_path})
