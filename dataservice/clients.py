@@ -7,6 +7,7 @@ from typing import Annotated, NoReturn
 
 import httpx
 from annotated_types import Ge, Le
+from pydantic import HttpUrl
 
 from dataservice.exceptions import DataServiceException, RetryableException
 from dataservice.models import Request, Response
@@ -91,5 +92,9 @@ class HttpXClient:
 
         logger.info(msg)
         return Response(
-            request=request, text=response.text, data=data, url=str(response.url), headers=dict(response.headers)
+            request=request,
+            text=response.text,
+            data=data,
+            url=HttpUrl(str(response.url)),
+            headers=dict(response.headers),
         )

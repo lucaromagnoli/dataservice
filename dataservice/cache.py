@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from asyncer import asyncify
+from pydantic import HttpUrl
 
 from dataservice.models import Request, Response
 
@@ -129,7 +130,7 @@ async def cache_request(cache: AsyncJsonCache) -> Callable:
             if key in cache:
                 logger.debug(f"Cache hit for {key}")
                 text, data = cache.get(key)
-                return Response(request=request, text=text, data=data, url=key)
+                return Response(request=request, text=text, data=data, url=HttpUrl(key))
             else:
                 logger.debug(f"Cache miss for {key}")
                 response = await req_func(request)
