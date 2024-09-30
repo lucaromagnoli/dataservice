@@ -3,7 +3,7 @@
 from typing import Annotated, NewType
 
 from annotated_types import Ge
-from pydantic import BaseModel, Field, NewPath
+from pydantic import BaseModel, Field, NewPath, FilePath
 
 PositiveInt = Annotated[int, Ge(0)]
 Milliseconds = NewType("Milliseconds", PositiveInt)
@@ -28,7 +28,7 @@ class RateLimiterConfig(BaseModel):
 
 class CacheConfig(BaseModel):
     use: bool = Field(default=False, description="Whether to cache requests.")
-    path: NewPath = Field(
+    path: FilePath | NewPath = Field(
         default="cache.json",
         description="The path of the file to use for the cache. Defaults to 'cache.json'.",
     )

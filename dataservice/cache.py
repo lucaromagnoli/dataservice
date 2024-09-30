@@ -129,7 +129,7 @@ async def cache_request(cache: AsyncJsonCache) -> Callable:
             if key in cache:
                 logger.debug(f"Cache hit for {key}")
                 text, data = cache.get(key)
-                return Response(request=request, text=text, data=data)
+                return Response(request=request, text=text, data=data, url=key)
             else:
                 logger.debug(f"Cache miss for {key}")
                 response = await req_func(request)

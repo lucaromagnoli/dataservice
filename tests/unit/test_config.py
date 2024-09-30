@@ -1,3 +1,6 @@
+import json
+import os
+
 import pytest
 from pydantic import ValidationError
 
@@ -62,3 +65,15 @@ def test_service_config_invalid_values():
         ServiceConfig(max_concurrency=-1)
     with pytest.raises(ValidationError):
         ServiceConfig(random_delay=-1)
+
+@pytest.fixture
+def cache_path(tmp_path):
+    cache_path = tmp_path / "cache.json"
+    with open(cache_path, "w") as f:
+        json.dump({"foo": "bar"}, f)
+    yield cache_path
+    os.remove(cache_path)
+
+def test_cache_config_write(cache_path):
+    ServiceConfig(cache={"use": True, "path": cache_path})
+
