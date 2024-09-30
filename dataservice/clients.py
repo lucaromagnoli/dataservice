@@ -8,8 +8,8 @@ from typing import Annotated, NoReturn
 import httpx
 from annotated_types import Ge, Le
 from playwright.async_api import async_playwright
+from playwright.async_api._generated import Response as PlaywrightResponse
 from pydantic import HttpUrl
-
 
 from dataservice.exceptions import DataServiceException, RetryableException
 from dataservice.models import Request, Response
@@ -106,7 +106,6 @@ class PlaywrightClient:
     """Client that uses Playwright library to make requests."""
 
     def __init__(self):
-
         self.async_playwright = async_playwright
 
     def __call__(self, *args, **kwargs):
@@ -121,25 +120,24 @@ class PlaywrightClient:
         :raises RequestException: If a non-retryable HTTP error occurs.
         :raises RetryableRequestException: If a retryable HTTP error occurs.
         """
-        try:
-            return await self._make_request(request)
-        except httpx.HTTPStatusError as e:
-            logger.debug(f"HTTP Status Error making request: {e}")
-            status_code: Annotated[int, Ge(400), Le(600)] = e.response.status_code
-            if 400 <= status_code < 500:
-                raise DataServiceException(
-                    e.response.reason_phrase, status_code=e.response.status_code
-                )
-            elif 500 <= status_code < 600:
-                raise RetryableException(
-                    e.response.reason_phrase, status_code=e.response.status_code
-                )
-            else:
-                raise
-        except httpx.HTTPError as e:
-            msg = f"HTTP Error making request: {e}, {e.__class__}"
-            logger.debug(msg)
-            raise DataServiceException(msg)
+        return await self._make_request(request)
+
+    @staticmethod
+    def raise_for_status(response: PlaywrightResponse):
+        """Raise an exception if the response status code is not 2xx.
+
+        :param response: The response object to check.
+        :raises RetryableException: If the status code is 5xx.
+        :raises DataServiceException: If the status code is not 2xx or 5xx.
+        """
+        if response.status == 200:
+            return
+        elif 500 <= response.status < 600:
+            raise RetryableException(response.status_text, status_code=response.status)
+        else:
+            raise DataServiceException(
+                response.status_text, status_code=response.status
+            )
 
     async def _make_request(self, request: Request) -> Response:
         """Make a request using Playwright. Private method for internal use.
@@ -151,8 +149,10 @@ class PlaywrightClient:
         async with self.async_playwright() as p:
             browser = await p.chromium.launch()
             page = await browser.new_page()
-            await page.goto(request.url)
+            response = await page.goto(request.url)
+            self.raise_for_status(response)
             text = await page.content()
-            data = None
-        logger.info(f"Received response for {request.url}")
-        return Response(request=request, text=text, data=data)
+            logger.info(f"Received response for {request.url}")
+            return Response(
+                request=request, text=text, data=None, url=HttpUrl(response.url)
+            )
