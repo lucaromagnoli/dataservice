@@ -137,3 +137,25 @@ async def test_httpx_client_make_request_exceptions(
     httpx_mock.add_exception(exception=client_exception)
     with pytest.raises(expected_exception):
         await httpx_client.make_request(request)
+
+
+@pytest.mark.asyncio
+async def test_follow_redirects(httpx_mock, httpx_client):
+    httpx_mock.add_response(
+        url="https://example.com/",
+        status_code=301,
+        headers={"Location": "https://example.com/redirected"},
+    )
+    httpx_mock.add_response(
+        url="https://example.com/redirected",
+        status_code=200,
+    )
+    request = Request(
+        url="https://example.com",
+        callback=lambda x: x,
+        client=HttpXClient,
+    )
+    response = await httpx_client.make_request(request)
+    assert response.request.url == "https://example.com/"
+    assert response.url == "https://example.com/redirected"
+    assert response.status_code == 200

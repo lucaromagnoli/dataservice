@@ -156,11 +156,13 @@ async def test_deduplication(config, expected, mocker):
                 request=request_with_data_callback,
                 text='{"parsed": "data"}',
                 data={"parsed": "data"},
+                url="http://example.com",
             ),
             Response(
                 request=request_with_data_callback,
                 text='{"parsed": "data"}',
                 data={"parsed": "data"},
+                url="http://example.com",
             ),
         ],
     )
@@ -179,9 +181,9 @@ async def test_deduplication(config, expected, mocker):
             [
                 RetryableException("Retryable request exception"),
                 RetryableException("Retryable request exception"),
-                Response(request=request_with_data_callback, data={"parsed": "data"}),
+                Response(request=request_with_data_callback, data={"parsed": "data"}, url="http://example.com",),
             ],
-            Response(request=request_with_data_callback, data={"parsed": "data"}),
+            Response(request=request_with_data_callback, data={"parsed": "data"}, url="http://example.com",),
             does_not_raise(),
             3,
         ),
@@ -245,7 +247,7 @@ async def test__handle_request(
             [
                 RetryableException("Retryable request exception"),
                 RetryableException("Retryable request exception"),
-                Response(request=request_with_data_callback, data={"parsed": "data"}),
+                Response(request=request_with_data_callback, data={"parsed": "data"}, url="http://example.com",),
             ],
             does_not_raise(),
             "Retrying request http://example.com/, attempt 2",

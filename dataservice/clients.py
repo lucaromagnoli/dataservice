@@ -63,6 +63,7 @@ class HttpXClient:
             headers=request.headers,
             proxy=request.proxy.url if request.proxy else None,
             timeout=request.timeout,
+            follow_redirects=True,
         ) as client:
             match request.method:
                 case "GET":
@@ -89,4 +90,4 @@ class HttpXClient:
             msg += f" - json data {request.json_data}"
 
         logger.info(msg)
-        return Response(request=request, text=response.text, data=data)
+        return Response(request=request, text=response.text, data=data, url=str(response.url))

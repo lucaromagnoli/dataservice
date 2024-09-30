@@ -120,6 +120,9 @@ class Response(BaseModel):
     """Response model."""
 
     request: Request = Field(description="The request that generated the response.")
+    url: Annotated[
+        HttpUrl, AfterValidator(str), Field(description="The URL of the response.")
+    ]
     status_code: int = Field(
         description="The status code of the response.", default=200, ge=100, le=599
     )
@@ -128,6 +131,10 @@ class Response(BaseModel):
     __html: BeautifulSoup | None = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @property
+    def client(self) -> ClientCallable:
+        return self.request.client
 
     @property
     def html(self) -> BeautifulSoup:

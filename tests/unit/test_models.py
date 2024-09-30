@@ -72,23 +72,23 @@ def test_request_optional_fields(valid_url, dummy_callback):
     assert isinstance(request.client, ToyClient)
 
 
-def test_response_creation(valid_request):
+def test_response_creation(valid_request, valid_url):
     data = "<html></html>"
-    response = Response(request=valid_request, text=data)
+    response = Response(request=valid_request, text=data, url=valid_url)
     assert response.request == valid_request
     assert response.text == data
 
 
-def test_response_html_property(valid_request):
+def test_response_html_property(valid_request, valid_url):
     html_string = "<html><body><p>Hello, world!</p></body></html>"
-    response = Response(request=valid_request, text=html_string)
+    response = Response(request=valid_request, text=html_string, url=valid_url)
     assert isinstance(response.html, BeautifulSoup)
     assert response.html.find("p").text == "Hello, world!"
 
 
-def test_response_html_property_with_json_content_type(valid_data_request):
+def test_response_html_property_with_json_content_type(valid_data_request, valid_url):
     json_data = {"key": "value"}
-    response = Response(request=valid_data_request, data=json_data)
+    response = Response(request=valid_data_request, data=json_data, url=valid_url)
     with pytest.raises(
         ValueError,
         match="Cannot create BeautifulSoup object when the Request content type is JSON.",
