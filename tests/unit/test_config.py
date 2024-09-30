@@ -76,4 +76,3 @@ def cache_path(tmp_path):
 
 def test_cache_config_write(cache_path):
     ServiceConfig(cache={"use": True, "path": cache_path})
-
