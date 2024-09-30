@@ -14,20 +14,20 @@ def parse_books_page(
     """Parse the books page."""
     articles = response.html.find_all("article", {"class": "product_pod"})
     yield {
-        "url": response.request.url,
+        "url": response.url,
         "title": response.html.title.get_text(strip=True),
         "articles": len(articles),
     }
     for article in articles:
         href = article.h3.a["href"]
-        url = urljoin(response.request.url, href)
-        yield Request(url=url, callback=parse_book_details, client=HttpXClient())
+        url = urljoin(response.url, href)
+        yield Request(url=url, callback=parse_book_details, client=response.client)
     if pagination:
         next_page = response.html.find("li", {"class": "next"})
         if next_page is not None:
             next_page_url = urljoin(response.request.url, next_page.a["href"])
             yield Request(
-                url=next_page_url, callback=parse_books_page, client=HttpXClient()
+                url=next_page_url, callback=parse_books_page, client=response.client
             )
 
 

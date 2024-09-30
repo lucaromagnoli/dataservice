@@ -33,7 +33,7 @@ def is_same_domain(this_url: str, that_url: str) -> bool:
 
 def parse_links(response: Response):
     """Find all links on the page"""
-    base_url = response.request.url
+    base_url = response.url
 
     links = response.html.find_all("a")
     for link in links:
@@ -43,7 +43,7 @@ def parse_links(response: Response):
                 source=base_url, destination=link_href, text=link.get_text(strip=True)
             )
             yield Request(
-                url=link_href, callback=parse_links, client=response.request.client
+                url=link_href, callback=parse_links, client=response.client
             )
 
 

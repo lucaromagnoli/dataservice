@@ -51,7 +51,7 @@ def parse_books_page(
     for article in articles:
         href = article.h3.a["href"]
         url = urljoin(response.request.url, href)
-        yield Request(url=url, callback=parse_book_details, client=HttpXClient())
+        yield Request(url=url, callback=parse_book_details, client=response.client)
 
     if pagination:
         next_page = response.html.find("li", {"class": "next"})
@@ -60,7 +60,7 @@ def parse_books_page(
             yield Request(
                 url=next_page_url,
                 callback=lambda resp: parse_books_page(resp, pagination=pagination),
-                client=response.request.client,
+                client=response.client,
             )
 
 
@@ -70,7 +70,7 @@ def parse_book_details(response: Response) -> BookDetails:
         **{
             "title": lambda: response.html.find("h1").text,
             "price": lambda: response.html.find("p", {"class": "price_color"}).text,
-            "url": response.request.url,
+            "url": response.url,
         }
     )
 
