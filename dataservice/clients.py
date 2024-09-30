@@ -90,4 +90,6 @@ class HttpXClient:
             msg += f" - json data {request.json_data}"
 
         logger.info(msg)
-        return Response(request=request, text=response.text, data=data, url=str(response.url))
+        return Response(
+            request=request, text=response.text, data=data, url=str(response.url), headers=dict(response.headers)
+        )

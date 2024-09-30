@@ -126,6 +126,7 @@ class Response(BaseModel):
     status_code: int = Field(
         description="The status code of the response.", default=200, ge=100, le=599
     )
+    headers: Optional[dict] = Field(description="The headers of the response.", default={})
     text: str = Field(description="The text of the response.", default="")
     data: dict | None = Field(description="The data of the response.", default=None)
     __html: BeautifulSoup | None = None

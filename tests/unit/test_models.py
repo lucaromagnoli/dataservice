@@ -288,3 +288,9 @@ def test_callback_name(callback, expected):
         content_type="text",
     )
     assert request.callback_name == expected
+
+
+def test_response_headers_property(valid_request, valid_url):
+    headers = {"Content-Type": "text/html"}
+    response = Response(request=valid_request, text="", url=valid_url, headers=headers)
+    assert response.headers == headers
