@@ -1,12 +1,16 @@
+import importlib.metadata
 import os
 import sys
 
 sys.path.insert(0, os.path.abspath("../dataservice"))
 
+_DISTRIBUTION_METADATA = importlib.metadata.metadata("python-dataservice")
+
+author = _DISTRIBUTION_METADATA["Author"]
 project = "DataService"
-copyright = "2024, Luca Romagnoli"
-author = "Luca Romagnoli"
-release = "0.0.1"
+version = _DISTRIBUTION_METADATA["Version"]
+release = version
+
 
 extensions = [
     "sphinx.ext.duration",
@@ -21,8 +25,6 @@ templates_path = ["_templates"]
 exclude_patterns = []
 
 html_theme = "furo"
-html_static_path = ["_static"]
-
 html_theme_options = {
     "footer_icons": [
         {
