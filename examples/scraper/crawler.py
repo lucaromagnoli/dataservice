@@ -42,9 +42,7 @@ def parse_links(response: Response):
             yield Link(
                 source=base_url, destination=link_href, text=link.get_text(strip=True)
             )
-            yield Request(
-                url=link_href, callback=parse_links, client=response.client
-            )
+            yield Request(url=link_href, callback=parse_links, client=response.client)
 
 
 def main():
@@ -64,7 +62,7 @@ def main():
     data = tuple(data_service)
     for item in data:
         logger.info(item)
-    for k, v in data_service.failures.items():
+    for k, v in data_service.get_failures().items():
         logger.error(f"Error for URL: {k} - {v}")
 
 
