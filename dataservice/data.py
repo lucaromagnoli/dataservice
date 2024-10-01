@@ -59,7 +59,14 @@ class DataWrapper(dict):
     @staticmethod
     def maybe(value: Any) -> tuple[Any | None, None | Exception]:
         """When value is a callable, return (value(), None) or (None, exception) if an exception occurs,
-        return (value, None) otherwise.
+        Return (value, None) if value is not a callable.
+
+        :Example:
+        .. code-block:: python
+            DataWrapper.maybe(lambda: 1)
+            (1, None)
+            DataWrapper.maybe(lambda: 1 / 0)
+            (None, ZeroDivisionError('division by zero'))
 
         :param value: The value to be evaluated. It can be a callable or any other type.
         :return: A tuple containing the evaluated value or None, and an exception or None.
@@ -89,7 +96,9 @@ class BaseDataItem(BaseModel):
 
 
 class DataSink(ABC):
-    """Data sink protocol."""
+    """Data sink protocol.
+
+    Base class used to define the interface for data sinks."""
 
     def write(self, data: Iterable[dict | BaseModel]) -> None:
         """Write data to the sink."""
