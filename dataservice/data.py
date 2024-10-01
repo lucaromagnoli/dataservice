@@ -83,6 +83,18 @@ class BaseDataItem(BaseModel):
     """Base class for all data items.
 
     Implements a model validator that wraps the data in a `DataWrapper` and returns the wrapped data with errors.
+
+    :Example:
+    .. code-block:: python
+        class MyDataItem(BaseDataItem):
+            data: int
+            data_callable: int
+
+        item = MyDataItem({"data": 1, "data_callable": lambda: 1 / 0})
+        print(item)
+        # MyDataItem data=1 data_callable=None
+        print(item.errors)
+        # {'data_callable': {'type': 'ZeroDivisionError', 'message': 'division by zero'}}
     """
 
     errors: dict[Any, DataError] = {}
