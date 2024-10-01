@@ -62,7 +62,9 @@ class DataWrapper(dict):
         Return (value, None) if value is not a callable.
 
         :Example:
+
         .. code-block:: python
+
             DataWrapper.maybe(lambda: 1)
             (1, None)
             DataWrapper.maybe(lambda: 1 / 0)
@@ -85,7 +87,9 @@ class BaseDataItem(BaseModel):
     Implements a model validator that wraps the data in a `DataWrapper` and returns the wrapped data with errors.
 
     :Example:
+
     .. code-block:: python
+
         class MyDataItem(BaseDataItem):
             data: int
             data_callable: int
