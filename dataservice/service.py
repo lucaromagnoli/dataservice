@@ -32,6 +32,22 @@ class DataService:
         Initializes the DataService with the given parameters.
         :param requests: An iterable of requests to process.
         :param config: The configuration for the service.
+
+        ```python
+        >>> from dataservice import DataService, HttpXClient, Request, Response
+        >>> def parse_books_page(response: Response):
+        >>>    articles = response.html.find_all("article", {"class": "product_pod"})
+        >>>    return {
+        >>>        "url": response.request.url,
+        >>>        "title": response.html.title.get_text(strip=True),
+        >>>        "articles": len(articles)
+        >>>    }
+        >>>
+        >>> start_requests = [Request(url="https://books.toscrape.com/index.html", callback=parse_books_page, client=HttpXClient())]
+        >>> service = DataService(start_requests)
+        >>> for data_item in service:
+        ...     print(data_item)
+        ```
         """
 
         self._requests = requests
