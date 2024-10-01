@@ -57,8 +57,8 @@ class DataWrapper(dict):
 
     @staticmethod
     def maybe(value: Any) -> tuple[Any | None, None | Exception]:
-        """When value is a callable, return (value(), None) or (None, exception) if an exception occurs,
-        Return (value, None) if value is not a callable.
+        """When `value` is a callable, return `(value(), None)` or `(None, exception)` if an exception occurs,
+        Return `(value, None)` if `value` is not a callable.
 
         :Example:
 
