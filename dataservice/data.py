@@ -21,7 +21,6 @@ class DataWrapper(dict):
     If an exception occurs, the exception is stored in the `errors` dictionary."""
 
     def __init__(self, mapping: dict | None = None, /, **kwargs):
-        """Initialize the DataWrapper."""
         self.errors: dict = {}
 
         if mapping is not None:
