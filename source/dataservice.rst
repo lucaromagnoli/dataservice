@@ -44,14 +44,6 @@ dataservice.models module
    :undoc-members:
    :show-inheritance:
 
-dataservice.pipeline module
----------------------------
-
-.. automodule:: dataservice.pipeline
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 dataservice.service module
 --------------------------
 
