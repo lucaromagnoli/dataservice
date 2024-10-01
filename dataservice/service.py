@@ -30,29 +30,37 @@ class DataService:
     ):
         """
         Initializes the DataService with the given parameters.
+
         :param requests: An iterable of requests to process.
         :param config: The configuration for the service.
+
+        :Example:
+        .. code-block:: python
+
+            from dataservice import DataService, HttpXClient, Request, Response
+            def parse_books_page(response: Response):
+                articles = response.html.find_all("article", {"class": "product_pod"})
+                return {
+                    "url": response.request.url,
+                    "title": response.html.title.get_text(strip=True),
+                    "articles": len(articles)
+                }
+
+            start_requests = [Request(url="https://books.toscrape.com/index.html", callback=parse_books_page, client=HttpXClient())]
+            service = DataService(start_requests)
+            for data_item in service:
+                print(data_item)
         """
 
-        self._requests = requests
-        self.config = config
-        self._data_worker: DataWorker | None = None
+        self._requests: Iterable[Request] = requests
+        self.config: ServiceConfig = config
+        self._data_worker: DataWorker = DataWorker(self._requests, self.config)
 
-    @property
-    def data_worker(self) -> DataWorker:
+    def get_failures(self) -> dict[str, FailedRequest]:
         """
-        Lazy initialization of the DataWorker instance.
+        Returns a dict of failed requests.
         """
-        if self._data_worker is None:
-            self._data_worker = DataWorker(self._requests, self.config)
-        return self._data_worker
-
-    @property
-    def failures(self) -> dict[str, FailedRequest]:
-        """
-        Returns the list of failed requests.
-        """
-        return self.data_worker.get_failures()
+        return self._data_worker.get_failures()
 
     def __iter__(self) -> DataService:
         """
@@ -64,21 +72,21 @@ class DataService:
         """
         Fetches the next data item from the data worker.
         """
-        if not self.data_worker.has_started:
+        if not self._data_worker.has_started:
             with ProcessPoolExecutor() as executor:
                 asyncio.get_event_loop().run_in_executor(
                     executor,
                     self._run_data_worker(),  # type: ignore
                 )
-        if self.data_worker.has_no_more_data():
+        if self._data_worker.has_no_more_data():
             raise StopIteration
-        return self.data_worker.get_data_item()
+        return self._data_worker.get_data_item()
 
     def _run_data_worker(self) -> None:
         """
         Runs the data worker to fetch data items.
         """
-        asyncio.run(self.data_worker.fetch())
+        asyncio.run(self._data_worker.fetch())
 
     @validate_call
     def write(

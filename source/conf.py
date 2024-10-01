@@ -1,28 +1,37 @@
+import importlib.metadata
 import os
 import sys
 
 sys.path.insert(0, os.path.abspath("../dataservice"))
 
-project = "DataService"
-copyright = "2024, Luca Romagnoli"
-author = "Luca Romagnoli"
-release = "0.0.1"
+_DISTRIBUTION_METADATA = importlib.metadata.metadata("python-dataservice")
+
+author = _DISTRIBUTION_METADATA["Author"]
+version = _DISTRIBUTION_METADATA["Version"]
+project = "DataService"  # this is hardcoded because the distribution metadata name is python-dataservice
+release = version
+
 
 extensions = [
     "sphinx.ext.duration",
     "sphinx.ext.doctest",
     "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.viewcode",
     "sphinx.ext.autosummary",
     "sphinx_autodoc_typehints",
     "sphinxcontrib.autodoc_pydantic",
 ]
 
+# Include both class-level docstring and __init__ method's docstring
+autoclass_content = "both"
+
+highlight_language = "python"
+
 templates_path = ["_templates"]
 exclude_patterns = []
 
 html_theme = "furo"
-html_static_path = ["_static"]
-
 html_theme_options = {
     "footer_icons": [
         {

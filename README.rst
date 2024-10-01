@@ -3,7 +3,7 @@ DataService
 
 Lightweight - async - data gathering for Python.
 ____________________________________________________________________________________
-DataService is a lightweight data gathering library for Python.
+DataService is a lightweight web scraping and general purpose data gathering library for Python.
 
 Designed for simplicity, it's built upon common web scraping and data gathering patterns.
 
@@ -49,7 +49,7 @@ Example ``parse_books_page`` function:
     def parse_books_page(response: Response):
         articles = response.html.find_all("article", {"class": "product_pod"})
         return {
-            "url": response.request.url,
+            "url": response.url,
             "title": response.html.title.get_text(strip=True),
             "articles": len(articles),
         }

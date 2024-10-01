@@ -21,7 +21,6 @@ class DataWrapper(dict):
     If an exception occurs, the exception is stored in the `errors` dictionary."""
 
     def __init__(self, mapping: dict | None = None, /, **kwargs):
-        """Initialize the DataWrapper."""
         self.errors: dict = {}
 
         if mapping is not None:
@@ -58,8 +57,17 @@ class DataWrapper(dict):
 
     @staticmethod
     def maybe(value: Any) -> tuple[Any | None, None | Exception]:
-        """When value is a callable, return (value(), None) or (None, exception) if an exception occurs,
-        return (value, None) otherwise.
+        """When `value` is a callable, return `(value(), None)` or `(None, exception)` if an exception occurs,
+        Return `(value, None)` if `value` is not a callable.
+
+        :Example:
+
+        .. code-block:: python
+
+            DataWrapper.maybe(lambda: 1)
+            (1, None)
+            DataWrapper.maybe(lambda: 1 / 0)
+            (None, ZeroDivisionError('division by zero'))
 
         :param value: The value to be evaluated. It can be a callable or any other type.
         :return: A tuple containing the evaluated value or None, and an exception or None.
@@ -76,6 +84,20 @@ class BaseDataItem(BaseModel):
     """Base class for all data items.
 
     Implements a model validator that wraps the data in a `DataWrapper` and returns the wrapped data with errors.
+
+    :Example:
+
+    .. code-block:: python
+
+        class MyDataItem(BaseDataItem):
+            data: int
+            data_callable: int
+
+        item = MyDataItem({"data": 1, "data_callable": lambda: 1 / 0})
+        print(item)
+        # MyDataItem data=1 data_callable=None
+        print(item.errors)
+        # {'data_callable': {'type': 'ZeroDivisionError', 'message': 'division by zero'}}
     """
 
     errors: dict[Any, DataError] = {}
@@ -89,7 +111,9 @@ class BaseDataItem(BaseModel):
 
 
 class DataSink(ABC):
-    """Data sink protocol."""
+    """Data sink protocol.
+
+    Base class used to define the interface for data sinks."""
 
     def write(self, data: Iterable[dict | BaseModel]) -> None:
         """Write data to the sink."""

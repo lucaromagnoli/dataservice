@@ -350,7 +350,7 @@ class DataWorker:
 
     def get_failures(self) -> dict[str, FailedRequest]:
         """
-        Return a tuple of failed requests.
+        Return a dictionary of failed requests.
 
         :return: A tuple of failed requests.
         """
