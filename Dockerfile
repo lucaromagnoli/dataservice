@@ -1,5 +1,5 @@
 ARG PYTHON_VERSION=3.12-slim
-FROM python:${PYTHON_VERSION}
+FROM python:${PYTHON_VERSION}-slim
 
 # Install system dependencies if any (e.g., build tools)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -24,6 +24,7 @@ RUN poetry install --no-root
 
 # Install Nox
 RUN pip install --no-cache-dir nox nox-poetry
+
 
 # Default command
 CMD ["nox", "--non-interactive"]
