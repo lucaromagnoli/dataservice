@@ -3,7 +3,7 @@
 from typing import Annotated, NewType
 
 from annotated_types import Ge
-from pydantic import BaseModel, Field, NewPath, FilePath
+from pydantic import BaseModel, Field, FilePath, NewPath
 
 PositiveInt = Annotated[int, Ge(0)]
 Milliseconds = NewType("Milliseconds", PositiveInt)
