@@ -49,10 +49,3 @@ jobs:
       - name: Run Nox sessions
         run: |
           nox --non-interactive -s tests
-
-      - name: Upload Test Results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-${{ matrix.python-version }}
-          path: test-results/
