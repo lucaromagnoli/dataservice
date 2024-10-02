@@ -1,6 +1,3 @@
-# This workflow will install Python dependencies, run tests with py3.11 and py3.12
-# and upload test results to GitHub Actions.
-
 name: Python application
 
 on:
@@ -11,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  statuses: write  # Ensure the workflow can update statuses
 
 jobs:
   nox-tests:
