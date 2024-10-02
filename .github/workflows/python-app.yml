@@ -11,7 +11,7 @@ permissions:
   statuses: write  # Ensure the workflow can update statuses
 
 jobs:
-  nox-tests:
+  ci:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
