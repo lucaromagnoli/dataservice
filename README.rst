@@ -20,8 +20,7 @@ You can install DataService via pip:
 
     pip install python-dataservice
 
-Please note that this initial version requires Python 3.12 or higher.
-For future releases I am aiming to support older versions of Python.
+Please note that DataService requires Python 3.11 or higher.
 
 How to use DataService
 ----------------------
