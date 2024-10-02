@@ -50,6 +50,6 @@ Full code for the ``crawler`` example:
 .. literalinclude:: ../../examples/scraper/crawler.py
 
 In this example, after fetching data, we will log the results to console as well as the errors that occurred during the scraping process,
-by accessing the ``failures`` attribute of the ``DataService`` instance.
+by calling ``get_failures()`` method.
 
 Let's now move on to the REST Client examples too see how we can use the ``DataService`` to fetch data from REST APIs.

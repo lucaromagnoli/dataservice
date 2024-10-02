@@ -35,7 +35,7 @@ Example usage:
         **{
             "title": lambda: response.html.find("h1").text,
             "price": lambda: response.html.find("p", {"class": "price_color"}).text,
-            "url": response.request.url,
+            "url": response.url,
         }
     )
 
@@ -49,7 +49,7 @@ Under the hood, ``BaseDataItem`` uses a ``DataWrapper`` dict. You can import it 
         **{
             "title": lambda: response.html.find("h1").text,
             "price": lambda: response.html.find("p", {"class": "price_color"}).text,
-            "url": response.request.url,
+            "url": response.url,
         }
    )
    if wrapped.errors:

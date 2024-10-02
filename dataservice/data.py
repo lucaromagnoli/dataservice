@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import sys
 from abc import ABC
-from typing import Any, Iterable, TypedDict
+from typing import Any, Iterable
+
+if sys.version_info >= (3, 12):
+    from typing import TypedDict
+else:
+    from typing_extensions import TypedDict
 
 from pydantic import BaseModel, model_validator
 
