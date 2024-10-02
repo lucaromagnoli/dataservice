@@ -39,6 +39,11 @@ jobs:
           pip install --no-cache-dir poetry
           pip install nox nox-poetry
 
+      - name: Lint ruff
+        run: |
+          # stop the build if there are Python syntax errors or undefined names
+          ruff check .
+
       - name: Install project dependencies
         run: |
           poetry config virtualenvs.create false
