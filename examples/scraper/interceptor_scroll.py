@@ -1,9 +1,13 @@
+from logging import getLogger
 from pathlib import Path
 from pprint import pprint
 
-from dataservice import DataService
+from dataservice import DataService, setup_logging
 from dataservice.clients import PlaywrightClient
 from dataservice.models import Request
+
+logger = getLogger("interceptor_scroll")
+setup_logging("interceptor_scroll")
 
 
 async def scroll_to_bottom(page):
