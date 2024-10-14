@@ -25,6 +25,9 @@ RUN poetry install --no-root
 # Install Nox
 RUN pip install --no-cache-dir nox nox-poetry
 
+# Install playwright
+RUN python -m playwright install --with-deps
+
 
 # Default command
 CMD ["nox", "--non-interactive"]
