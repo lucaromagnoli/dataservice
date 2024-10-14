@@ -40,16 +40,14 @@ class HttpXClient:
         except httpx.HTTPStatusError as e:
             logger.debug(f"HTTP Status Error making request: {e}")
             status_code: Annotated[int, Ge(400), Le(600)] = e.response.status_code
-            if 400 <= status_code < 500:
-                raise DataServiceException(
-                    e.response.reason_phrase, status_code=e.response.status_code
-                )
-            elif 500 <= status_code < 600:
+            if status_code == 429 or 500 <= status_code < 600:
                 raise RetryableException(
                     e.response.reason_phrase, status_code=e.response.status_code
                 )
             else:
-                raise
+                raise DataServiceException(
+                    e.response.reason_phrase, status_code=e.response.status_code
+                )
         except httpx.HTTPError as e:
             msg = f"HTTP Error making request: {e}, {e.__class__.__name__}"
             logger.debug(msg)
@@ -132,6 +130,8 @@ class PlaywrightClient:
         """
         if response.status == 200:
             return
+        elif response.status == 429:
+            raise RetryableException(response.status_text, status_code=response.status)
         elif 500 <= response.status < 600:
             raise RetryableException(response.status_text, status_code=response.status)
         else:
