@@ -20,6 +20,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Lint ruff
+        run: |
+          # stop the build if there are Python syntax errors or undefined names
+          ruff check .
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -47,11 +52,6 @@ jobs:
       - name: Install playwright
         run: |
           python -m playwright install --with-deps
-
-      - name: Lint ruff
-        run: |
-          # stop the build if there are Python syntax errors or undefined names
-          ruff check .
 
       - name: Run Nox sessions
         run: |
