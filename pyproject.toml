@@ -38,6 +38,7 @@ check-wheel-contents = "^0.6.0"
 pyclean = "^3.0.0"
 nox = "^2024.4.15"
 nox-poetry = "^1.0.3"
+pytest-playwright = "^0.5.2"
 
 
 [tool.poetry.group.docs.dependencies]
