@@ -20,7 +20,7 @@ COPY . /app
 
 # Install project dependencies
 RUN poetry config virtualenvs.create false
-RUN poetry install --no-root
+RUN poetry install --with dev --no-root
 
 # Install Nox
 RUN pip install --no-cache-dir nox nox-poetry
