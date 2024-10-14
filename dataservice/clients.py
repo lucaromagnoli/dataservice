@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from logging import getLogger
-from typing import Annotated, NoReturn
+from typing import Annotated, Any, Awaitable, Callable, NoReturn, Optional
 
 import httpx
 from annotated_types import Ge, Le
 from playwright.async_api import async_playwright
+from playwright.async_api._generated import Page as PlaywrightPage
+from playwright.async_api._generated import Request as PlaywrightRequest
 from playwright.async_api._generated import Response as PlaywrightResponse
 from pydantic import HttpUrl
 
@@ -103,8 +105,20 @@ class HttpXClient:
 class PlaywrightClient:
     """Client that uses Playwright library to make requests."""
 
-    def __init__(self):
+    def __init__(
+        self,
+        actions: Optional[Callable[[PlaywrightPage], Awaitable[None]]] = None,
+        intercept_url: Optional[str] = None,
+    ):
+        """Initialize the PlaywrightClient.
+
+        :param actions: Optional coroutine with actions to perform on the page before returning the response.
+        :param intercept_url: Optional URL to intercept and get data from.
+        """
+        self.actions = actions
+        self.intercept_url = intercept_url
         self.async_playwright = async_playwright
+        self._intercepted_requests: list[PlaywrightRequest] | None = None
 
     def __call__(self, *args, **kwargs):
         """Make a request using the client."""
@@ -139,6 +153,30 @@ class PlaywrightClient:
                 response.status_text, status_code=response.status
             )
 
+    def _intercept_requests(self, request: PlaywrightRequest):
+        """Intercept requests and store the data.
+
+        :param request: The request object to intercept.
+        """
+        if self.intercept_url in request.url:
+            logger.info(f"Intercepted request: {request.url}")
+            if self._intercepted_requests is not None:
+                self._intercepted_requests.append(request)
+            else:
+                self._intercepted_requests = [request]
+
+    async def _get_intercepted_requests(self) -> dict[str, dict[str, Any]]:
+        """Get the responses from the intercepted requests.
+
+        :return: A dictionary containing the responses from the intercepted requests.
+        """
+        responses = {}
+        if self._intercepted_requests:
+            for request in self._intercepted_requests:
+                response = await request.response()
+                responses[request.url] = await response.json()
+        return responses
+
     async def _make_request(self, request: Request) -> Response:
         """Make a request using Playwright. Private method for internal use.
 
@@ -149,10 +187,22 @@ class PlaywrightClient:
         async with self.async_playwright() as p:
             browser = await p.chromium.launch()
             page = await browser.new_page()
+            if self.intercept_url is not None:
+                page.on(
+                    "request", lambda pw_request: self._intercept_requests(pw_request)
+                )
             response = await page.goto(request.url)
             self.raise_for_status(response)
+            if self.actions is not None:
+                await self.actions(page)
+
             text = await page.content()
+            data = None
             logger.info(f"Received response for {request.url}")
+
+            if self._intercepted_requests:
+                data = await self._get_intercepted_requests()
+
             return Response(
-                request=request, text=text, data=None, url=HttpUrl(response.url)
+                request=request, text=text, data=data, url=HttpUrl(response.url)
             )
