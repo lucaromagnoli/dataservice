@@ -2,27 +2,30 @@ from urllib.parse import urljoin
 
 import pytest
 
-from dataservice.clients import HttpXClient
+from dataservice.clients import PlaywrightClient
 from dataservice.models import Request, Response
 from dataservice.service import DataService
 
 
 @pytest.fixture
 def client():
-    return HttpXClient()
-
-
-def start_requests():
-    urls = [
-        "https://books.toscrape.com/index.html",
-    ]
-    for url in urls:
-        yield Request(url=url, callback=parse_books, client=HttpXClient())
+    return PlaywrightClient()
 
 
 @pytest.fixture
-def data_service(client):
-    return DataService(requests=start_requests())
+def start_requests(client):
+    return [
+        Request(
+            url="https://books.toscrape.com/index.html",
+            callback=parse_books,
+            client=client,
+        )
+    ]
+
+
+@pytest.fixture
+def data_service(start_requests):
+    return DataService(requests=start_requests)
 
 
 def parse_books(response: Response):
@@ -30,7 +33,7 @@ def parse_books(response: Response):
     for article in articles:
         href = article.h3.a["href"]
         url = urljoin(response.request.url, href)
-        yield Request(url=url, callback=parse_book_details, client=HttpXClient())
+        yield Request(url=url, callback=parse_book_details, client=response.client)
 
 
 def parse_book_details(response: Response):
