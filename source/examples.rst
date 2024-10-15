@@ -14,6 +14,6 @@ not to provide a comprehensive guide to web scraping / data gathering.
    :maxdepth: 2
    :caption: Examples:
 
-   examples/scrape_books
+   examples/http_scraper
    examples/crawler
    examples/rest_client
