@@ -7,10 +7,10 @@ from typing import Annotated, Any, Awaitable, Callable, NoReturn, Optional
 
 import httpx
 from annotated_types import Ge, Le
+from playwright.async_api import Page as PlaywrightPage
+from playwright.async_api import Request as PlaywrightRequest
+from playwright.async_api import Response as PlaywrightResponse
 from playwright.async_api import async_playwright
-from playwright.async_api._generated import Page as PlaywrightPage
-from playwright.async_api._generated import Request as PlaywrightRequest
-from playwright.async_api._generated import Response as PlaywrightResponse
 from pydantic import HttpUrl
 
 from dataservice.exceptions import DataServiceException, RetryableException
@@ -144,9 +144,7 @@ class PlaywrightClient:
         """
         if response.status == 200:
             return
-        elif response.status == 429:
-            raise RetryableException(response.status_text, status_code=response.status)
-        elif 500 <= response.status < 600:
+        elif 500 <= response.status < 600 or response.status == 429:
             raise RetryableException(response.status_text, status_code=response.status)
         else:
             raise DataServiceException(
@@ -208,6 +206,8 @@ class PlaywrightClient:
                 data = await self._get_intercepted_requests()
 
             cookies = await context.cookies()
+            await context.close()
+            await browser.close()
 
             return Response(
                 request=request,
