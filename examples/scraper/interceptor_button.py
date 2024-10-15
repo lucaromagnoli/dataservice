@@ -1,11 +1,14 @@
 from logging import getLogger
 from pprint import pprint
 
-from playwright.async_api._generated import Page as PlaywrightPage
-
-from dataservice import DataService, setup_logging
-from dataservice.clients import PlaywrightClient
-from dataservice.models import Request
+from dataservice import (
+    DataService,
+    PlaywrightClient,
+    PlaywrightPage,
+    Request,
+    Response,
+    setup_logging,
+)
 
 logger = getLogger("interceptor_button")
 setup_logging("interceptor_button")
@@ -21,7 +24,7 @@ async def press_button(page: PlaywrightPage):
             has_posts = False
 
 
-def parse_intercepted(response):
+def parse_intercepted(response: Response):
     for url in response.data:
         for item in response.data[url]:
             yield {"url": url, **item}
