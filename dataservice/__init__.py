@@ -1,4 +1,4 @@
-from dataservice.clients import HttpXClient, PlaywrightClient
+from dataservice.clients import HttpXClient, PlaywrightClient, PlaywrightPage
 from dataservice.config import (
     CacheConfig,
     RateLimiterConfig,
@@ -20,6 +20,7 @@ __all__ = [
     "FailedRequest",
     "HttpXClient",
     "PlaywrightClient",
+    "PlaywrightPage",
     "RateLimiterConfig",
     "Request",
     "Response",
