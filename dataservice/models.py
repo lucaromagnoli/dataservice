@@ -71,6 +71,9 @@ class Request(BaseModel):
     headers: Optional[dict] = Field(
         description="The headers of the request.", default=None
     )
+    cookies: Optional[list[dict]] = Field(
+        description="The cookies of the request.", default=None
+    )
     params: Optional[dict] = Field(
         description="The parameters of the request.", default=None
     )
@@ -127,7 +130,10 @@ class Response(BaseModel):
         description="The status code of the response.", default=200, ge=100, le=599
     )
     headers: Optional[dict] = Field(
-        description="The headers of the response.", default={}
+        description="The headers of the response.", default=None
+    )
+    cookies: Optional[list[dict]] = Field(
+        description="The cookies of the response.", default=None
     )
     text: str = Field(description="The text of the response.", default="")
     data: dict | None = Field(description="The data of the response.", default=None)
