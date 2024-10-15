@@ -18,51 +18,18 @@ def mock_browser(mocker):
 
 
 @pytest.fixture
-def mock_browser_200_page(mock_browser):
+def mock_browser_page(mock_browser, request):
     mock_page = AsyncMock()
     mock_response = AsyncMock()
-    mock_browser.new_page.return_value = mock_page
+    mock_context = AsyncMock()
+    mock_browser.new_context.return_value = mock_context
+    mock_context.new_page.return_value = mock_page
     mock_page.goto.return_value = mock_response
     mock_page.content.return_value = "<html></html>"
-    mock_response.status = 200
+    mock_response.status = request.param
     mock_response.url = "http://example.com"
-    return "<html></html>"
-
-
-@pytest.fixture
-def mock_browser_404_page(mock_browser):
-    mock_page = AsyncMock()
-    mock_response = AsyncMock()
-    mock_browser.new_page.return_value = mock_page
-    mock_page.goto.return_value = mock_response
-    mock_page.content.return_value = "<html></html>"
-    mock_response.status = 404
-    mock_response.url = "http://example.com"
-    return "<html></html>"
-
-
-@pytest.fixture
-def mock_browser_500_page(mock_browser):
-    mock_page = AsyncMock()
-    mock_response = AsyncMock()
-    mock_browser.new_page.return_value = mock_page
-    mock_page.goto.return_value = mock_response
-    mock_page.content.return_value = "<html></html>"
-    mock_response.status = 500
-    mock_response.url = "http://example.com"
-    return "<html></html>"
-
-
-@pytest.fixture
-def mock_browser_429_page(mock_browser):
-    mock_page = AsyncMock()
-    mock_response = AsyncMock()
-    mock_browser.new_page.return_value = mock_page
-    mock_page.goto.return_value = mock_response
-    mock_page.content.return_value = "<html></html>"
-    mock_response.status = 429
-    mock_response.url = "http://example.com"
-    return "<html></html>"
+    mock_response.headers = {}
+    return mock_response
 
 
 def get_request(client):
@@ -82,7 +49,8 @@ def get_request(client):
 
 
 @pytest.mark.asyncio
-async def test_make_request_200(mock_browser_200_page):
+@pytest.mark.parametrize("mock_browser_page", [200], indirect=True)
+async def test_make_request_200(mock_browser_page):
     client = PlaywrightClient()
     request = get_request(client)
 
@@ -96,7 +64,8 @@ async def test_make_request_200(mock_browser_200_page):
 
 
 @pytest.mark.asyncio
-async def test_make_request_404(mock_browser_404_page):
+@pytest.mark.parametrize("mock_browser_page", [404], indirect=True)
+async def test_make_request_exception(mock_browser_page):
     client = PlaywrightClient()
     request = get_request(client)
 
@@ -105,16 +74,8 @@ async def test_make_request_404(mock_browser_404_page):
 
 
 @pytest.mark.asyncio
-async def test_make_request_retryable_500(mock_browser_500_page):
-    client = PlaywrightClient()
-    request = get_request(client)
-
-    with pytest.raises(RetryableException):
-        await client.make_request(request)
-
-
-@pytest.mark.asyncio
-async def test_make_request_retryable_429(mock_browser_429_page):
+@pytest.mark.parametrize("mock_browser_page", [429, 503], indirect=True)
+async def test_make_request_retryable(mock_browser_page):
     client = PlaywrightClient()
     request = get_request(client)
 

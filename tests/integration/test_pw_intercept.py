@@ -13,7 +13,7 @@ def parse_intercepted(response):
 
 @pytest.fixture
 def client():
-    return PlaywrightClient(intercept_url="posts")
+    return PlaywrightClient(intercept_url="/posts")
 
 
 @pytest.fixture
@@ -32,6 +32,6 @@ def data_service(start_requests):
     return DataService(requests=start_requests)
 
 
-def test_scrape_books(data_service):
+def test_intercept(data_service):
     data = tuple(data_service)
     assert len(data) == 10
