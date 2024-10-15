@@ -1,7 +1,8 @@
 Books Crawler
 ============
 
-In this example we will build a Crawler that follows all the page links on `Books to Scrape <https://books.toscrape.com/index.html>`_.
+In this example we will build a Crawler that follows all the page links on using 'HttpXClient' to fetch HTML content.
+The website we are going to crawl, again, is `Books to Scrape <https://books.toscrape.com/index.html>`_.
 
 Building a crawler in DataService is fairly trivial.
 We just need to define a function that finds all links on the page, yields them and then calls itself recursively on each link.

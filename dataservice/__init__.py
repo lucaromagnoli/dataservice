@@ -1,4 +1,4 @@
-from dataservice.clients import HttpXClient
+from dataservice.clients import HttpXClient, PlaywrightClient, PlaywrightPage
 from dataservice.config import (
     CacheConfig,
     RateLimiterConfig,
@@ -13,17 +13,19 @@ from dataservice.service import DataService
 
 __all__ = [
     "BaseDataItem",
+    "CacheConfig",
     "DataService",
+    "DataServiceException",
     "DataWrapper",
+    "FailedRequest",
     "HttpXClient",
+    "PlaywrightClient",
+    "PlaywrightPage",
+    "RateLimiterConfig",
     "Request",
     "Response",
-    "FailedRequest",
-    "DataServiceException",
     "RetryableException",
-    "ServiceConfig",
-    "CacheConfig",
-    "RateLimiterConfig",
     "RetryConfig",
+    "ServiceConfig",
     "setup_logging",
 ]

@@ -115,6 +115,15 @@ async def test_httpx_client_post_request(
             id="505 Retryable",
         ),
         pytest.param(
+            HTTPStatusError(
+                "Too Many Requests",
+                request=None,
+                response=HttpXResponse(status_code=429),
+            ),
+            RetryableException,
+            id="429 Retryable",
+        ),
+        pytest.param(
             TimeoutException("Error"),
             DataServiceException,
             id="Timeout. Dont Retry",

@@ -71,6 +71,9 @@ class Request(BaseModel):
     headers: Optional[dict] = Field(
         description="The headers of the request.", default=None
     )
+    cookies: Optional[list[dict]] = Field(
+        description="The cookies of the request.", default=None
+    )
     params: Optional[dict] = Field(
         description="The parameters of the request.", default=None
     )
@@ -90,7 +93,7 @@ class Request(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @model_validator(mode="after")
-    def validate(self):
+    def validate(self) -> Request:  # type: ignore
         if self.method == "POST" and not self.form_data and not self.json_data:
             raise ValueError("POST requests require either form data or json data.")
         if self.method == "GET" and (self.form_data or self.json_data):
@@ -126,7 +129,12 @@ class Response(BaseModel):
     status_code: int = Field(
         description="The status code of the response.", default=200, ge=100, le=599
     )
-    headers: Optional[dict] = Field(description="The headers of the response.", default={})
+    headers: Optional[dict] = Field(
+        description="The headers of the response.", default=None
+    )
+    cookies: Optional[list[dict]] = Field(
+        description="The cookies of the response.", default=None
+    )
     text: str = Field(description="The text of the response.", default="")
     data: dict | None = Field(description="The data of the response.", default=None)
     __html: BeautifulSoup | None = None

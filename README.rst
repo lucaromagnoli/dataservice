@@ -22,6 +22,18 @@ You can install DataService via pip:
 
 Please note that DataService requires Python 3.11 or higher.
 
+If you want to use `PlaywrightClient`, you will also need to install the `playwright` package:
+
+.. code-block:: bash
+
+    python -m playwright install
+
+or simply:
+
+.. code-block:: bash
+
+    playwright install
+
 How to use DataService
 ----------------------
 

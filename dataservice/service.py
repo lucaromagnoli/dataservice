@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import asyncio
 import pathlib
-from concurrent.futures import ProcessPoolExecutor
 from logging import getLogger
 from typing import Any, Iterable
 
@@ -73,11 +72,7 @@ class DataService:
         Fetches the next data item from the data worker.
         """
         if not self._data_worker.has_started:
-            with ProcessPoolExecutor() as executor:
-                asyncio.get_event_loop().run_in_executor(
-                    executor,
-                    self._run_data_worker(),  # type: ignore
-                )
+            asyncio.run(self._data_worker.fetch())
         if self._data_worker.has_no_more_data():
             raise StopIteration
         return self._data_worker.get_data_item()

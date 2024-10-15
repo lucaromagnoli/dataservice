@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 from logging import getLogger
-from typing import Annotated, NoReturn
+from typing import Annotated, Any, Awaitable, Callable, NoReturn, Optional
 
 import httpx
 from annotated_types import Ge, Le
+from playwright.async_api import Page as PlaywrightPage
+from playwright.async_api import Request as PlaywrightRequest
+from playwright.async_api import Response as PlaywrightResponse
+from playwright.async_api import async_playwright
 from pydantic import HttpUrl
 
 from dataservice.exceptions import DataServiceException, RetryableException
@@ -38,16 +42,14 @@ class HttpXClient:
         except httpx.HTTPStatusError as e:
             logger.debug(f"HTTP Status Error making request: {e}")
             status_code: Annotated[int, Ge(400), Le(600)] = e.response.status_code
-            if 400 <= status_code < 500:
-                raise DataServiceException(
-                    e.response.reason_phrase, status_code=e.response.status_code
-                )
-            elif 500 <= status_code < 600:
+            if status_code == 429 or 500 <= status_code < 600:
                 raise RetryableException(
                     e.response.reason_phrase, status_code=e.response.status_code
                 )
             else:
-                raise
+                raise DataServiceException(
+                    e.response.reason_phrase, status_code=e.response.status_code
+                )
         except httpx.HTTPError as e:
             msg = f"HTTP Error making request: {e}, {e.__class__.__name__}"
             logger.debug(msg)
@@ -98,3 +100,121 @@ class HttpXClient:
             url=HttpUrl(str(response.url)),
             headers=dict(response.headers),
         )
+
+
+class PlaywrightClient:
+    """Client that uses Playwright library to make requests."""
+
+    def __init__(
+        self,
+        actions: Optional[Callable[[PlaywrightPage], Awaitable[None]]] = None,
+        intercept_url: Optional[str] = None,
+    ):
+        """Initialize the PlaywrightClient.
+
+        :param actions: Optional coroutine with actions to perform on the page before returning the response.
+        :param intercept_url: Optional URL to intercept and get data from.
+        """
+        self.actions = actions
+        self.intercept_url = intercept_url
+        self.async_playwright = async_playwright
+        self._intercepted_requests: list[PlaywrightRequest] | None = None
+
+    def __call__(self, *args, **kwargs):
+        """Make a request using the client."""
+        return self.make_request(*args, **kwargs)
+
+    async def make_request(self, request: Request) -> Response | NoReturn:
+        """Make a request and handle exceptions.
+
+        :param request: The request object containing the details of the HTTP request.
+        :return: A Response object if the request is successful.
+        :raises RequestException: If a non-retryable HTTP error occurs.
+        :raises RetryableRequestException: If a retryable HTTP error occurs.
+        """
+        return await self._make_request(request)
+
+    @staticmethod
+    def raise_for_status(response: PlaywrightResponse):
+        """Raise an exception if the response status code is not 2xx.
+
+        :param response: The response object to check.
+        :raises RetryableException: If the status code is 5xx.
+        :raises DataServiceException: If the status code is not 2xx or 5xx.
+        """
+        if response.status == 200:
+            return
+        elif 500 <= response.status < 600 or response.status == 429:
+            raise RetryableException(response.status_text, status_code=response.status)
+        else:
+            raise DataServiceException(
+                response.status_text, status_code=response.status
+            )
+
+    def _intercept_requests(self, request: PlaywrightRequest):
+        """Intercept requests and store the data.
+
+        :param request: The request object to intercept.
+        """
+        seen = set()
+        if self.intercept_url in request.url and request.url not in seen:
+            logger.info(f"Intercepted request: {request.url}")
+            seen.add(request.url)
+            if self._intercepted_requests is not None:
+                self._intercepted_requests.append(request)
+            else:
+                self._intercepted_requests = [request]
+
+    async def _get_intercepted_requests(self) -> dict[str, dict[str, Any]]:
+        """Get the responses from the intercepted requests.
+
+        :return: A dictionary containing the responses from the intercepted requests.
+        """
+        responses = {}
+        if self._intercepted_requests:
+            for request in self._intercepted_requests:
+                if request.url not in responses:
+                    response = await request.response()
+                    responses[request.url] = await response.json()
+        return responses
+
+    async def _make_request(self, request: Request) -> Response:
+        """Make a request using Playwright. Private method for internal use.
+
+        :param request: The request object containing the details of the HTTP request.
+        :return: A Response object containing the response data.
+        """
+        logger.info(f"Requesting {request.url}")
+        async with self.async_playwright() as p:
+            browser = await p.chromium.launch()
+            context = await browser.new_context()
+            page = await context.new_page()
+            if self.intercept_url is not None:
+                page.on(
+                    "request", lambda pw_request: self._intercept_requests(pw_request)
+                )
+            pw_response = await page.goto(request.url)
+            self.raise_for_status(pw_response)
+            if self.actions is not None:
+                await self.actions(page)
+
+            text = await page.content()
+            data = None
+            logger.info(f"Received response for {request.url}")
+
+            if self._intercepted_requests:
+                data = await self._get_intercepted_requests()
+
+            cookies = await context.cookies()
+            await context.close()
+            await browser.close()
+
+            return Response(
+                request=request,
+                text=text,
+                data=data,
+                url=HttpUrl(pw_response.url),
+                status_code=pw_response.status,
+                cookies=cookies,
+                headers=pw_response.headers,
+            )
