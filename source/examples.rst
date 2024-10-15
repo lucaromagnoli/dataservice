@@ -15,5 +15,6 @@ not to provide a comprehensive guide to web scraping / data gathering.
    :caption: Examples:
 
    examples/http_scraper
-   examples/crawler
+   examples/http_crawler
+   examples/browser_scraper
    examples/rest_client

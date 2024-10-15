@@ -33,13 +33,18 @@ and, provided the request is a JSON or request, it can return the response in th
 
 In order to intercept the requests, you need to initialize the `PlaywrightClient` with two additional parameters: `actions` and `intercept_url`.
 
+.. code-block:: python
+
+    client=PlaywrightClient(actions=actions, intercept_url="https://api.example.com")
+
 `actions` is a coroutine function that takes a `page` argument and defines actions that you want to perform before the page is loaded.
 For example, you can click on a button, type in a text field, etc.
 
 .. code-block:: python
 
-    from playwright.async_api import Page
-    async def actions(page):
+    from DataService import PlaywrightPage
+
+    async def actions(page: PlaywrightPage):
         await page.click("button")
         await page.type("input", "text")
 
