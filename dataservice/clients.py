@@ -158,8 +158,10 @@ class PlaywrightClient:
 
         :param request: The request object to intercept.
         """
-        if self.intercept_url in request.url:
+        seen = set()
+        if self.intercept_url in request.url and request.url not in seen:
             logger.info(f"Intercepted request: {request.url}")
+            seen.add(request.url)
             if self._intercepted_requests is not None:
                 self._intercepted_requests.append(request)
             else:
@@ -173,8 +175,9 @@ class PlaywrightClient:
         responses = {}
         if self._intercepted_requests:
             for request in self._intercepted_requests:
-                response = await request.response()
-                responses[request.url] = await response.json()
+                if request.url not in responses:
+                    response = await request.response()
+                    responses[request.url] = await response.json()
         return responses
 
     async def _make_request(self, request: Request) -> Response:
@@ -186,13 +189,14 @@ class PlaywrightClient:
         logger.info(f"Requesting {request.url}")
         async with self.async_playwright() as p:
             browser = await p.chromium.launch()
-            page = await browser.new_page()
+            context = await browser.new_context()
+            page = await context.new_page()
             if self.intercept_url is not None:
                 page.on(
                     "request", lambda pw_request: self._intercept_requests(pw_request)
                 )
-            response = await page.goto(request.url)
-            self.raise_for_status(response)
+            pw_response = await page.goto(request.url)
+            self.raise_for_status(pw_response)
             if self.actions is not None:
                 await self.actions(page)
 
@@ -203,6 +207,14 @@ class PlaywrightClient:
             if self._intercepted_requests:
                 data = await self._get_intercepted_requests()
 
+            cookies = await context.cookies()
+
             return Response(
-                request=request, text=text, data=data, url=HttpUrl(response.url)
+                request=request,
+                text=text,
+                data=data,
+                url=HttpUrl(pw_response.url),
+                status_code=pw_response.status,
+                cookies=cookies,
+                headers=pw_response.headers,
             )
