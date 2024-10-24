@@ -35,17 +35,12 @@ jobs:
         run: |
           poetry build
 
-      - name: Debug Environment Variables
-        env:
-          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.DS_PYPI_API_TOKEN }}
-        run: |
-          echo "POETRY_PYPI_TOKEN_PYPI: $POETRY_PYPI_TOKEN_PYPI"
-
       - name: Publish to PyPI
         env:
           POETRY_PYPI_TOKEN_PYPI: ${{ secrets.DS_PYPI_API_TOKEN }}
         run: |
-          poetry publish --build --username "__token__" --password "$POETRY_PYPI_TOKEN_PYPI"
+          poetry config http-basic.pypi "__token__" "${POETRY_PYPI_TOKEN_PYPI}"
+          poetry publish
 
       - name: Get the version from pyproject.toml
         id: get_version
