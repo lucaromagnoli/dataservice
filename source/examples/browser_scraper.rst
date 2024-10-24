@@ -9,9 +9,19 @@ For this purpose, `DataService` provides a `PlaywrightClient` that uses `Microso
 For standard HTML scraping, you can use PlaywrightClient exactly like `HttpXClient`, i.e you create an instance of `PlaywrightClient`,
 pass it to the `Request` object, and then parse the HTML content in the callback function.
 
-..note::
-    PlaywrightClient requires `playwright` to be installed. You can install it with
-    `playwright install` or `python -m playwright install`.
+.. note::
+
+    Please note that `PlaywrightClient` requires `playwright` to be installed. You can install it with
+
+    .. code-block:: bash
+
+        python -m playwright install
+
+    or simply:
+
+    .. code-block:: bash
+
+        playwright install
 
 
 .. code-block:: python
