@@ -28,7 +28,9 @@ In this particular example, we want to scroll to the bottom of the page to load 
            script = f.read()
        await page.evaluate(script)
 
-Instead of adding the JavaScript code directly to the `actions` coroutine, we can create a separate file `scroll_to_bottom.js` and read the content from the file.
+Instead of adding the JavaScript code directly to the `actions` coroutine, we can create a separate file `scroll_to_bottom.js`
+that implements an immediately invoked function expression (IIFE).
+
 
 .. literalinclude:: ../../../examples/scraper/scroll_to_bottom.js
     :language: javascript
