@@ -35,7 +35,7 @@ that implements an immediately invoked function expression (IIFE).
 .. literalinclude:: ../../../examples/scraper/scroll_to_bottom.js
     :language: javascript
 
-The scroll to bottom function will fire several API calls that will be intercepted and store in the data attribute of the response object as a mapping of URL to the response data.
+The scroll to bottom function will fire several API calls that will be intercepted and stored in the data attribute of the response object as a mapping of URL to the response data.
 
 The `parse` callback is simply iterating over the response data and yielding the items.
 Obviously you can also write your own model if you prefer and yield that instead.
