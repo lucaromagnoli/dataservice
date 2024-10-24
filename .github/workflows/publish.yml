@@ -35,7 +35,7 @@ jobs:
         env:
           POETRY_PYPI_TOKEN_PYPI: ${{ secrets.DS_PYPI_API_TOKEN }}
         run: |
-          poetry publish --build --username "__token__" --password "${{ secrets.DS_PYPI_API_TOKEN }}"
+          poetry publish --build --username "__token__" --password "${{ POETRY_PYPI_TOKEN_PYPI }}"
 
       - name: Get the version from pyproject.toml
         id: get_version
