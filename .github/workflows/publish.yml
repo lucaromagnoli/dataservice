@@ -35,6 +35,12 @@ jobs:
         run: |
           poetry build
 
+      - name: Debug Environment Variables
+        env:
+          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.DS_PYPI_API_TOKEN }}
+        run: |
+          echo "POETRY_PYPI_TOKEN_PYPI: $POETRY_PYPI_TOKEN_PYPI"
+
       - name: Publish to PyPI
         env:
           POETRY_PYPI_TOKEN_PYPI: ${{ secrets.DS_PYPI_API_TOKEN }}
