@@ -1,0 +1,59 @@
+name: Publish Python Package
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          export PATH="$HOME/.local/bin:$PATH"
+
+      - name: Install dependencies
+        run: |
+          poetry install --no-root
+
+      - name: Build package
+        run: |
+          poetry build
+
+      - name: Publish to PyPI
+        env:
+          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.DS_PYPI_API_TOKEN }}
+        run: |
+          poetry publish --build --username "__token__" --password "${{ secrets.DS_PYPI_API_TOKEN }}"
+
+      - name: Get the version from pyproject.toml
+        id: get_version
+        run: |
+          echo "::set-output name=version::$(poetry version -s)"
+
+      - name: Create Git tag
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag -a v${{ steps.get_version.outputs.version }} -m "Release version ${{ steps.get_version.outputs.version }}"
+          git push origin v${{ steps.get_version.outputs.version }}
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: v${{ steps.get_version.outputs.version }}
+          name: "Release ${{ steps.get_version.outputs.version }}"
+          body: "New release version ${{ steps.get_version.outputs.version }} is published"
+          draft: false
+          prerelease: false

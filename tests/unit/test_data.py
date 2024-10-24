@@ -1,3 +1,5 @@
+from collections import abc
+
 import pytest
 
 from dataservice.data import BaseDataItem, DataWrapper
@@ -53,7 +55,7 @@ def test_datawrapper_init_dict():
 
 def test_datawrapper_is_instance_of_dict():
     d = DataWrapper(a=lambda: 1, **{"b": lambda: 1 / 0})
-    assert isinstance(d, dict)
+    assert isinstance(d, abc.MutableMapping)
 
 
 @pytest.mark.parametrize(

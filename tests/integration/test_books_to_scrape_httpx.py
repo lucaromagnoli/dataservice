@@ -12,17 +12,20 @@ def client():
     return HttpXClient()
 
 
-def start_requests():
-    urls = [
-        "https://books.toscrape.com/index.html",
+@pytest.fixture
+def start_requests(client):
+    return [
+        Request(
+            url="https://books.toscrape.com/index.html",
+            callback=parse_books,
+            client=client,
+        )
     ]
-    for url in urls:
-        yield Request(url=url, callback=parse_books, client=HttpXClient())
 
 
 @pytest.fixture
-def data_service(client):
-    return DataService(requests=start_requests())
+def data_service(start_requests):
+    return DataService(requests=start_requests)
 
 
 def parse_books(response: Response):
@@ -30,7 +33,7 @@ def parse_books(response: Response):
     for article in articles:
         href = article.h3.a["href"]
         url = urljoin(response.request.url, href)
-        yield Request(url=url, callback=parse_book_details, client=HttpXClient())
+        yield Request(url=url, callback=parse_book_details, client=response.client)
 
 
 def parse_book_details(response: Response):
