@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+from collections import abc
 from concurrent.futures.thread import ThreadPoolExecutor
 from contextlib import nullcontext
 from pathlib import Path
@@ -103,7 +104,7 @@ class DataWorker:
         """
         await self._work_queue.put(item)
 
-    async def _add_to_data_queue(self, item: dict | BaseModel) -> None:
+    async def _add_to_data_queue(self, item: abc.MutableMapping | BaseModel) -> None:
         """
         Adds an item to the data queue.
 
@@ -132,7 +133,7 @@ class DataWorker:
         """
         Enqueues the initial set of requests to the work queue.
         """
-        if isinstance(self._requests, AsyncGenerator):
+        if isinstance(self._requests, abc.AsyncGenerator):
             async for request in self._requests:
                 await self._add_to_work_queue(request)
         else:
@@ -150,7 +151,7 @@ class DataWorker:
         """
         if isinstance(item, Request):
             await self._handle_request_item(item)
-        elif isinstance(item, (dict, BaseModel)):
+        elif isinstance(item, (abc.MutableMapping, BaseModel)):
             await self._add_to_data_queue(item)
         else:
             raise ValueError(f"Unknown item type {type(item)}")
@@ -192,7 +193,7 @@ class DataWorker:
             try:
                 response = await self._handle_request(request)
                 callback_result = await self._handle_callback(request, response)
-                if isinstance(callback_result, (dict, BaseModel)):
+                if isinstance(callback_result, (abc.MutableMapping, BaseModel)):
                     await self._add_to_data_queue(callback_result)
                 else:
                     await self._add_to_work_queue(callback_result)
@@ -304,13 +305,13 @@ class DataWorker:
         :param callback: Either a callback iterator or a single result
         :return: An async generator of tasks.
         """
-        if isinstance(callback, Generator):
+        if isinstance(callback, abc.Generator):
             for item in callback:
                 yield asyncio.create_task(self._handle_queue_item(item))
-        elif isinstance(callback, AsyncGenerator):
+        elif isinstance(callback, abc.AsyncGenerator):
             async for item in callback:
                 yield asyncio.create_task(self._handle_queue_item(item))
-        elif isinstance(callback, (Request, dict, BaseModel)):
+        elif isinstance(callback, (Request, abc.MutableMapping, BaseModel)):
             yield asyncio.create_task(self._handle_queue_item(callback))
         else:
             raise ValueError(f"Unknown item type {type(callback)}")
