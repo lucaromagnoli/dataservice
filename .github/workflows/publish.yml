@@ -2,7 +2,7 @@ name: Publish Python Package
 
 on:
   workflow_run:
-    workflows: [ "ci (3.11)", "ci (3.12)" ]
+    workflows: [ "Run CI" ]
     types:
       - completed
   push:
