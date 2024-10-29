@@ -14,3 +14,11 @@ services:
       args:
         PYTHON_VERSION: 3.12
     command: nox --non-interactive -s tests
+
+
+  tests_py313:
+    build:
+      context: .
+      args:
+        PYTHON_VERSION: 3.13
+    command: nox --non-interactive -s tests
