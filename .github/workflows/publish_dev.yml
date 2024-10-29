@@ -39,7 +39,7 @@ jobs:
         env:
           POETRY_TEST_PYPI_TOKEN_PYPI: ${{ secrets.DS_TEST_PYPI_API_TOKEN }}
         run: |
-          poetry config pypi-token.test-pypi "__token__" "${POETRY_TEST_PYPI_TOKEN_PYPI}"
+          poetry config pypi-token.test-pypi "${POETRY_TEST_PYPI_TOKEN_PYPI}"
           poetry publish
 
       - name: Get the version from pyproject.toml
