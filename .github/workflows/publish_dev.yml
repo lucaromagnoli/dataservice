@@ -41,7 +41,7 @@ jobs:
         run: |
           poetry config repositories.test-pypi https://test.pypi.org/legacy/
           poetry config pypi-token.test-pypi "${POETRY_TEST_PYPI_TOKEN_PYPI}"
-          poetry publish test-pypi
+          poetry publish -r test-pypi
 
       - name: Get the version from pyproject.toml
         id: get_version
