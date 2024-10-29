@@ -54,8 +54,8 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git tag -a v${{ steps.get_version.outputs.version }}-dev -m "Release version ${{ steps.get_version.outputs.version }}"
-          git push https://x-access-token:${GITHUB_TOKEN}@github.com/lucaromagnoli/dataservice.git v${{ steps.get_version.outputs.version }}
+          git tag -a v${{ steps.get_version.outputs.version }}-dev -m "Release version ${{ steps.get_version.outputs.version }}-dev"
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/lucaromagnoli/dataservice.git v${{ steps.get_version.outputs.version }}-dev
 
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
