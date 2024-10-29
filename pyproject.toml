@@ -3,7 +3,7 @@ name = "python-dataservice"
 packages = [
     { include = "dataservice"},
 ]
-version = "0.3.4"
+version = "0.3.5"
 description = "Lightweight async data gathering for Python"
 authors = ["NomadMonad <romagnoli.luca@gmail.com>"]
 readme = "README.rst"
