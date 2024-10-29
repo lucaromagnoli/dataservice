@@ -1,3 +1,6 @@
+.. image:: https://img.shields.io/pypi/pyversions/python-dataservice.svg
+   :alt: Python Versions
+
 DataService
 ===========
 
