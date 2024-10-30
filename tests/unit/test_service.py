@@ -7,7 +7,7 @@ import pytest
 
 from dataservice.data import BaseDataItem
 from dataservice.models import Request, Response
-from dataservice.service import DataService
+from dataservice.service import AsyncDataService, DataService
 from tests.unit.conftest import ToyClient
 
 
@@ -41,6 +41,11 @@ def data_service(toy_client, start_requests):
     return DataService(requests=start_requests)
 
 
+@pytest.fixture
+def async_data_service(toy_client, start_requests):
+    return AsyncDataService(requests=start_requests)
+
+
 async def parse_items(response: Response):
     """Mock function that parses a list of items from a response and makes a request for each item"""
     for i in range(1, 21):
@@ -57,6 +62,18 @@ def parse_item(response: Response):
 
 def test_toy_service(data_service):
     data = tuple(data_service)
+    assert len(data) == 40
+    assert set([d["url"] for d in data[:20]]) == set(
+        [f"https://www.foobar.com/item_{i}" for i in range(1, 21)]
+    )
+    assert set([d["url"] for d in data[20:]]) == set(
+        [f"https://www.barbaz.com/item_{i}" for i in range(1, 21)]
+    )
+
+
+@pytest.mark.asyncio
+async def test_toy_async_service(async_data_service):
+    data = [datum async for datum in async_data_service]
     assert len(data) == 40
     assert set([d["url"] for d in data[:20]]) == set(
         [f"https://www.foobar.com/item_{i}" for i in range(1, 21)]

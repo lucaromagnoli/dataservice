@@ -4,7 +4,7 @@ import pytest
 
 from dataservice.clients import HttpXClient
 from dataservice.models import Request, Response
-from dataservice.service import DataService
+from dataservice.service import AsyncDataService, DataService
 
 
 @pytest.fixture
@@ -28,6 +28,11 @@ def data_service(start_requests):
     return DataService(requests=start_requests)
 
 
+@pytest.fixture
+def async_data_service(start_requests):
+    return AsyncDataService(requests=start_requests)
+
+
 def parse_books(response: Response):
     articles = response.html.find_all("article", {"class": "product_pod"})
     for article in articles:
@@ -44,4 +49,10 @@ def parse_book_details(response: Response):
 
 def test_scrape_books(data_service):
     data = tuple(data_service)
+    assert len(data) == 20
+
+
+@pytest.mark.asyncio
+async def test_scrape_books_async(async_data_service):
+    data = [datum async for datum in async_data_service]
     assert len(data) == 20

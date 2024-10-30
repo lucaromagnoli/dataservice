@@ -10,7 +10,6 @@ from typing import (
     Literal,
     Optional,
     TypedDict,
-    TypeVar,
     Union,
 )
 
@@ -27,8 +26,8 @@ from pydantic import (
 
 from dataservice._utils import _get_func_name
 
-DataItemGeneric = TypeVar("DataItemGeneric")
-RequestOrData = Union["Request", DataItemGeneric]
+GenericDataItem = dict[Any, Any] | BaseModel
+RequestOrData = Union["Request", GenericDataItem]
 CallbackReturn = Iterator[RequestOrData] | RequestOrData
 CallbackType = Callable[["Response"], CallbackReturn]
 ClientCallable = Callable[["Request"], "Response"]
