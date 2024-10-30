@@ -13,7 +13,6 @@ from dataservice.service import AsyncDataService, DataService
 
 __all__ = [
     "AsyncDataService",
-    "DataItem",
     "BaseDataItem",
     "CacheConfig",
     "DataService",
