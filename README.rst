@@ -12,7 +12,7 @@ Designed for simplicity, it's built upon common web scraping and data gathering 
 
 No complex API to learn, just standard Python idioms.
 
-Async implementation, sync interface.
+Dual synchronous and asynchronous support.
 
 Installation
 ------------

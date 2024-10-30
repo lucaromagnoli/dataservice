@@ -28,7 +28,13 @@ from dataservice.exceptions import (
     ParsingException,
     RetryableException,
 )
-from dataservice.models import ClientCallable, FailedRequest, Request, Response
+from dataservice.models import (
+    ClientCallable,
+    FailedRequest,
+    GenericDataItem,
+    Request,
+    Response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +127,7 @@ class DataWorker:
         request: Request = failed_req["request"]
         self._failures[str(request.url)] = failed_req
 
-    def get_data_item(self) -> dict | BaseModel:
+    def get_data_item(self) -> GenericDataItem:
         """
         Retrieve a data item from the data queue.
 
@@ -143,7 +149,7 @@ class DataWorker:
             raise ValueError("No requests to process.")
         self._started = True
 
-    async def _handle_queue_item(self, item: Request | dict | BaseModel) -> None:
+    async def _handle_queue_item(self, item: Request | GenericDataItem) -> None:
         """
         Handles an item from the work queue.
 
@@ -297,7 +303,7 @@ class DataWorker:
         return await client(request)
 
     async def _iter_callbacks(
-        self, callback: Generator | AsyncGenerator | Request | dict | BaseModel
+        self, callback: Generator | AsyncGenerator | Request | GenericDataItem
     ) -> AsyncGenerator[asyncio.Task, None]:
         """
         Iterates over callbacks and creates tasks for them.
