@@ -38,6 +38,8 @@ def main():
     args = parser.parse_args()
 
     filename = args.filename
+    if not filename.endswith(".py"):
+        filename = f"{filename}.py"
     script_name = filename.split(".")[0]
     use_playwright_client = args.playwright
     use_httpx_client = not use_playwright_client
