@@ -16,6 +16,7 @@ Dual synchronous and asynchronous support.
 
 Installation
 ------------
+Please note that DataService requires Python 3.11 or higher.
 
 You can install DataService via pip:
 
@@ -23,9 +24,14 @@ You can install DataService via pip:
 
     pip install python-dataservice
 
-Please note that DataService requires Python 3.11 or higher.
 
-If you want to use `PlaywrightClient`, you will also need to install the `playwright` package:
+You can also install the optional ``playwright`` dependency to use the ``PlaywrightClient``:
+
+.. code-block:: bash
+
+    pip install python-dataservice[playwright]
+
+To install Playwright, run:
 
 .. code-block:: bash
 
@@ -50,7 +56,8 @@ To start, create a ``DataService`` instance with an ``Iterable`` of ``Request`` 
 
 A ``Request`` is a ``Pydantic`` model that includes the URL to fetch, a reference to the ``client`` callable, and a ``callback`` function for parsing the ``Response`` object.
 
-The client can be any Python callable that accepts a ``Request`` object and returns a ``Response`` object. ``DataService`` provides an ``HttpXClient`` class, which is based on the ``httpx`` library, but you are free to use your own custom async client.
+The client can be any async Python callable that accepts a ``Request`` object and returns a ``Response`` object.
+``DataService`` provides an ``HttpXClient`` class by default, which is based on the ``httpx`` library, but you are free to use your own custom async client.
 
 The callback function processes a ``Response`` object and returns either ``data`` or additional ``Request`` objects.
 
@@ -72,8 +79,8 @@ This function takes a ``Response`` object, which has a ``html`` attribute (a ``B
 
 The callback function can ``return`` or ``yield`` either ``data`` (``dict`` or ``pydantic.BaseModel``) or more ``Request`` objects.
 
-If you have used Scrapy before, you will find this pattern familiar.
+If you have used ``Scrapy`` before, you will find this pattern familiar.
 
 For more examples and advanced usage, check out the `examples <https://dataservice.readthedocs.io/en/latest/examples.html>`_ section.
 
-For a detailed API reference, check out the `modules <https://dataservice.readthedocs.io/en/latest/modules.html>`_  section.
+For a detailed API reference, check out the `API <https://dataservice.readthedocs.io/en/latest/modules.html>`_  section.

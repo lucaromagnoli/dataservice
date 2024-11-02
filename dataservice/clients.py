@@ -7,14 +7,24 @@ from typing import Annotated, Any, Awaitable, Callable, NoReturn, Optional
 
 import httpx
 from annotated_types import Ge, Le
-from playwright.async_api import Page as PlaywrightPage
-from playwright.async_api import Request as PlaywrightRequest
-from playwright.async_api import Response as PlaywrightResponse
-from playwright.async_api import async_playwright
 from pydantic import HttpUrl
 
 from dataservice.exceptions import DataServiceException, RetryableException
 from dataservice.models import Request, Response
+
+try:
+    from playwright.async_api import Page as PlaywrightPage
+    from playwright.async_api import Request as PlaywrightRequest
+    from playwright.async_api import Response as PlaywrightResponse
+    from playwright.async_api import async_playwright
+
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    PlaywrightPage = None
+    PlaywrightRequest = None
+    PlaywrightResponse = None
+    async_playwright = None
+    PLAYWRIGHT_AVAILABLE = False
 
 logger = getLogger(__name__)
 
@@ -115,6 +125,11 @@ class PlaywrightClient:
         :param actions: Optional coroutine with actions to perform on the page before returning the response.
         :param intercept_url: Optional URL to intercept and get data from.
         """
+        if not PLAYWRIGHT_AVAILABLE:
+            raise ImportError(
+                "Playwright optional dependency is not installed. Please install it with `pip install python-dataservice[playwright]`."
+            )
+
         self.actions = actions
         self.intercept_url = intercept_url
         self.async_playwright = async_playwright
