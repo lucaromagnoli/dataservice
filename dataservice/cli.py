@@ -30,9 +30,10 @@ def main():
         help="Use AsyncDataService and make the main function async.",
     )
     parser.add_argument(
-        "--playwright",
-        action="store_true",
-        help="Use PlaywrightClient instead of HttpXClient.",
+        "--client",
+        help="The name of the client to use. Default is HttpXClient.",
+        choices=["httpx", "playwright"],
+        default="httpx",
     )
 
     args = parser.parse_args()
@@ -41,8 +42,8 @@ def main():
     if not filename.endswith(".py"):
         filename = f"{filename}.py"
     script_name = filename.split(".")[0]
-    use_playwright_client = args.playwright
-    use_httpx_client = not use_playwright_client
+    use_httpx_client = args.client == "httpx"
+    use_playwright_client = args.client == "playwright"
     use_async_data_service = args.async_service
     use_data_service = not use_async_data_service
 
