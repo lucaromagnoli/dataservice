@@ -1,0 +1,87 @@
+"""Template for creating a new data service."""
+{% if use_async_data_service %}
+import asyncio
+{% endif %}
+from logging import getLogger
+
+from dataservice import (
+    {% if use_base_data_item %}BaseDataItem,{% endif -%}
+    {% if use_data_service %}DataService,{% endif -%}
+    {% if use_async_data_service %}AsyncDataService,{% endif -%}
+    {% if use_httpx_client%}HttpXClient,{% endif -%}
+    {% if use_playwright_client%}PlaywrightClient,{% endif -%}
+    {% if use_proxy_config %}ProxyConfig,{% endif -%}
+    Request,
+    Response,
+    setup_logging,
+    {% if use_service_config %}ServiceConfig,{% endif -%}
+)
+
+logger = getLogger("{{ script_name }}")
+setup_logging("{{ script_name }}")
+
+{% if use_base_data_item %}
+class MyDataItem(BaseDataItem):
+    foo: str
+    bar: int
+{% endif -%}
+
+def parse_function(response: Response):
+    """Parse function.
+
+    :param response: Response object
+    """
+
+{% if use_async_data_service %}
+async def main():
+    {% if use_httpx_client -%}
+    client = HttpXClient()
+    {% else -%}
+    client = PlaywrightClient()
+    {% endif -%}
+
+    start_requests = [
+        Request(
+            url="",
+            callback=parse_function,
+            client=client,
+        )
+    ]
+    {% if use_service_config %}
+    service_config = ServiceConfig(random_delay=1000, cache={"use": True})
+    data_service = AsyncDataService(start_requests, service_config)
+    {% else %}
+    data_service = AsyncDataService(start_requests)
+    {% endif -%}
+    data = [datum async for datum in data_service]
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+{% else %}
+def main():
+    {% if use_httpx_client -%}
+    client = HttpXClient()
+    {% else -%}
+    client = PlaywrightClient()
+    {% endif -%}
+
+    start_requests = [
+        Request(
+            url="",
+            callback=parse_function,
+            client=client,
+        )
+    ]
+    {% if use_service_config %}
+    service_config = ServiceConfig(random_delay=1000, cache={"use": True})
+    data_service = DataService(start_requests, service_config)
+    {% else %}
+    data_service = DataService(start_requests)
+    {% endif -%}
+    data = [datum for datum in data_service]
+
+
+if __name__ == "__main__":
+    main()
+{% endif %}

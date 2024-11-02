@@ -1,6 +1,8 @@
 """Config."""
 
-from typing import Annotated, NewType
+from __future__ import annotations
+
+from typing import Annotated, NewType, Optional
 
 from annotated_types import Ge
 from pydantic import BaseModel, Field, FilePath, NewPath
@@ -78,3 +80,18 @@ class ServiceConfig(BaseModel):
     cache: CacheConfig = Field(
         description="The cache configuration", default_factory=CacheConfig
     )
+
+
+class ProxyConfig(BaseModel):
+    """Proxy configuration for the service."""
+
+    host: str = Field(description="The proxy host.")
+    port: int = Field(description="The proxy port.")
+    username: Optional[str] = Field(description="The proxy username.", default=None)
+    password: Optional[str] = Field(description="The proxy password.", default=None)
+
+    @property
+    def url(self) -> str:
+        if self.username and self.password:
+            return f"http://{self.username}:{self.password}@{self.host}:{self.port}"
+        return f"http://{self.host}:{self.port}"
