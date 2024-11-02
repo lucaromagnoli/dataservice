@@ -22,6 +22,7 @@ tenacity = "^9.0.0"
 aiolimiter = "^1.1.0"
 asyncer = "^0.0.7"
 playwright = "^1.48.0"
+jinja2 = "^3.1.4"
 
 [tool.poetry.extras]
 playwright = ["playwright"]
@@ -55,6 +56,9 @@ furo = "^2024.8.6"
 fastapi-pagination = "^0.12.26"
 faker = "^26.3.0"
 fastapi = {extras = ["all"], version = "^0.112.0"}
+
+[tool.poetry.scripts]
+dataservice = "dataservice.cli:main"
 
 
 [build-system]

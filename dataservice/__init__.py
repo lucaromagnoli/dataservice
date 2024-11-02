@@ -6,6 +6,7 @@ from dataservice.clients import (
 )
 from dataservice.config import (
     CacheConfig,
+    ProxyConfig,
     RateLimiterConfig,
     RetryConfig,
     ServiceConfig,
@@ -40,6 +41,7 @@ __all__ = [
     "HttpXClient",
     "PlaywrightClient",
     "PlaywrightPage",
+    "ProxyConfig",
     "RateLimiterConfig",
     "Request",
     "Response",
