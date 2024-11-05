@@ -9,17 +9,26 @@ import httpx
 from annotated_types import Ge, Le
 from pydantic import HttpUrl
 
+from dataservice.config import PlaywrightConfig
 from dataservice.exceptions import DataServiceException, RetryableException
 from dataservice.models import Request, Response
 
 try:
+    from playwright.async_api import (
+        Browser,
+        BrowserContext,
+        Playwright,
+        async_playwright,
+    )
     from playwright.async_api import Page as PlaywrightPage
     from playwright.async_api import Request as PlaywrightRequest
     from playwright.async_api import Response as PlaywrightResponse
-    from playwright.async_api import async_playwright
 
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
+    Browser = None
+    BrowserContext = None
+    Playwright = None
     PlaywrightPage = None
     PlaywrightRequest = None
     PlaywrightResponse = None
@@ -119,6 +128,7 @@ class PlaywrightClient:
         self,
         actions: Optional[Callable[[PlaywrightPage], Awaitable[None]]] = None,
         intercept_url: Optional[str] = None,
+        config: Optional[PlaywrightConfig] = None,
     ):
         """Initialize the PlaywrightClient.
 
@@ -132,12 +142,29 @@ class PlaywrightClient:
 
         self.actions = actions
         self.intercept_url = intercept_url
-        self.async_playwright = async_playwright
+        self.config = config
         self._intercepted_requests: list[PlaywrightRequest] | None = None
+        self.async_playwright = async_playwright
+        self.browser: Browser
+        self.context: BrowserContext
+        self.page: PlaywrightPage
 
     def __call__(self, *args, **kwargs):
         """Make a request using the client."""
         return self.make_request(*args, **kwargs)
+
+    def _get_context_kwargs(self, request: Request) -> dict[str, Any]:
+        """Get the context kwargs for the Playwright client.
+
+        :param request: The request object containing the details of the HTTP request.
+        :return: A dictionary containing the context kwargs.
+        """
+        context_kwargs = {}
+        if request.proxy:
+            context_kwargs["proxy"] = {"server": request.proxy.url}
+        if self.config is not None and self.config.device:
+            context_kwargs.update(self.config.device)
+        return context_kwargs
 
     async def make_request(self, request: Request) -> Response | NoReturn:
         """Make a request and handle exceptions.
@@ -150,7 +177,7 @@ class PlaywrightClient:
         return await self._make_request(request)
 
     @staticmethod
-    def raise_for_status(response: PlaywrightResponse):
+    def _raise_for_status(response: PlaywrightResponse):
         """Raise an exception if the response status code is not 2xx.
 
         :param response: The response object to check.
@@ -193,43 +220,57 @@ class PlaywrightClient:
                     responses[request.url] = await response.json()
         return responses
 
+    async def _init_browser(self, request: Request) -> PlaywrightPage:
+        """Initialize the Playwright browser and context."""
+        browser_name = self.config.browser if self.config else "chromium"
+        headless = self.config.headless if self.config else True
+        self.playwright = await self.async_playwright().start()
+        self.browser = await getattr(self.playwright, browser_name).launch(
+            headless=headless
+        )
+
+        context_kwargs = self._get_context_kwargs(request)
+        self.context = await self.browser.new_context(**context_kwargs)
+
+        self.page = await self.context.new_page()
+        if self.intercept_url is not None:
+            self.page.on(
+                "request", lambda pw_request: self._intercept_requests(pw_request)
+            )
+
     async def _make_request(self, request: Request) -> Response:
         """Make a request using Playwright. Private method for internal use.
 
         :param request: The request object containing the details of the HTTP request.
         :return: A Response object containing the response data.
         """
+        await self._init_browser(request)
         logger.info(f"Requesting {request.url}")
-        async with self.async_playwright() as p:
-            browser = await p.chromium.launch()
-            context = await browser.new_context()
-            page = await context.new_page()
-            if self.intercept_url is not None:
-                page.on(
-                    "request", lambda pw_request: self._intercept_requests(pw_request)
-                )
-            pw_response = await page.goto(request.url)
-            self.raise_for_status(pw_response)
-            if self.actions is not None:
-                await self.actions(page)
 
-            text = await page.content()
-            data = None
-            logger.info(f"Received response for {request.url}")
+        pw_response = await self.page.goto(request.url)
+        self._raise_for_status(pw_response)
 
-            if self._intercepted_requests:
-                data = await self._get_intercepted_requests()
+        if self.actions is not None:
+            await self.actions(self.page)
 
-            cookies = await context.cookies()
-            await context.close()
-            await browser.close()
+        text = await self.page.content()
+        data = None
+        logger.info(f"Received response for {request.url}")
 
-            return Response(
-                request=request,
-                text=text,
-                data=data,
-                url=HttpUrl(pw_response.url),
-                status_code=pw_response.status,
-                cookies=cookies,
-                headers=pw_response.headers,
-            )
+        if self._intercepted_requests:
+            data = await self._get_intercepted_requests()
+
+        cookies = await self.context.cookies()
+        await self.context.close()
+        await self.browser.close()
+        await self.playwright.stop()
+
+        return Response(
+            request=request,
+            text=text,
+            data=data,
+            url=HttpUrl(pw_response.url),
+            status_code=pw_response.status,
+            cookies=cookies,
+            headers=pw_response.headers,
+        )
