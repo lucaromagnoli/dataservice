@@ -145,9 +145,10 @@ class PlaywrightClient:
         self.config = config
         self._intercepted_requests: list[PlaywrightRequest] | None = None
         self.async_playwright = async_playwright
-        self.browser: Browser
-        self.context: BrowserContext
-        self.page: PlaywrightPage
+        self.playwright: Playwright | None = None
+        self.browser: Browser | None = None
+        self.context: BrowserContext | None = None
+        self.page: PlaywrightPage | None = None
 
     def __call__(self, *args, **kwargs):
         """Make a request using the client."""
@@ -246,6 +247,14 @@ class PlaywrightClient:
         """
         await self._init_browser(request)
         logger.info(f"Requesting {request.url}")
+
+        if (
+            self.page is None
+            or self.context is None
+            or self.browser is None
+            or self.playwright is None
+        ):
+            raise RuntimeError("Playwright components are not initialized properly")
 
         pw_response = await self.page.goto(request.url)
         self._raise_for_status(pw_response)
