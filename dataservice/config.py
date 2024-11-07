@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, NewType, Optional
+from typing import Annotated, Any, Literal, NewType, Optional
 
 from annotated_types import Ge
 from pydantic import BaseModel, Field, FilePath, NewPath
@@ -95,3 +95,16 @@ class ProxyConfig(BaseModel):
         if self.username and self.password:
             return f"http://{self.username}:{self.password}@{self.host}:{self.port}"
         return f"http://{self.host}:{self.port}"
+
+
+class PlaywrightConfig(BaseModel):
+    browser: Literal["chromium", "firefox", "webkit"] = Field(
+        description="The browser to use.", default="chromium"
+    )
+    headless: bool = Field(description="Whether to run in headless mode.", default=True)
+    slow_mo: PositiveInt = Field(
+        description="The slow motion delay in milliseconds.", default=0
+    )
+    device: Optional[dict[str, Any]] = Field(
+        description="The devices to use.", default=None
+    )

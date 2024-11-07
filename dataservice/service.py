@@ -89,7 +89,9 @@ class DataService(BaseDataService):
         Fetches the next data item from the data worker.
         """
         if not self._data_worker.has_started:
+            logger.info("Start fetching.")
             asyncio.run(self._data_worker.fetch())
+            logger.info("Retrieving data.")
         if self._data_worker.has_no_more_data():
             raise StopIteration
         return self._data_worker.get_data_item()
@@ -134,6 +136,7 @@ class AsyncDataService(BaseDataService):
     async def __anext__(self) -> GenericDataItem:
         """Fetches the next data item from the data worker."""
         if not self._data_worker.has_started:
+            logger.info("Data service start fetching.")
             await self._data_worker.fetch()
         if self._data_worker.has_no_more_data():
             raise StopAsyncIteration
