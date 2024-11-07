@@ -6,13 +6,12 @@ on:
     types:
       - completed
 
-  push:
-    branches:
-      - main
+  pull_request:
+    branches: [ "main" ]
 
 jobs:
   release:
-    if: github.event.workflow_run.conclusion == 'success' && github.ref == 'refs/heads/main' && github.event.pull_request.merged == true
+    if: ${{ github.event.pull_request.merged }}
     runs-on: ubuntu-latest
 
     steps:
