@@ -5,15 +5,20 @@ on:
     workflows: ["Run CI"]
     types:
       - completed
+  push:
+    branches:
+      - dev
 
 jobs:
   release:
-    if: github.event.workflow_run.conclusion == 'success' && github.ref == 'refs/heads/dev'
+    if: github.event.workflow_run.conclusion == 'success' && github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
+        with:
+          ref: dev
 
       - name: Set up Python
         uses: actions/setup-python@v5
