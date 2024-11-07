@@ -12,7 +12,7 @@ def mock_browser(mocker):
     mock_playwright = AsyncMock()
     mock_browser_ = AsyncMock()
     mocker.patch("dataservice.clients.async_playwright", return_value=mock_playwright)
-    mock_playwright.__aenter__.return_value = mock_playwright
+    mock_playwright.start.return_value = mock_playwright
     mock_playwright.chromium.launch.return_value = mock_browser_
     return mock_browser_
 
@@ -29,7 +29,7 @@ def mock_browser_page(mock_browser, request):
     mock_response.status = request.param
     mock_response.url = "http://example.com"
     mock_response.headers = {}
-    return mock_response
+    return mock_page
 
 
 def get_request(client):
