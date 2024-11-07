@@ -80,7 +80,7 @@ class HttpXClient:
         :param request: The request object containing the details of the HTTP request.
         :return: A Response object containing the response data.
         """
-        logger.info(f"Requesting {request.url}")
+        logger.debug(f"Requesting {request.url}")
         async with self.async_client(
             headers=request.headers,
             proxy=request.proxy.url if request.proxy else None,
@@ -111,7 +111,7 @@ class HttpXClient:
         if request.json_data:
             msg += f" - json data {request.json_data}"
 
-        logger.info(msg)
+        logger.debug(msg)
         return Response(
             request=request,
             text=response.text,
@@ -201,7 +201,7 @@ class PlaywrightClient:
         """
         seen = set()
         if self.intercept_url in request.url and request.url not in seen:
-            logger.info(f"Intercepted request: {request.url}")
+            logger.debug(f"Intercepted request: {request.url}")
             seen.add(request.url)
             if self._intercepted_requests is not None:
                 self._intercepted_requests.append(request)
@@ -246,7 +246,7 @@ class PlaywrightClient:
         :return: A Response object containing the response data.
         """
         await self._init_browser(request)
-        logger.info(f"Requesting {request.url}")
+        logger.debug(f"Requesting {request.url}")
 
         if (
             self.page is None
@@ -264,7 +264,7 @@ class PlaywrightClient:
 
         text = await self.page.content()
         data = None
-        logger.info(f"Received response for {request.url}")
+        logger.debug(f"Received response for {request.url}")
 
         if self._intercepted_requests:
             data = await self._get_intercepted_requests()
