@@ -4,7 +4,6 @@ packages = [
     { include = "dataservice"},
 ]
 version = "0.7.0"
-=======
 description = "Lightweight async data gathering for Python"
 authors = ["NomadMonad <romagnoli.luca@gmail.com>"]
 readme = "README.rst"
