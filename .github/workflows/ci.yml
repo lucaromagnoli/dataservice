@@ -2,9 +2,9 @@ name: Run CI
 
 on:
   push:
-    branches: [ "main", "dev" ]
+    branches: [ "dev" ]
   pull_request:
-    branches: [ "main"]
+    branches: [ "dev"]
 
 permissions:
   contents: read
@@ -42,7 +42,7 @@ jobs:
       - name: Install project dependencies
         run: |
           poetry config virtualenvs.create false
-          poetry install --with dev --no-root
+          poetry install --with dev --no-root -E playwright
 
       - name: Lint ruff
         run: |
