@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from logging import getLogger
-from typing import Annotated, Any, Awaitable, Callable, NoReturn, Optional
+from typing import Annotated, Any, Awaitable, Callable, Literal, NoReturn, Optional
 
 import httpx
 from annotated_types import Ge, Le
@@ -126,8 +126,10 @@ class PlaywrightClient:
 
     def __init__(
         self,
+        *,
         actions: Optional[Callable[[PlaywrightPage], Awaitable[None]]] = None,
         intercept_url: Optional[str] = None,
+        intercept_content_type: Optional[Literal["text", "json"]] = "json",
         config: Optional[PlaywrightConfig] = None,
     ):
         """Initialize the PlaywrightClient.
@@ -142,6 +144,7 @@ class PlaywrightClient:
 
         self.actions = actions
         self.intercept_url = intercept_url
+        self.intercept_content_type = intercept_content_type
         self.config = config
         self._intercepted_requests: list[PlaywrightRequest] | None = None
         self.async_playwright = async_playwright
@@ -218,7 +221,10 @@ class PlaywrightClient:
             for request in self._intercepted_requests:
                 if request.url not in responses:
                     response = await request.response()
-                    responses[request.url] = await response.json()
+                    if self.intercept_content_type == "text":
+                        responses[request.url] = await response.text()
+                    elif self.intercept_content_type == "json":
+                        responses[request.url] = await response.json()
         return responses
 
     async def _init_browser(self, request: Request) -> PlaywrightPage:
