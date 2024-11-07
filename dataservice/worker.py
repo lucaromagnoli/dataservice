@@ -171,6 +171,7 @@ class DataWorker:
         """
         key = request.model_dump_json(include=self.config.deduplication_keys)
         if key in self._seen_requests:
+            logger.debug(f"Skipping duplicate request {request.url}")
             return True
         self._seen_requests.add(key)
         return False
@@ -333,6 +334,7 @@ class DataWorker:
             async with self.cache_context as cache:
                 while self.has_jobs():
                     logger.debug(f"Work queue size: {self._work_queue.qsize()}")
+                    logger.debug(f"Data queue size: {self._data_queue.qsize()}")
                     item = self._work_queue.get_nowait()
                     tasks = [task async for task in self._iter_callbacks(item)]
                     await asyncio.gather(*tasks)
