@@ -10,7 +10,6 @@ from typing import (
     Literal,
     Optional,
     TypedDict,
-    TypeVar,
     Union,
 )
 
@@ -26,28 +25,14 @@ from pydantic import (
 )
 
 from dataservice._utils import _get_func_name
+from dataservice.config import ProxyConfig
 
-DataItemGeneric = TypeVar("DataItemGeneric")
-RequestOrData = Union["Request", DataItemGeneric]
+GenericDataItem = dict[Any, Any] | BaseModel
+RequestOrData = Union["Request", GenericDataItem]
 CallbackReturn = Iterator[RequestOrData] | RequestOrData
 CallbackType = Callable[["Response"], CallbackReturn]
 ClientCallable = Callable[["Request"], "Response"]
 StrOrDict = str | dict
-
-
-class ProxyConfig(BaseModel):
-    """Proxy configuration for the service."""
-
-    host: str = Field(description="The proxy host.")
-    port: int = Field(description="The proxy port.")
-    username: Optional[str] = Field(description="The proxy username.", default=None)
-    password: Optional[str] = Field(description="The proxy password.", default=None)
-
-    @property
-    def url(self) -> str:
-        if self.username and self.password:
-            return f"http://{self.username}:{self.password}@{self.host}:{self.port}"
-        return f"http://{self.host}:{self.port}"
 
 
 class Request(BaseModel):

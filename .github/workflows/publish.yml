@@ -2,15 +2,13 @@ name: Publish Python Package
 
 on:
   workflow_run:
-    workflows: [ "ci (3.11)", "ci (3.12)" ]
+    workflows: ["CI"]
     types:
       - completed
-  push:
-    branches:
-      - main
 
 jobs:
   release:
+    if: github.event.workflow_run.conclusion == 'success' && github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
 
     steps:
@@ -29,18 +27,31 @@ jobs:
 
       - name: Install dependencies
         run: |
-          poetry install --no-root
+          poetry install --no-root -E playwright
+
+      - name: Check if version is already published
+        id: check_version
+        run: |
+          VERSION=$(poetry version -s)
+          if python -m pip search dataservice==$VERSION; then
+            echo "Version $VERSION is already published. Skipping."
+            exit 0
+          else
+            echo "Version $VERSION is not published yet. Proceeding."
+          fi
 
       - name: Build package
+        if: ${{ steps.check_version.outcome == 'success' }}
         run: |
           poetry build
 
-      - name: Publish to PyPI
+      - name: Publish to Test PyPI
         env:
-          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.DS_PYPI_API_TOKEN }}
+          POETRY_TEST_PYPI_TOKEN_PYPI: ${{ secrets.DS_TEST_PYPI_API_TOKEN }}
         run: |
-          poetry config http-basic.pypi "__token__" "${POETRY_PYPI_TOKEN_PYPI}"
-          poetry publish
+          poetry config repositories.test-pypi https://test.pypi.org/legacy/
+          poetry config pypi-token.test-pypi "${POETRY_TEST_PYPI_TOKEN_PYPI}"
+          poetry publish -r test-pypi
 
       - name: Get the version from pyproject.toml
         id: get_version
@@ -48,19 +59,21 @@ jobs:
           echo "::set-output name=version::$(poetry version -s)"
 
       - name: Create Git tag
+        if: ${{ steps.check_version.outcome == 'success' }}
         env:
           GITHUB_TOKEN: ${{ secrets.CI_TOKEN }}
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git tag -a v${{ steps.get_version.outputs.version }} -m "Release version ${{ steps.get_version.outputs.version }}"
-          git push https://x-access-token:${GITHUB_TOKEN}@github.com/lucaromagnoli/dataservice.git v${{ steps.get_version.outputs.version }}
+          git tag -a v${{ steps.get_version.outputs.version }} -m "Release version ${{ steps.get_version.outputs.version }}-dev"
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/lucaromagnoli/dataservice.git v${{ steps.get_version.outputs.version }}-dev
 
       - name: Create GitHub Release
+        if: ${{ steps.check_version.outcome == 'success' }}
         uses: ncipollo/release-action@v1
         with:
-          tag: v${{ steps.get_version.outputs.version }}
-          name: "Release ${{ steps.get_version.outputs.version }}"
-          body: "New release version ${{ steps.get_version.outputs.version }} is published"
+          tag: v${{ steps.get_version.outputs.version }}-dev
+          name: "Release ${{ steps.get_version.outputs.version }}-dev"
+          body: "New release version ${{ steps.get_version.outputs.version }}-dev is published"
           draft: false
           prerelease: false

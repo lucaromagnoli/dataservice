@@ -32,14 +32,15 @@ class LoggingConfigDict(BaseModel):
     loggers: dict[str, LoggerDict] = {"dataservice": LoggerDict()}
 
 
-def setup_logging(logger_name: str | None = None):
+def setup_logging(logger_name: str | None = None, level: LoggingLevel = "DEBUG"):
     """Setup logging configuration.
 
     :param logger_name: The logger name.
+    :param level: The logging level.
     """
-    loggers = {"dataservice": LoggerDict()}
+    loggers = {"dataservice": LoggerDict(level=level)}
     if logger_name is not None:
-        loggers.update({logger_name: LoggerDict()})
+        loggers.update({logger_name: LoggerDict(level=level)})
 
     dict_config = LoggingConfigDict(loggers=loggers).model_dump(by_alias=True)
     dictConfig(dict_config)
