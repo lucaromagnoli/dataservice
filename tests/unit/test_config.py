@@ -4,7 +4,7 @@ import os
 import pytest
 from pydantic import ValidationError
 
-from dataservice.config import RetryConfig, ServiceConfig
+from dataservice.config import ProxyConfig, RetryConfig, ServiceConfig
 
 
 def test_retry_config_defaults():
@@ -78,3 +78,22 @@ def cache_path(tmp_path):
 
 def test_cache_config_write(cache_path):
     ServiceConfig(cache={"use": True, "path": cache_path})
+
+
+@pytest.mark.parametrize(
+    "url, expected_host, expected_port, expected_username, expected_password",
+    [
+        ("http://localhost:8080", "localhost", 8080, None, None),
+        ("http://user:pass@localhost:8080", "localhost", 8080, "user", "pass"),
+        ("http://localhost:8080", "localhost", 8080, None, None),
+        ("http://user:pass@127.0.0.1:3128", "127.0.0.1", 3128, "user", "pass"),
+    ],
+)
+def test_proxy_config_from_url(
+    url, expected_host, expected_port, expected_username, expected_password
+):
+    proxy_config = ProxyConfig.from_url(url)
+    assert proxy_config.host == expected_host
+    assert proxy_config.port == expected_port
+    assert proxy_config.username == expected_username
+    assert proxy_config.password == expected_password

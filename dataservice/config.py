@@ -90,6 +90,19 @@ class ProxyConfig(BaseModel):
     username: Optional[str] = Field(description="The proxy username.", default=None)
     password: Optional[str] = Field(description="The proxy password.", default=None)
 
+    @classmethod
+    def from_url(cls, url: str) -> ProxyConfig:
+        if "://" in url:
+            url = url.split("://")[1]
+        if "@" in url:
+            auth, url = url.split("@")
+            username, password = auth.split(":")
+        else:
+            username = None
+            password = None
+        host, port = url.split(":")
+        return cls(host=host, port=int(port), username=username, password=password)
+
     @property
     def url(self) -> str:
         if self.username and self.password:
