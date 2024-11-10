@@ -64,21 +64,23 @@ class DataWorker:
         self._seen_requests: set = set()
         self._started: bool = False
         self._cache: AsyncJsonCache | None = None
-        self._limiter: AsyncLimiter | None = None
+        self._semaphore: asyncio.Semaphore = asyncio.Semaphore(
+            self.config.max_concurrency
+        )
+        self._limiter = (
+            AsyncLimiter(self.config.limiter.max_rate, self.config.limiter.time_period)
+            if self.config.limiter
+            else nullcontext()
+        )
 
     @property
-    def limiter_context(self):
-        if self.limiter is not None:
-            return self.limiter
-        return nullcontext()
-
-    @property
-    def limiter(self):
-        if self._limiter is None and self.config.limiter is not None:
-            self._limiter = AsyncLimiter(
-                self.config.limiter.max_rate, self.config.limiter.time_period
-            )
-        return self._limiter
+    def cache(self) -> AsyncJsonCache | None:
+        """
+        Lazy initialization of the cache instance.
+        """
+        if self._cache is None and self.config.cache.use:
+            self._cache = AsyncJsonCache(Path(self.config.cache.path))
+        return self._cache
 
     @property
     def cache_context(self):
@@ -92,15 +94,6 @@ class DataWorker:
         :return: True if the worker has started, False otherwise.
         """
         return self._started
-
-    @property
-    def cache(self) -> AsyncJsonCache | None:
-        """
-        Lazy initialization of the cache instance.
-        """
-        if self._cache is None and self.config.cache.use:
-            self._cache = AsyncJsonCache(Path(self.config.cache.path))
-        return self._cache
 
     async def _add_to_work_queue(self, item: Iterable[Request] | Request) -> None:
         """
@@ -196,24 +189,27 @@ class DataWorker:
         if self._has_request_failed(request):
             logger.debug(f"Skipping failed request {request.url}")
             return
-        async with self.limiter_context:
-            try:
-                response = await self._handle_request(request)
-                callback_result = await self._handle_callback(request, response)
-                if isinstance(callback_result, (abc.MutableMapping, BaseModel)):
-                    await self._add_to_data_queue(callback_result)
-                else:
-                    await self._add_to_work_queue(callback_result)
-            except (DataServiceException, ParsingException) as e:
-                logger.error(f"An exception occurred: {e}")
-                self._add_to_failures(
-                    {
-                        "request": request,
-                        "message": str(e),
-                        "exception": type(e).__name__,
-                    }
-                )
-                return
+
+        try:
+            response = await self._handle_request(request)
+            callback_result = await self._handle_callback(request, response)
+            if isinstance(callback_result, (abc.MutableMapping, BaseModel)):
+                await self._add_to_data_queue(callback_result)
+            else:
+                await self._add_to_work_queue(callback_result)
+        except ParsingException as e:
+            logger.error(f"Parsing Error Occurred: {e}")
+            self._add_to_failures(
+                {
+                    "request": request,
+                    "message": str(e),
+                    "exception": type(e).__name__,
+                }
+            )
+            return
+        except DataServiceException as e:
+            logger.error(f"Data Service Error Occurred: {e}")
+            raise e
 
     async def _handle_callback(self, request, response):
         """
@@ -241,10 +237,8 @@ class DataWorker:
         :param request: The request object.
         :return: The response object.
         """
-        key = request.client_name
-        if key not in self._clients:
-            self._clients[key] = request.client
-        client = self._clients[key]
+
+        client = request.client
         if self.config.constant_delay:
             await asyncio.sleep(self.config.constant_delay / 1000)
         if self.config.random_delay:
@@ -260,17 +254,17 @@ class DataWorker:
         :return: The response object.
         """
 
-        def before_sleep_log(logger):
+        def before_sleep_log(_logger):
             def _before_sleep_log(retry_state: RetryCallState):
-                logger.debug(
+                _logger.debug(
                     f"Retrying request {request.url}, attempt {retry_state.attempt_number}",
                 )
 
             return _before_sleep_log
 
-        def after_log(logger):
+        def after_log(_logger):
             def _after_log(retry_state: RetryCallState):
-                logger.debug(
+                _logger.debug(
                     f"Retry attempt {retry_state.attempt_number}. Request {request.url} returned with status {retry_state.outcome}",
                 )
 
@@ -301,7 +295,8 @@ class DataWorker:
         if self.config.cache.use:
             cached = await cache_request(cast(AsyncJsonCache, self.cache))
             return await cached(client, request)
-        return await client(request)
+        async with self._semaphore, self._limiter:
+            return await client(request)
 
     async def _iter_callbacks(
         self, callback: Generator | AsyncGenerator | Request | GenericDataItem
@@ -327,19 +322,17 @@ class DataWorker:
         """
         Fetches data items by processing the work queue.
         """
-        semaphore = asyncio.Semaphore(self.config.max_concurrency)
-        async with semaphore:
-            if not self._started:
-                await self._enqueue_start_requests()
-            async with self.cache_context as cache:
-                while self.has_jobs():
-                    logger.debug(f"Work queue size: {self._work_queue.qsize()}")
-                    logger.debug(f"Data queue size: {self._data_queue.qsize()}")
-                    item = self._work_queue.get_nowait()
-                    tasks = [task async for task in self._iter_callbacks(item)]
-                    await asyncio.gather(*tasks)
-                    if self.config.cache.use:
-                        await cache.write_periodically(self.config.cache.write_interval)
+        if not self._started:
+            await self._enqueue_start_requests()
+        async with self.cache_context as cache:
+            while self.has_jobs():
+                logger.debug(f"Work queue size: {self._work_queue.qsize()}")
+                logger.debug(f"Data queue size: {self._data_queue.qsize()}")
+                item = self._work_queue.get_nowait()
+                tasks = [task async for task in self._iter_callbacks(item)]
+                await asyncio.gather(*tasks)
+                if self.config.cache.use:
+                    await cache.write_periodically(self.config.cache.write_interval)
 
     def has_no_more_data(self) -> bool:
         """

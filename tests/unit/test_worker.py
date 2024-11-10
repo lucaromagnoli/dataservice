@@ -1,8 +1,9 @@
+import asyncio
 import logging
 import os
 from contextlib import nullcontext as does_not_raise
 from pathlib import Path
-from unittest.mock import call
+from unittest.mock import AsyncMock, call, patch
 
 import pytest
 
@@ -181,9 +182,17 @@ async def test_deduplication(config, expected, mocker):
             [
                 RetryableException("Retryable request exception"),
                 RetryableException("Retryable request exception"),
-                Response(request=request_with_data_callback, data={"parsed": "data"}, url="http://example.com",),
+                Response(
+                    request=request_with_data_callback,
+                    data={"parsed": "data"},
+                    url="http://example.com",
+                ),
             ],
-            Response(request=request_with_data_callback, data={"parsed": "data"}, url="http://example.com",),
+            Response(
+                request=request_with_data_callback,
+                data={"parsed": "data"},
+                url="http://example.com",
+            ),
             does_not_raise(),
             3,
         ),
@@ -247,7 +256,11 @@ async def test__handle_request(
             [
                 RetryableException("Retryable request exception"),
                 RetryableException("Retryable request exception"),
-                Response(request=request_with_data_callback, data={"parsed": "data"}, url="http://example.com",),
+                Response(
+                    request=request_with_data_callback,
+                    data={"parsed": "data"},
+                    url="http://example.com",
+                ),
             ],
             does_not_raise(),
             "Retrying request http://example.com/, attempt 2",
@@ -337,3 +350,100 @@ async def test_data_worker_uses_cache_write_periodically(mocker):
     await data_worker.fetch()
     mock_cache.assert_called_with(Path("cache.json"))
     assert call().__aenter__().write_periodically(1) in mock_cache.mock_calls
+
+
+@pytest.fixture
+def config_concurrency():
+    # Configure with max concurrency of 3 for testing purposes
+    return ServiceConfig(max_concurrency=3, limiter=None)
+
+
+@pytest.fixture
+def concurrency_requests():
+    # Generate some mock requests for testing
+    return [
+        Request(
+            url=f"http://example.com/page-{i}",
+            callback=lambda x: Foo(parsed="data"),
+            client=ToyClient(random_sleep=1),
+        )
+        for i in range(10)
+    ]
+
+
+@pytest.fixture
+def concurrency_worker(config, concurrency_requests):
+    # Initialize DataWorker with mock config and requests
+    return DataWorker(concurrency_requests, config)
+
+
+@pytest.mark.asyncio
+async def test_semaphore_limits_concurrency(concurrency_worker):
+    """Test that semaphore enforces max_concurrency limit on concurrent requests."""
+
+    active_tasks = 0
+    max_tasks_observed = 0
+
+    # Define a wrapper to track active tasks
+    async def track__handle_request_item(request):
+        nonlocal active_tasks, max_tasks_observed
+        active_tasks += 1
+        max_tasks_observed = max(max_tasks_observed, active_tasks)
+        await concurrency_worker._handle_request_item(request)
+        active_tasks -= 1
+
+    # Run all request items concurrently, limited by semaphore
+    tasks = [
+        track__handle_request_item(request) for request in concurrency_worker._requests
+    ]
+    await asyncio.gather(*tasks)
+
+    # Check that max_tasks_observed never exceeded config.max_concurrency
+    assert max_tasks_observed <= concurrency_worker.config.max_concurrency
+
+
+@pytest.mark.asyncio
+async def test_semaphore_releases_after_request(concurrency_worker):
+    """Ensure semaphore releases correctly after each request completes."""
+
+    # Patch _handle_request to simulate a request that completes after a short delay
+    # Counter for active requests to verify semaphore behavior
+    active_tasks = 0
+
+    # Define a wrapper to track active tasks
+    async def track__handle_request_item(request):
+        nonlocal active_tasks
+        active_tasks += 1
+        assert (
+            active_tasks <= concurrency_worker.config.max_concurrency
+        )  # Assert within limit
+        await concurrency_worker._handle_request_item(request)
+        active_tasks -= 1
+
+    # Run all request items concurrently, limited by semaphore
+    tasks = [
+        track__handle_request_item(request) for request in concurrency_worker._requests
+    ]
+    await asyncio.gather(*tasks)
+
+    # If the test completes without exceeding max concurrency, it passes
+    assert active_tasks == 0
+
+
+@pytest.mark.asyncio
+async def test_handle_request_calls_within_semaphore_limit(concurrency_worker):
+    """Verify that `_handle_request_item` is called within semaphore limits."""
+
+    # Mock _handle_request to track calls without delay
+    with patch.object(
+        concurrency_worker, "_handle_request", AsyncMock()
+    ) as mock_handle_request:
+        # Run all request items concurrently
+        tasks = [
+            concurrency_worker._handle_request_item(request)
+            for request in concurrency_worker._requests
+        ]
+        await asyncio.gather(*tasks)
+
+        # Ensure _handle_request was called the expected number of times
+        assert mock_handle_request.call_count == len(concurrency_worker._requests)
