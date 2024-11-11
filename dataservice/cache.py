@@ -12,8 +12,10 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
+from anyio import to_thread
 from pydantic import HttpUrl
 
+from dataservice import CacheConfig
 from dataservice.models import Request, Response
 
 logger = logging.getLogger(__name__)
@@ -72,25 +74,33 @@ class AsyncCache(ABC):
     async def flush(self):
         raise NotImplementedError("Save state callable not provided")
 
+    async def write_periodically(self, interval: int):
+        """Write the cache to disk periodically.
+
+        :param interval: The interval in seconds to write the cache.
+        """
+        pass
+
 
 class LocalJsonCache(AsyncCache):
     """Simple JSON disk based cache implementation."""
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, flush_interval: int = 60 * 5):
         """Initialize the DictCache."""
         super().__init__()
         self.path = path
         self.cache = {}
+        self.flush_interval = flush_interval
 
     async def load(self):
         """Load cache data from a JSON file."""
 
         def sync_load():
-            if self.path.exists():
-                with open(self.path, "r") as f:
-                    self.cache = json.load(f)
+            with open(self.path) as f:
+                self.cache = json.load(f)
 
-        await asyncio.to_thread(sync_load)
+        if self.path.exists():
+            await to_thread.run_sync(sync_load)
 
     async def flush(self):
         """Save cache data to a JSON file."""
@@ -99,7 +109,7 @@ class LocalJsonCache(AsyncCache):
             with open(self.path, "w") as f:
                 json.dump(self.cache, f)
 
-        await asyncio.to_thread(sync_flush)
+        await to_thread.run_sync(sync_flush)
 
     async def write_periodically(self, interval: int):
         """Write the cache to disk periodically.
@@ -164,3 +174,26 @@ async def cache_request(cache: AsyncCache) -> Callable:
         return await inner()
 
     return wrapped_request
+
+
+class CacheFactory:
+    """Factory for creating cache instances."""
+
+    def __init__(self, cache_config: CacheConfig):
+        self.cache_config = cache_config
+
+    async def create_cache(self) -> AsyncCache:
+        """Create a cache instance based on the cache config."""
+        if self.cache_config.cache_type == "local":
+            cache = LocalJsonCache(self.cache_config.path)
+        elif self.cache_config.cache_type == "remote":
+            cache = RemoteCache(  # type: ignore
+                save_state=self.cache_config.save_state,
+                load_state=self.cache_config.load_state,
+            )
+        else:
+            # This should never happen as CacheConfig enforces the cache type
+            raise ValueError("Invalid cache type")
+
+        await cache.load()
+        return cache
