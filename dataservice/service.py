@@ -60,22 +60,22 @@ class DataService(BaseDataService):
     and block until all data items are fetched.
 
     :Example:
-    .. code-block:: python
+        .. code-block:: python
 
-    from dataservice import DataService, HttpXClient, Request, Response
+            from dataservice import DataService, HttpXClient, Request, Response
 
-    def parse_books_page(response: Response):
-        articles = response.html.find_all("article", {"class": "product_pod"})
-        return {
-            "url": response.request.url,
-            "title": response.html.title.get_text(strip=True),
-            "articles": len(articles)
-        }
+            def parse_books_page(response: Response):
+                articles = response.html.find_all("article", {"class": "product_pod"})
+                return {
+                    "url": response.request.url,
+                    "title": response.html.title.get_text(strip=True),
+                    "articles": len(articles)
+                }
 
-    start_requests = [Request(url="https://books.toscrape.com/index.html", callback=parse_books_page, client=HttpXClient())]
-    service = DataService(start_requests)
-    for data_item in service:
-        print(data_item)
+            start_requests = [Request(url="https://books.toscrape.com/index.html", callback=parse_books_page, client=HttpXClient())]
+            service = DataService(start_requests)
+            for data_item in service:
+                print(data_item)
     """
 
     def __iter__(self) -> Iterator[GenericDataItem]:
@@ -108,25 +108,25 @@ class AsyncDataService(BaseDataService):
     This class is an asynchronous iterator that can be used to fetch data items asynchronously.
 
     :Example:
-    .. code-block:: python
+        .. code-block:: python
 
-    from dataservice import AsyncDataService, HttpXClient, Request, Response
+            from dataservice import AsyncDataService, HttpXClient, Request, Response
 
-    def parse_books_page(response: Response):
-        articles = response.html.find_all("article", {"class": "product_pod"})
-        return {
-            "url": response.request.url,
-            "title": response.html.title.get_text(strip=True),
-            "articles": len(articles)
-        }
+            def parse_books_page(response: Response):
+                articles = response.html.find_all("article", {"class": "product_pod"})
+                return {
+                    "url": response.request.url,
+                    "title": response.html.title.get_text(strip=True),
+                    "articles": len(articles)
+                }
 
-    async def main():
-        start_requests = [Request(url="https://books.toscrape.com/index.html", callback=parse_books_page, client=HttpXClient())]
-        service = AsyncDataService(start_requests)
-        async for data_item in service:
-            print(data_item)
+            async def main():
+                start_requests = [Request(url="https://books.toscrape.com/index.html", callback=parse_books_page, client=HttpXClient())]
+                service = AsyncDataService(start_requests)
+                async for data_item in service:
+                    print(data_item)
 
-    asyncio.run(main())
+            asyncio.run(main())
     """
 
     def __aiter__(self) -> AsyncIterator[GenericDataItem]:
