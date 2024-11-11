@@ -8,6 +8,7 @@ import logging
 import signal
 import time
 from abc import ABC
+from contextlib import nullcontext
 from functools import wraps
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
@@ -180,10 +181,12 @@ class CacheFactory:
     def __init__(self, cache_config: CacheConfig):
         self.cache_config = cache_config
 
-    async def create_cache(self) -> AsyncCache:
+    async def init_cache(self) -> AsyncCache | nullcontext[Any]:
         """Create a cache instance based on the cache config."""
+        if not self.cache_config.use:
+            return nullcontext()
         if self.cache_config.cache_type == "local":
-            cache = LocalJsonCache(self.cache_config.path)
+            cache = LocalJsonCache(Path(self.cache_config.path))
         elif self.cache_config.cache_type == "remote":
             cache = RemoteCache(  # type: ignore
                 save_state=self.cache_config.save_state,
@@ -192,6 +195,5 @@ class CacheFactory:
         else:
             # This should never happen as CacheConfig enforces the cache type
             raise ValueError("Invalid cache type")
-
         await cache.load()
         return cache

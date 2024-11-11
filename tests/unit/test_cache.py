@@ -124,24 +124,27 @@ async def test_write_periodically_resets_start_time_after_writing(tmp_path, mock
 
 
 @pytest.mark.anyio
-async def test_cache_factory_creates_local_json_cache(tmp_path):
+async def test_cache_factory_init_local_json_cache(tmp_path):
     cache_file = tmp_path / "cache.json"
     cache_file.write_text('{"key": "value"}')
-    cache_config = CacheConfig(cache_type="local", path=tmp_path / "cache.json")
+    cache_config = CacheConfig(
+        cache_type="local", path=tmp_path / "cache.json", use=True
+    )
     factory = CacheFactory(cache_config)
-    cache = await factory.create_cache()
+    cache = await factory.init_cache()
     assert isinstance(cache, LocalJsonCache)
     assert await cache.get("key") == "value"
 
 
 @pytest.mark.anyio
-async def test_cache_factory_creates_remote_cache(mocker):
+async def test_cache_factory_init_remote_cache(mocker):
     cache_config = CacheConfig(
+        use=True,
         cache_type="remote",
         save_state=mocker.AsyncMock(),
         load_state=mocker.AsyncMock(return_value={"key": "value"}),
     )
     factory = CacheFactory(cache_config)
-    cache = await factory.create_cache()
+    cache = await factory.init_cache()
     assert isinstance(cache, RemoteCache)
     assert await cache.get("key") == "value"
