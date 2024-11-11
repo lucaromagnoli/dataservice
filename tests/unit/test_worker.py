@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, call, patch
 
 import pytest
 
-from dataservice.cache import JsonCache
+from dataservice.cache import LocalJsonCache
 from dataservice.config import ServiceConfig
 from dataservice.data import BaseDataItem
 from dataservice.exceptions import DataServiceException, RetryableException
@@ -330,7 +330,7 @@ async def test_data_worker_uses_cache():
     config = ServiceConfig(cache={"use": True})
     data_worker = DataWorker(requests, config)
     await data_worker.fetch()
-    assert isinstance(data_worker.cache, JsonCache)
+    assert isinstance(data_worker.cache, LocalJsonCache)
     os.remove("cache.json")
 
 
@@ -505,7 +505,7 @@ async def test_make_request_uses_cache(data_worker_with_cache, mocker):
         request=request, text="cached response", data={}, url="http://example.com"
     )
 
-    mock_cache = mocker.patch("dataservice.worker.JsonCache", autospec=True)
+    mock_cache = mocker.patch("dataservice.worker.LocalJsonCache", autospec=True)
     mock_cache_instance = mock_cache.return_value
     mock_cache_instance.get = AsyncMock(return_value=("cached response", {}))
     mock_cache_instance.__aenter__.return_value = mock_cache_instance

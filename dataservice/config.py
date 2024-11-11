@@ -30,6 +30,9 @@ class RateLimiterConfig(BaseModel):
 
 class CacheConfig(BaseModel):
     use: bool = Field(default=False, description="Whether to cache requests.")
+    cache_type: Literal["local", "remote"] = Field(
+        default="local", description="The type of cache to use."
+    )
     path: FilePath | NewPath = Field(
         default="cache.json",
         description="The path of the file to use for the cache. Defaults to 'cache.json'.",

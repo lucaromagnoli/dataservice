@@ -19,7 +19,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from dataservice.cache import JsonCache, cache_request
+from dataservice.cache import LocalJsonCache, cache_request
 from dataservice.config import ServiceConfig
 from dataservice.exceptions import (
     DataServiceException,
@@ -60,7 +60,7 @@ class DataWorker:
         self._failures: dict[str, FailedRequest] = {}
         self._seen_requests: set = set()
         self._started: bool = False
-        self._cache: JsonCache | None = None
+        self._cache: LocalJsonCache | None = None
         self._semaphore: asyncio.Semaphore = asyncio.Semaphore(
             self.config.max_concurrency
         )
@@ -71,7 +71,7 @@ class DataWorker:
         )
 
     @property
-    def cache(self) -> JsonCache | None:
+    def cache(self) -> LocalJsonCache | None:
         """
         Lazy initialization of the cache instance.
         """
@@ -284,7 +284,7 @@ class DataWorker:
         :return: The response object.
         """
         if self.config.cache.use:
-            cached = await cache_request(cast(JsonCache, self.cache))
+            cached = await cache_request(cast(LocalJsonCache, self.cache))
             return await cached(request)
         async with self._semaphore, self._limiter:
             return await request.client(request)

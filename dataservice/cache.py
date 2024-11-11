@@ -73,7 +73,7 @@ class AsyncCache(ABC):
         raise NotImplementedError("Save state callable not provided")
 
 
-class JsonCache(AsyncCache):
+class LocalJsonCache(AsyncCache):
     """Simple JSON disk based cache implementation."""
 
     def __init__(self, path: Path):
@@ -111,8 +111,8 @@ class JsonCache(AsyncCache):
             self.start_time = time.time()
 
 
-class ApifyCache(AsyncCache):
-    """Simple Apify cache implementation."""
+class RemoteCache(AsyncCache):
+    """Generic implementation for Remote based storage."""
 
     def __init__(
         self,
