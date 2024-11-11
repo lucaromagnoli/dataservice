@@ -6,9 +6,7 @@ import asyncio
 import logging
 import random
 from collections import abc
-from concurrent.futures.thread import ThreadPoolExecutor
 from contextlib import nullcontext
-from pathlib import Path
 from typing import Any, AsyncGenerator, Generator, Iterable, cast
 
 from aiolimiter import AsyncLimiter
@@ -21,7 +19,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from dataservice.cache import AsyncJsonCache, cache_request
+from dataservice.cache import JsonCache, cache_request
 from dataservice.config import ServiceConfig
 from dataservice.exceptions import (
     DataServiceException,
@@ -63,7 +61,7 @@ class DataWorker:
         self._failures: dict[str, FailedRequest] = {}
         self._seen_requests: set = set()
         self._started: bool = False
-        self._cache: AsyncJsonCache | None = None
+        self._cache: JsonCache | None = None
         self._semaphore: asyncio.Semaphore = asyncio.Semaphore(
             self.config.max_concurrency
         )
@@ -74,12 +72,12 @@ class DataWorker:
         )
 
     @property
-    def cache(self) -> AsyncJsonCache | None:
+    def cache(self) -> JsonCache | None:
         """
         Lazy initialization of the cache instance.
         """
         if self._cache is None and self.config.cache.use:
-            self._cache = AsyncJsonCache(Path(self.config.cache.path))
+            raise ValueError("Cache is not initialized.")
         return self._cache
 
     @property
@@ -220,10 +218,7 @@ class DataWorker:
         :return: The result of the callback function.
         """
         try:
-            with ThreadPoolExecutor() as executor:
-                return await asyncio.get_event_loop().run_in_executor(
-                    executor, request.callback, response
-                )
+            return await asyncio.to_thread(request.callback, response)
         except Exception as e:
             logger.error(f"Error processing callback {request.callback_name}: {e}")
             raise ParsingException(
@@ -293,7 +288,7 @@ class DataWorker:
         :return: The response object.
         """
         if self.config.cache.use:
-            cached = await cache_request(cast(AsyncJsonCache, self.cache))
+            cached = await cache_request(cast(JsonCache, self.cache))
             return await cached(client, request)
         async with self._semaphore, self._limiter:
             return await client(request)
