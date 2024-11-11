@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-import atexit
+import asyncio
 import json
 import logging
+import signal
 import time
 from abc import ABC
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Awaitable, Callable, Optional
 
-from asyncer import asyncify
 from pydantic import HttpUrl
 
 from dataservice.models import Request, Response
@@ -19,79 +19,25 @@ from dataservice.models import Request, Response
 logger = logging.getLogger(__name__)
 
 
-class Cache(ABC):
-    """Base class for cache implementations."""
+class AsyncCache(ABC):
+    """Abstract Async Cache Interface"""
 
-    def set(self, key: Any, value: Any) -> None:
-        """Set a value in the cache."""
-        raise NotImplementedError
-
-    def get(self, key: Any) -> Any:
-        """Get a value from the cache."""
-        raise NotImplementedError
-
-    def delete(self, key: Any) -> None:
-        """Delete a value from the cache."""
-        raise NotImplementedError
-
-    def clear(self) -> None:
-        """Clear the cache."""
-        raise NotImplementedError
-
-
-class AsyncJsonCache:
-    """Simple JSON disk based cache implementation."""
-
-    def __init__(self, path: Path):
-        """Initialize the DictCache."""
-        self.path = path
-        self.cache = self._init_cache()
+    def __init__(self):
+        self.cache = {}
         self.start_time = time.time()
-        atexit.register(self.write)
+        loop = asyncio.get_running_loop()
+        loop.add_signal_handler(
+            signal.SIGINT, lambda: asyncio.create_task(self.flush())
+        )
+        loop.add_signal_handler(
+            signal.SIGTERM, lambda: asyncio.create_task(self.flush())
+        )
 
     async def __aenter__(self):
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        atexit.unregister(self.write)
-        await self.write()
-
-    def _init_cache(self):
-        if self.path.exists():
-            with open(self.path, "r") as f:
-                return json.load(f)
-        return {}
-
-    def set(self, key, value):
-        self.cache[key] = value
-
-    def get(self, key):
-        return self.cache.get(key)
-
-    def delete(self, key):
-        del self.cache[key]
-
-    def clear(self):
-        self.cache.clear()
-
-    async def write(self):
-        """Write the cache to disk."""
-
-        def sync_write():
-            logger.info(f"Writing cache to {self.path}")
-            with open(self.path, "w") as f:
-                json.dump(self.cache, f)
-
-        return await asyncify(sync_write)()
-
-    async def write_periodically(self, interval: int):
-        """Write the cache to disk periodically.
-
-        :param interval: The interval in seconds to write the cache.
-        """
-        if time.time() - self.start_time >= interval:
-            await self.write()
-            self.start_time = time.time()
+        await self.flush()
 
     def __contains__(self, key):
         return key in self.cache
@@ -108,8 +54,86 @@ class AsyncJsonCache:
     def __str__(self):
         return str(self.cache)
 
+    async def load(self):
+        raise NotImplementedError("Load function not provided")
 
-async def cache_request(cache: AsyncJsonCache) -> Callable:
+    async def set(self, key: str, value: Any):
+        self.cache[key] = value
+
+    async def get(self, key: str) -> Any:
+        return self.cache.get(key)
+
+    async def delete(self, key):
+        del self.cache[key]
+
+    async def clear(self):
+        self.cache.clear()
+
+    async def flush(self):
+        raise NotImplementedError("Save state callable not provided")
+
+
+class JsonCache(AsyncCache):
+    """Simple JSON disk based cache implementation."""
+
+    def __init__(self, path: Path):
+        """Initialize the DictCache."""
+        super().__init__()
+        self.path = path
+        self.cache = {}
+
+    async def load(self):
+        """Load cache data from a JSON file."""
+
+        def sync_load():
+            if self.path.exists():
+                with open(self.path, "r") as f:
+                    self.cache = json.load(f)
+
+        await asyncio.to_thread(sync_load)
+
+    async def flush(self):
+        """Save cache data to a JSON file."""
+
+        def sync_flush():
+            with open(self.path, "w") as f:
+                json.dump(self.cache, f)
+
+        await asyncio.to_thread(sync_flush)
+
+    async def write_periodically(self, interval: int):
+        """Write the cache to disk periodically.
+
+        :param interval: The interval in seconds to write the cache.
+        """
+        if time.time() - self.start_time >= interval:
+            await self.flush()
+            self.start_time = time.time()
+
+
+class ApifyCache(AsyncCache):
+    """Simple Apify cache implementation."""
+
+    def __init__(
+        self,
+        save_state: Optional[Callable[[dict], Awaitable[None]]] = None,
+        load_state: Optional[Callable[[], Awaitable[dict]]] = None,
+    ):
+        """Initialize the ApifyCache."""
+        super().__init__()
+        self.save_state = save_state
+        self.load_state = load_state
+
+    async def load(self):
+        """Load cache data from Apify State."""
+        self.cache = await self.load_state()
+
+    async def flush(self):
+        """Save cache data to Apify State."""
+        await self.save_state(self.cache)
+
+
+async def cache_request(cache: AsyncCache) -> Callable:
     """
     Caches the raw values (text, data) of the Response object returned by the request function.
 
@@ -129,13 +153,13 @@ async def cache_request(cache: AsyncJsonCache) -> Callable:
             key = str(request.url)
             if key in cache:
                 logger.debug(f"Cache hit for {key}")
-                text, data = cache.get(key)
+                text, data = await cache.get(key)
                 return Response(request=request, text=text, data=data, url=HttpUrl(key))
             else:
                 logger.debug(f"Cache miss for {key}")
                 response = await req_func(request)
                 value = response.text, response.data
-                cache.set(key, value)
+                await cache.set(key, value)
                 return response
 
         return await inner()
