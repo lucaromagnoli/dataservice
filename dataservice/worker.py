@@ -27,7 +27,6 @@ from dataservice.exceptions import (
     RetryableException,
 )
 from dataservice.models import (
-    ClientCallable,
     FailedRequest,
     GenericDataItem,
     Request,
@@ -233,18 +232,16 @@ class DataWorker:
         :return: The response object.
         """
 
-        client = request.client
         if self.config.constant_delay:
             await asyncio.sleep(self.config.constant_delay / 1000)
         if self.config.random_delay:
             await asyncio.sleep(random.randint(0, self.config.random_delay) / 1000)
-        return await self._wrap_retry(client, request)
+        return await self._wrap_retry(request)
 
-    async def _wrap_retry(self, client: ClientCallable, request: Request):
+    async def _wrap_retry(self, request: Request):
         """
         Wraps the request in a retry mechanism.
 
-        :param client: The client to use for the request.
         :param request: The request object.
         :return: The response object.
         """
@@ -277,21 +274,20 @@ class DataWorker:
             before_sleep=before_sleep_log(logger),
             after=after_log(logger),
         )
-        return await retryer(self._make_request, client, request)
+        return await retryer(self._make_request, request)
 
-    async def _make_request(self, client, request) -> Response:
+    async def _make_request(self, request) -> Response:
         """
         Wraps client call.
 
-        :param client: The client to use for the request.
         :param request: The request object.
         :return: The response object.
         """
         if self.config.cache.use:
             cached = await cache_request(cast(JsonCache, self.cache))
-            return await cached(client, request)
+            return await cached(request)
         async with self._semaphore, self._limiter:
-            return await client(request)
+            return await request.client(request)
 
     async def _iter_callbacks(
         self, callback: Generator | AsyncGenerator | Request | GenericDataItem

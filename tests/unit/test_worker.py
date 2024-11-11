@@ -484,3 +484,41 @@ def test_is_duplicate_request(data_worker):
     assert not data_worker._is_duplicate_request(request3)
     # Fourth request with the same URL but different params should not be a duplicate
     assert not data_worker._is_duplicate_request(request4)
+
+
+@pytest.fixture
+def config_with_cache():
+    return ServiceConfig(cache={"use": True})
+
+
+@pytest.fixture
+def data_worker_with_cache(config_with_cache):
+    return DataWorker(requests=[], config=config_with_cache)
+
+
+@pytest.mark.asyncio
+async def test_make_request_uses_cache(data_worker_with_cache, mocker):
+    request = Request(
+        url="http://example.com", client=ToyClient(), callback=lambda x: x
+    )
+    response = Response(
+        request=request, text="cached response", data={}, url="http://example.com"
+    )
+
+    mock_cache = mocker.patch("dataservice.worker.JsonCache", autospec=True)
+    mock_cache_instance = mock_cache.return_value
+    mock_cache_instance.get = AsyncMock(return_value=("cached response", {}))
+    mock_cache_instance.__aenter__.return_value = mock_cache_instance
+
+    mock_cache_request = mocker.patch(
+        "dataservice.worker.cache_request",
+        return_value=AsyncMock(return_value=response),
+    )
+
+    data_worker_with_cache._cache = mock_cache_instance
+
+    result = await data_worker_with_cache._make_request(request)
+
+    mock_cache_request.assert_called_once_with(mock_cache_instance)
+    assert result.text == "cached response"
+    assert result.data == {}

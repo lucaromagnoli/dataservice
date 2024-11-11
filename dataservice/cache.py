@@ -140,28 +140,27 @@ async def cache_request(cache: AsyncCache) -> Callable:
     :param cache: The cache to use.
     """
 
-    async def wrapper(req_func: Callable, request: Request) -> Response:
+    async def wrapped_request(request: Request) -> Response:
         """
         Wraps a function to cache its results.
 
-        :param req_func: The function to wrap.
         :param request: The request to cache.
         """
 
-        @wraps(req_func)
+        @wraps(wrapped_request)
         async def inner() -> Response:
-            key = str(request.url)
+            key = request.unique_key
             if key in cache:
                 logger.debug(f"Cache hit for {key}")
                 text, data = await cache.get(key)
                 return Response(request=request, text=text, data=data, url=HttpUrl(key))
             else:
                 logger.debug(f"Cache miss for {key}")
-                response = await req_func(request)
+                response = await request.client(request)
                 value = response.text, response.data
                 await cache.set(key, value)
                 return response
 
         return await inner()
 
-    return wrapper
+    return wrapped_request
