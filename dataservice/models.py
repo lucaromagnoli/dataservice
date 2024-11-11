@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import (
     Annotated,
     Any,
+    Awaitable,
     Callable,
     Iterator,
     Literal,
@@ -31,7 +32,7 @@ GenericDataItem = dict[Any, Any] | BaseModel
 RequestOrData = Union["Request", GenericDataItem]
 CallbackReturn = Iterator[RequestOrData] | RequestOrData
 CallbackType = Callable[["Response"], CallbackReturn]
-ClientCallable = Callable[["Request"], "Response"]
+ClientCallable = Callable[["Request"], Awaitable["Response"]]
 StrOrDict = str | dict
 
 
