@@ -79,18 +79,16 @@ class AsyncCache(ABC):
 
         :param interval: The interval in seconds to write the cache.
         """
-        pass
 
 
 class LocalJsonCache(AsyncCache):
     """Simple JSON disk based cache implementation."""
 
-    def __init__(self, path: Path, flush_interval: int = 60 * 5):
+    def __init__(self, path: Path):
         """Initialize the DictCache."""
         super().__init__()
         self.path = path
         self.cache = {}
-        self.flush_interval = flush_interval
 
     async def load(self):
         """Load cache data from a JSON file."""

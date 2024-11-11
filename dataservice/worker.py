@@ -7,7 +7,7 @@ import logging
 import random
 from collections import abc
 from contextlib import nullcontext
-from typing import Any, AsyncGenerator, Generator, Iterable, cast
+from typing import Any, AsyncGenerator, Generator, Iterable
 
 from aiolimiter import AsyncLimiter
 from pydantic import BaseModel
@@ -19,7 +19,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from dataservice.cache import LocalJsonCache, cache_request
+from dataservice.cache import AsyncCache, cache_request
 from dataservice.config import ServiceConfig
 from dataservice.exceptions import (
     DataServiceException,
@@ -46,7 +46,9 @@ class DataWorker:
     def __init__(
         self,
         requests: Iterable[Request],
+        *,
         config: ServiceConfig,
+        cache: AsyncCache | nullcontext[Any] = nullcontext(),
     ):
         """
         Initializes the DataWorker with the given parameters.
@@ -54,13 +56,14 @@ class DataWorker:
         :param config: The configuration for the service.
         """
         self.config: ServiceConfig = config
+        self.cache: AsyncCache | nullcontext[Any] = cache
         self._requests: Iterable[Request] = requests
         self._data_queue: asyncio.Queue = asyncio.Queue()
         self._work_queue: asyncio.Queue = asyncio.Queue()
         self._failures: dict[str, FailedRequest] = {}
         self._seen_requests: set = set()
         self._started: bool = False
-        self._cache: LocalJsonCache | None = None
+
         self._semaphore: asyncio.Semaphore = asyncio.Semaphore(
             self.config.max_concurrency
         )
@@ -69,19 +72,6 @@ class DataWorker:
             if self.config.limiter
             else nullcontext()
         )
-
-    @property
-    def cache(self) -> LocalJsonCache | None:
-        """
-        Lazy initialization of the cache instance.
-        """
-        if self._cache is None and self.config.cache.use:
-            raise ValueError("Cache is not initialized.")
-        return self._cache
-
-    @property
-    def cache_context(self):
-        return self.cache if self.config.cache.use else nullcontext()
 
     @property
     def has_started(self) -> bool:
@@ -284,7 +274,7 @@ class DataWorker:
         :return: The response object.
         """
         if self.config.cache.use:
-            cached = await cache_request(cast(LocalJsonCache, self.cache))
+            cached = await cache_request(self.cache)  # type: ignore
             return await cached(request)
         async with self._semaphore, self._limiter:
             return await request.client(request)
@@ -315,7 +305,7 @@ class DataWorker:
         """
         if not self._started:
             await self._enqueue_start_requests()
-        async with self.cache_context as cache:
+        async with self.cache as cache:
             while self.has_jobs():
                 logger.debug(f"Work queue size: {self._work_queue.qsize()}")
                 logger.debug(f"Data queue size: {self._data_queue.qsize()}")

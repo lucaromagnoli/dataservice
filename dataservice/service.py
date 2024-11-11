@@ -28,7 +28,7 @@ class BaseDataService(ABC):
     ):
         self._requests: Iterable[Request] = requests
         self.config: ServiceConfig = config
-        self._data_worker: DataWorker = DataWorker(self._requests, self.config)
+        self._data_worker: DataWorker = DataWorker(self._requests, config=self.config)
 
     def get_failures(self) -> dict[str, FailedRequest]:
         """

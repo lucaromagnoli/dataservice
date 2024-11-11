@@ -1,9 +1,7 @@
 import asyncio
 import logging
-import os
 from contextlib import nullcontext as does_not_raise
-from pathlib import Path
-from unittest.mock import AsyncMock, call, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -79,11 +77,11 @@ def queue_item(request):
     "requests, expected",
     [
         ([request_with_data_callback], {"parsed": "data"}),
-        # ([request_with_data_item_callback], Foo(parsed="data")),
+        ([request_with_data_item_callback], Foo(parsed="data")),
     ],
 )
 async def test_data_worker_handles_request_correctly(requests, expected, config):
-    data_worker = DataWorker(requests, config)
+    data_worker = DataWorker(requests, config=config)
     await data_worker.fetch()
     assert data_worker.get_data_item() == expected
 
@@ -312,49 +310,17 @@ async def test_retry_logs(
 
 
 @pytest.mark.asyncio
-async def test_data_worker_does_not_use_cache():
-    requests, config, expected = (
-        [request_with_data_callback],
-        ServiceConfig(cache={"use": False}),
-        None,
+async def test_data_worker_with_local_cache_write_periodically(mocker, tmp_path):
+    cache = LocalJsonCache(tmp_path / "cache.json")
+    await cache.load()
+    mocked_write_periodically = mocker.patch.object(
+        cache, "write_periodically", mocker.AsyncMock()
     )
-    data_worker = DataWorker(requests, config)
-    await data_worker.fetch()
-    assert data_worker.cache == expected
-
-
-@pytest.mark.asyncio
-@pytest.mark.skip(reason="Broken test")
-async def test_data_worker_uses_cache():
-    requests = [request_with_data_callback]
-    config = ServiceConfig(cache={"use": True})
-    data_worker = DataWorker(requests, config)
-    await data_worker.fetch()
-    assert isinstance(data_worker.cache, LocalJsonCache)
-    os.remove("cache.json")
-
-
-@pytest.mark.asyncio
-@pytest.mark.skip(reason="Broken test")
-async def test_data_worker_uses_cache_mocks(mocker):
-    mock_cache = mocker.patch("dataservice.worker.JsonCache", autospec=True)
-    requests = [request_with_data_callback]
-    config = ServiceConfig(cache={"use": True})
-    data_worker = DataWorker(requests, config)
-    await data_worker.fetch()
-    mock_cache.assert_called_with(Path("cache.json"))
-
-
-@pytest.mark.asyncio
-@pytest.mark.skip(reason="Broken test")
-async def test_data_worker_uses_cache_write_periodically(mocker):
-    mock_cache = mocker.patch("dataservice.worker.JsonCache", autospec=True)
     requests = [request_with_data_callback]
     config = ServiceConfig(cache={"use": True, "write_interval": 1}, constant_delay=1)
-    data_worker = DataWorker(requests, config)
+    data_worker = DataWorker(requests, config=config, cache=cache)
     await data_worker.fetch()
-    mock_cache.assert_called_with(Path("cache.json"))
-    assert call().__aenter__().write_periodically(1) in mock_cache.mock_calls
+    assert mocked_write_periodically.await_count == 1
 
 
 @pytest.fixture
@@ -379,7 +345,7 @@ def concurrency_requests():
 @pytest.fixture
 def concurrency_worker(config, concurrency_requests):
     # Initialize DataWorker with mock config and requests
-    return DataWorker(concurrency_requests, config)
+    return DataWorker(concurrency_requests, config=config)
 
 
 @pytest.mark.asyncio
@@ -505,20 +471,16 @@ async def test_make_request_uses_cache(data_worker_with_cache, mocker):
         request=request, text="cached response", data={}, url="http://example.com"
     )
 
-    mock_cache = mocker.patch("dataservice.worker.LocalJsonCache", autospec=True)
-    mock_cache_instance = mock_cache.return_value
-    mock_cache_instance.get = AsyncMock(return_value=("cached response", {}))
-    mock_cache_instance.__aenter__.return_value = mock_cache_instance
+    mock_cache = mocker.AsyncMock(spec=LocalJsonCache)
+    data_worker_with_cache.cache = mock_cache
 
     mock_cache_request = mocker.patch(
         "dataservice.worker.cache_request",
         return_value=AsyncMock(return_value=response),
     )
 
-    data_worker_with_cache._cache = mock_cache_instance
-
     result = await data_worker_with_cache._make_request(request)
 
-    mock_cache_request.assert_called_once_with(mock_cache_instance)
+    mock_cache_request.assert_called_once_with(mock_cache)
     assert result.text == "cached response"
     assert result.data == {}
