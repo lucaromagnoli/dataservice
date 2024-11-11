@@ -68,20 +68,6 @@ files = [
 test = ["coverage", "mypy", "pexpect", "ruff", "wheel"]
 
 [[package]]
-name = "asyncer"
-version = "0.0.7"
-description = "Asyncer, async and await, focused on developer experience."
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "asyncer-0.0.7-py3-none-any.whl", hash = "sha256:f0d579d4f67c4ead52ede3a45c854f462cae569058a8a6a68a4ebccac1c335d8"},
-    {file = "asyncer-0.0.7.tar.gz", hash = "sha256:d5e563fb0f56eb87b97257984703658a4f5bbdb52ff851b3e8ed864cc200b1d2"},
-]
-
-[package.dependencies]
-anyio = ">=3.4.0,<5.0"
-
-[[package]]
 name = "attrs"
 version = "24.2.0"
 description = "Classes Without Boilerplate"
@@ -2564,4 +2550,4 @@ playwright = ["playwright"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "a3a237837c39f8d425e44be7c0747fe1c51d5ee3a64a7b07c98adc3d12c05ced"
+content-hash = "9fdd5b18e0ec4c675172b26394beae89baa55dcc4f350afb316bce8730c6688d"
