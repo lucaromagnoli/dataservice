@@ -452,3 +452,35 @@ async def test_handle_request_calls_within_semaphore_limit(concurrency_worker):
 
         # Ensure _handle_request was called the expected number of times
         assert mock_handle_request.call_count == len(concurrency_worker._requests)
+
+
+def test_is_duplicate_request(data_worker):
+    request1 = Request(
+        url="http://example.com", method="GET", callback=lambda x: x, client=ToyClient()
+    )
+    request2 = Request(
+        url="http://example.com", method="GET", callback=lambda x: x, client=ToyClient()
+    )
+    request3 = Request(
+        url="http://example.org",
+        method="POST",
+        callback=lambda x: x,
+        client=ToyClient(),
+        json_data={"key": "value"},
+    )
+    request4 = Request(
+        url="http://example.com",
+        method="GET",
+        callback=lambda x: x,
+        client=ToyClient(),
+        params={"key": "value"},
+    )
+
+    # First request should not be a duplicate
+    assert not data_worker._is_duplicate_request(request1)
+    # Second request with the same URL should be a duplicate
+    assert data_worker._is_duplicate_request(request2)
+    # Third request with a different URL should not be a duplicate
+    assert not data_worker._is_duplicate_request(request3)
+    # Fourth request with the same URL but different params should not be a duplicate
+    assert not data_worker._is_duplicate_request(request4)

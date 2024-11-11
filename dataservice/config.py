@@ -49,18 +49,6 @@ class ServiceConfig(BaseModel):
     deduplication: bool = Field(
         default=True, description="Whether to deduplicate requests."
     )
-    deduplication_keys: set[str] = Field(
-        default={
-            "url",
-            "params",
-            "method",
-            "form_data",
-            "json_data",
-            "content_type",
-            "headers",
-        },
-        description="A list of keys to use for deduplication.",
-    )
     max_concurrency: PositiveInt = Field(
         default=10, description="The maximum number of concurrent requests."
     )

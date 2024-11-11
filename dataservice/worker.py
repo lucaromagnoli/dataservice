@@ -160,7 +160,7 @@ class DataWorker:
         :param request: The request to check for duplication.
         :return: True if the request is a duplicate, False otherwise.
         """
-        key = request.model_dump_json(include=self.config.deduplication_keys)
+        key = request.unique_key
         if key in self._seen_requests:
             logger.debug(f"Skipping duplicate request {request.url}")
             return True

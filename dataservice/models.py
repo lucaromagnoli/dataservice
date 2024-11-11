@@ -103,6 +103,15 @@ class Request(BaseModel):
     def client_name(self) -> str:
         return _get_func_name(self.client)
 
+    @property
+    def unique_key(self) -> str:
+        """Return a unique key for the request."""
+        return str(
+            hash(
+                f"{self.method} {self.url} {self.params} {self.json_data} {self.form_data}"
+            )
+        )
+
 
 class Response(BaseModel):
     """Response model."""
