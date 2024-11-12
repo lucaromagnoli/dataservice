@@ -5,7 +5,6 @@ on:
     workflows: ["Run CI"]
     types:
       - completed
-
   push:
     branches: [ "main" ]
 
