@@ -171,17 +171,13 @@ def mock_playwright_response(mocker):
         (504, "Gateway Timeout", RetryableException),
     ],
 )
-def test_raise_for_status(
-    mock_playwright_response, status_code, status_text, expected_exception
-):
-    mock_playwright_response.status = status_code
-    mock_playwright_response.status_text = status_text
+def test_raise_for_status(status_code, status_text, expected_exception):
     client = PlaywrightClient()
 
     if expected_exception:
         with pytest.raises(expected_exception) as excinfo:
-            client._raise_for_status(mock_playwright_response)
+            client._raise_for_status(status_code, status_text)
         assert status_text in str(excinfo.value)
     else:
         # Should not raise any exception
-        client._raise_for_status(mock_playwright_response)
+        client._raise_for_status(status_code, status_text)
