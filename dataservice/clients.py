@@ -90,14 +90,14 @@ class HttpXClient(BaseClient):
     def __init__(self):
         self.async_client = httpx.AsyncClient
 
-    async def _make_request(self, request: Request) -> Response:
+    async def _make_request(self, request: Request) -> Response | NoReturn:
         """Make a request using HTTPX. Private method for internal use.
 
         :param request: The request object containing the details of the HTTP request.
         :return: A Response object containing the response data.
         """
         try:
-            response = await self._get_response(request)
+            return await self._get_response(request)
         except httpx.HTTPStatusError as e:
             logger.debug(f"HTTP Status Error making request: {e}")
             status_code: Annotated[int, Ge(400), Le(600)] = e.response.status_code
@@ -113,7 +113,7 @@ class HttpXClient(BaseClient):
             logger.debug(msg)
             raise DataServiceException(msg)
 
-        return response
+        assert False, "Should not reach this point"
 
     async def _get_response(self, request) -> Response:
         """Get the response from the request.
