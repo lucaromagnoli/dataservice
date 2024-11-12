@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import (
     Annotated,
     Any,
+    Awaitable,
     Callable,
     Iterator,
     Literal,
@@ -31,7 +32,7 @@ GenericDataItem = dict[Any, Any] | BaseModel
 RequestOrData = Union["Request", GenericDataItem]
 CallbackReturn = Iterator[RequestOrData] | RequestOrData
 CallbackType = Callable[["Response"], CallbackReturn]
-ClientCallable = Callable[["Request"], "Response"]
+ClientCallable = Callable[["Request"], Awaitable["Response"]]
 StrOrDict = str | dict
 
 
@@ -102,6 +103,15 @@ class Request(BaseModel):
     @property
     def client_name(self) -> str:
         return _get_func_name(self.client)
+
+    @property
+    def unique_key(self) -> str:
+        """Return a unique key for the request."""
+        return str(
+            hash(
+                f"{self.method} {self.url} {self.params} {self.json_data} {self.form_data}"
+            )
+        )
 
 
 class Response(BaseModel):

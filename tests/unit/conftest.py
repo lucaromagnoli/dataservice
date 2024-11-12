@@ -31,3 +31,8 @@ class ToyClient:
 @pytest.fixture
 def toy_client():
     return ToyClient(random_sleep=0)
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"

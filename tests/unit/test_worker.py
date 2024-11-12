@@ -1,19 +1,19 @@
 import asyncio
 import logging
-import os
 from contextlib import nullcontext as does_not_raise
-from pathlib import Path
-from unittest.mock import AsyncMock, call, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from dataservice.cache import AsyncJsonCache
+from dataservice.cache import LocalJsonCache
 from dataservice.config import ServiceConfig
 from dataservice.data import BaseDataItem
 from dataservice.exceptions import DataServiceException, RetryableException
 from dataservice.models import Request, Response
 from dataservice.worker import DataWorker
 from tests.unit.conftest import ToyClient
+
+# TODO Fix broken tests
 
 
 class Foo(BaseDataItem):
@@ -81,7 +81,7 @@ def queue_item(request):
     ],
 )
 async def test_data_worker_handles_request_correctly(requests, expected, config):
-    data_worker = DataWorker(requests, config)
+    data_worker = DataWorker(requests, config=config)
     await data_worker.fetch()
     assert data_worker.get_data_item() == expected
 
@@ -310,46 +310,17 @@ async def test_retry_logs(
 
 
 @pytest.mark.asyncio
-async def test_data_worker_does_not_use_cache():
-    requests, config, expected = (
-        [request_with_data_callback],
-        ServiceConfig(cache={"use": False}),
-        None,
+async def test_data_worker_with_local_cache_write_periodically(mocker, tmp_path):
+    cache = LocalJsonCache(tmp_path / "cache.json")
+    await cache.load()
+    mocked_write_periodically = mocker.patch.object(
+        cache, "write_periodically", mocker.AsyncMock()
     )
-    data_worker = DataWorker(requests, config)
-    await data_worker.fetch()
-    assert data_worker.cache == expected
-
-
-@pytest.mark.asyncio
-async def test_data_worker_uses_cache():
-    requests = [request_with_data_callback]
-    config = ServiceConfig(cache={"use": True})
-    data_worker = DataWorker(requests, config)
-    await data_worker.fetch()
-    assert isinstance(data_worker.cache, AsyncJsonCache)
-    os.remove("cache.json")
-
-
-@pytest.mark.asyncio
-async def test_data_worker_uses_cache_mocks(mocker):
-    mock_cache = mocker.patch("dataservice.worker.AsyncJsonCache", autospec=True)
-    requests = [request_with_data_callback]
-    config = ServiceConfig(cache={"use": True})
-    data_worker = DataWorker(requests, config)
-    await data_worker.fetch()
-    mock_cache.assert_called_with(Path("cache.json"))
-
-
-@pytest.mark.asyncio
-async def test_data_worker_uses_cache_write_periodically(mocker):
-    mock_cache = mocker.patch("dataservice.worker.AsyncJsonCache", autospec=True)
     requests = [request_with_data_callback]
     config = ServiceConfig(cache={"use": True, "write_interval": 1}, constant_delay=1)
-    data_worker = DataWorker(requests, config)
+    data_worker = DataWorker(requests, config=config, cache=cache)
     await data_worker.fetch()
-    mock_cache.assert_called_with(Path("cache.json"))
-    assert call().__aenter__().write_periodically(1) in mock_cache.mock_calls
+    assert mocked_write_periodically.await_count == 1
 
 
 @pytest.fixture
@@ -374,7 +345,7 @@ def concurrency_requests():
 @pytest.fixture
 def concurrency_worker(config, concurrency_requests):
     # Initialize DataWorker with mock config and requests
-    return DataWorker(concurrency_requests, config)
+    return DataWorker(concurrency_requests, config=config)
 
 
 @pytest.mark.asyncio
@@ -447,3 +418,69 @@ async def test_handle_request_calls_within_semaphore_limit(concurrency_worker):
 
         # Ensure _handle_request was called the expected number of times
         assert mock_handle_request.call_count == len(concurrency_worker._requests)
+
+
+def test_is_duplicate_request(data_worker):
+    request1 = Request(
+        url="http://example.com", method="GET", callback=lambda x: x, client=ToyClient()
+    )
+    request2 = Request(
+        url="http://example.com", method="GET", callback=lambda x: x, client=ToyClient()
+    )
+    request3 = Request(
+        url="http://example.org",
+        method="POST",
+        callback=lambda x: x,
+        client=ToyClient(),
+        json_data={"key": "value"},
+    )
+    request4 = Request(
+        url="http://example.com",
+        method="GET",
+        callback=lambda x: x,
+        client=ToyClient(),
+        params={"key": "value"},
+    )
+
+    # First request should not be a duplicate
+    assert not data_worker._is_duplicate_request(request1)
+    # Second request with the same URL should be a duplicate
+    assert data_worker._is_duplicate_request(request2)
+    # Third request with a different URL should not be a duplicate
+    assert not data_worker._is_duplicate_request(request3)
+    # Fourth request with the same URL but different params should not be a duplicate
+    assert not data_worker._is_duplicate_request(request4)
+
+
+@pytest.fixture
+def config_with_cache():
+    return ServiceConfig(cache={"use": True})
+
+
+@pytest.fixture
+def data_worker_with_cache(config_with_cache):
+    return DataWorker(requests=[], config=config_with_cache)
+
+
+@pytest.mark.asyncio
+async def test_make_request_uses_cache(data_worker_with_cache, mocker):
+    request = Request(
+        url="http://example.com", client=ToyClient(), callback=lambda x: x
+    )
+    response = Response(
+        request=request, text="cached response", data={}, url="http://example.com"
+    )
+
+    mock_cache = mocker.AsyncMock(spec=LocalJsonCache)
+    data_worker_with_cache.cache = mock_cache
+
+    mock_cache_request = mocker.patch(
+        "dataservice.worker.cache_request",
+        return_value=AsyncMock(return_value=response),
+    )
+
+    result = await data_worker_with_cache._make_request(request)
+
+    mock_cache_request.assert_called_once_with(mock_cache)
+    assert result.text == "cached response"
+    assert result.data == {}

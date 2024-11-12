@@ -3,7 +3,7 @@ name = "python-dataservice"
 packages = [
     { include = "dataservice"},
 ]
-version = "0.9.0"
+version = "0.10.0"
 description = "Lightweight async data gathering for Python"
 authors = ["NomadMonad <romagnoli.luca@gmail.com>"]
 readme = "README.rst"
@@ -20,9 +20,9 @@ httpx = "^0.27.0"
 pydantic = "^2.8.2"
 tenacity = "^9.0.0"
 aiolimiter = "^1.1.0"
-asyncer = "^0.0.7"
 playwright = "^1.48.0"
 jinja2 = "^3.1.4"
+anyio = "^4.6.2.post1"
 
 [tool.poetry.extras]
 playwright = ["playwright"]
@@ -43,6 +43,8 @@ pyclean = "^3.0.0"
 nox = "^2024.4.15"
 nox-poetry = "^1.0.3"
 pytest-playwright = "^0.5.2"
+poetry-plugin-export = "^1.8.0"
+pytest-anyio = "^0.0.0"
 
 
 [tool.poetry.group.docs.dependencies]

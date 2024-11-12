@@ -6,10 +6,8 @@ import asyncio
 import logging
 import random
 from collections import abc
-from concurrent.futures.thread import ThreadPoolExecutor
 from contextlib import nullcontext
-from pathlib import Path
-from typing import Any, AsyncGenerator, Generator, Iterable, cast
+from typing import Any, AsyncGenerator, Generator, Iterable
 
 from aiolimiter import AsyncLimiter
 from pydantic import BaseModel
@@ -21,7 +19,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from dataservice.cache import AsyncJsonCache, cache_request
+from dataservice.cache import AsyncCache, cache_request
 from dataservice.config import ServiceConfig
 from dataservice.exceptions import (
     DataServiceException,
@@ -29,7 +27,6 @@ from dataservice.exceptions import (
     RetryableException,
 )
 from dataservice.models import (
-    ClientCallable,
     FailedRequest,
     GenericDataItem,
     Request,
@@ -49,7 +46,9 @@ class DataWorker:
     def __init__(
         self,
         requests: Iterable[Request],
+        *,
         config: ServiceConfig,
+        cache: AsyncCache | nullcontext[Any] = nullcontext(),
     ):
         """
         Initializes the DataWorker with the given parameters.
@@ -57,13 +56,14 @@ class DataWorker:
         :param config: The configuration for the service.
         """
         self.config: ServiceConfig = config
+        self.cache: AsyncCache | nullcontext[Any] = cache
         self._requests: Iterable[Request] = requests
         self._data_queue: asyncio.Queue = asyncio.Queue()
         self._work_queue: asyncio.Queue = asyncio.Queue()
         self._failures: dict[str, FailedRequest] = {}
         self._seen_requests: set = set()
         self._started: bool = False
-        self._cache: AsyncJsonCache | None = None
+
         self._semaphore: asyncio.Semaphore = asyncio.Semaphore(
             self.config.max_concurrency
         )
@@ -72,19 +72,6 @@ class DataWorker:
             if self.config.limiter
             else nullcontext()
         )
-
-    @property
-    def cache(self) -> AsyncJsonCache | None:
-        """
-        Lazy initialization of the cache instance.
-        """
-        if self._cache is None and self.config.cache.use:
-            self._cache = AsyncJsonCache(Path(self.config.cache.path))
-        return self._cache
-
-    @property
-    def cache_context(self):
-        return self.cache if self.config.cache.use else nullcontext()
 
     @property
     def has_started(self) -> bool:
@@ -162,7 +149,7 @@ class DataWorker:
         :param request: The request to check for duplication.
         :return: True if the request is a duplicate, False otherwise.
         """
-        key = request.model_dump_json(include=self.config.deduplication_keys)
+        key = request.unique_key
         if key in self._seen_requests:
             logger.debug(f"Skipping duplicate request {request.url}")
             return True
@@ -220,10 +207,7 @@ class DataWorker:
         :return: The result of the callback function.
         """
         try:
-            with ThreadPoolExecutor() as executor:
-                return await asyncio.get_event_loop().run_in_executor(
-                    executor, request.callback, response
-                )
+            return await asyncio.to_thread(request.callback, response)
         except Exception as e:
             logger.error(f"Error processing callback {request.callback_name}: {e}")
             raise ParsingException(
@@ -238,18 +222,16 @@ class DataWorker:
         :return: The response object.
         """
 
-        client = request.client
         if self.config.constant_delay:
             await asyncio.sleep(self.config.constant_delay / 1000)
         if self.config.random_delay:
             await asyncio.sleep(random.randint(0, self.config.random_delay) / 1000)
-        return await self._wrap_retry(client, request)
+        return await self._wrap_retry(request)
 
-    async def _wrap_retry(self, client: ClientCallable, request: Request):
+    async def _wrap_retry(self, request: Request):
         """
         Wraps the request in a retry mechanism.
 
-        :param client: The client to use for the request.
         :param request: The request object.
         :return: The response object.
         """
@@ -282,21 +264,20 @@ class DataWorker:
             before_sleep=before_sleep_log(logger),
             after=after_log(logger),
         )
-        return await retryer(self._make_request, client, request)
+        return await retryer(self._make_request, request)
 
-    async def _make_request(self, client, request) -> Response:
+    async def _make_request(self, request) -> Response:
         """
         Wraps client call.
 
-        :param client: The client to use for the request.
         :param request: The request object.
         :return: The response object.
         """
         if self.config.cache.use:
-            cached = await cache_request(cast(AsyncJsonCache, self.cache))
-            return await cached(client, request)
+            cached = await cache_request(self.cache)  # type: ignore
+            return await cached(request)
         async with self._semaphore, self._limiter:
-            return await client(request)
+            return await request.client(request)
 
     async def _iter_callbacks(
         self, callback: Generator | AsyncGenerator | Request | GenericDataItem
@@ -324,7 +305,7 @@ class DataWorker:
         """
         if not self._started:
             await self._enqueue_start_requests()
-        async with self.cache_context as cache:
+        async with self.cache as cache:
             while self.has_jobs():
                 logger.debug(f"Work queue size: {self._work_queue.qsize()}")
                 logger.debug(f"Data queue size: {self._data_queue.qsize()}")

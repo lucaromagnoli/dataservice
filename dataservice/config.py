@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, NewType, Optional
+from typing import Annotated, Any, Awaitable, Callable, Literal, NewType, Optional
 
 from annotated_types import Ge
-from pydantic import BaseModel, Field, FilePath, NewPath
+from pydantic import BaseModel, Field, FilePath, NewPath, model_validator
 
 PositiveInt = Annotated[int, Ge(0)]
 Milliseconds = NewType("Milliseconds", PositiveInt)
@@ -30,14 +30,33 @@ class RateLimiterConfig(BaseModel):
 
 class CacheConfig(BaseModel):
     use: bool = Field(default=False, description="Whether to cache requests.")
+    cache_type: Literal["local", "remote"] = Field(
+        default="local", description="The type of cache to use."
+    )
     path: FilePath | NewPath = Field(
         default="cache.json",
-        description="The path of the file to use for the cache. Defaults to 'cache.json'.",
+        description="The path of the file to use for the cache. Defaults to 'cache.json'. Unused for remote cache.",
     )
     write_interval: PositiveInt = Field(
         default=20 * 60,
-        description="The interval to write the cache in seconds.Defaults to 20 minutes.",
+        description="The interval to write the cache in seconds. Defaults to 20 minutes.",
     )
+    save_state: Optional[Callable[[dict], Awaitable[None]]] = Field(
+        description="A function to save the cache state. Only used for remote cache.",
+        default=None,
+    )
+    load_state: Optional[Callable[[], Awaitable[Any]]] = Field(
+        description="A function to load the cache state. Only used for remote cache.",
+        default=None,
+    )
+
+    @model_validator(mode="after")
+    def validate(self) -> CacheConfig:  # type: ignore
+        if self.cache_type == "remote" and not self.save_state and not self.load_state:
+            raise ValueError(
+                "Remote cache requires save_state and load_state functions."
+            )
+        return self
 
 
 class ServiceConfig(BaseModel):
@@ -48,18 +67,6 @@ class ServiceConfig(BaseModel):
     )
     deduplication: bool = Field(
         default=True, description="Whether to deduplicate requests."
-    )
-    deduplication_keys: set[str] = Field(
-        default={
-            "url",
-            "params",
-            "method",
-            "form_data",
-            "json_data",
-            "content_type",
-            "headers",
-        },
-        description="A list of keys to use for deduplication.",
     )
     max_concurrency: PositiveInt = Field(
         default=10, description="The maximum number of concurrent requests."
