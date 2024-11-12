@@ -3,7 +3,7 @@ from functools import partial, wraps
 
 import pytest
 from bs4 import BeautifulSoup
-from pydantic import ValidationError
+from pydantic import HttpUrl, ValidationError
 
 from dataservice.models import Request, Response
 from tests.unit.conftest import ToyClient
@@ -294,3 +294,90 @@ def test_response_headers_property(valid_request, valid_url):
     headers = {"Content-Type": "text/html"}
     response = Response(request=valid_request, text="", url=valid_url, headers=headers)
     assert response.headers == headers
+
+
+@pytest.mark.parametrize(
+    "method, params, form_data, json_data, expected_key",
+    [
+        (
+            "GET",
+            {"key1": "value1"},
+            None,
+            None,
+            "GET https://example.com/ {'key1': 'value1'}",
+        ),
+        (
+            "POST",
+            None,
+            {"key1": "value1"},
+            None,
+            "POST https://example.com/ {'key1': 'value1'}",
+        ),
+        (
+            "POST",
+            None,
+            None,
+            {"key1": "value1"},
+            "POST https://example.com/ {'key1': 'value1'}",
+        ),
+        ("GET", None, None, None, "GET https://example.com/"),
+    ],
+)
+def test_request_unique_key(method, params, form_data, json_data, expected_key):
+    request = Request(
+        url="https://example.com",
+        method=method,
+        params=params,
+        form_data=form_data,
+        json_data=json_data,
+        callback=lambda x: x,
+        client=lambda x: x,
+    )
+    assert request.unique_key == expected_key
+
+
+@pytest.mark.parametrize(
+    "req, expected",
+    [
+        (
+            Request(
+                url="https://example.com",
+                method="GET",
+                params={"key1": "value1", "key2": "value2"},
+                callback=lambda x: x,
+                client=lambda x: x,
+            ),
+            HttpUrl("https://example.com?key1=value1&key2=value2"),
+        ),
+        (
+            Request(
+                url="https://example.com/",
+                method="GET",
+                params={"key1": "value1", "key2": "value2"},
+                callback=lambda x: x,
+                client=lambda x: x,
+            ),
+            HttpUrl("https://example.com?key1=value1&key2=value2"),
+        ),
+        (
+            Request(
+                url="https://example.com?key1=value1&key2=value2",
+                method="GET",
+                callback=lambda x: x,
+                client=lambda x: x,
+            ),
+            HttpUrl("https://example.com?key1=value1&key2=value2"),
+        ),
+        (
+            Request(
+                url="https://example.com/",
+                method="GET",
+                callback=lambda x: x,
+                client=lambda x: x,
+            ),
+            HttpUrl("https://example.com/"),
+        ),
+    ],
+)
+def test_request_url_encoded(req, expected):
+    assert req.url_encoded == expected

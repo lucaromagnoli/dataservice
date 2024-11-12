@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import urllib.parse
 from typing import (
     Annotated,
     Any,
@@ -107,11 +108,25 @@ class Request(BaseModel):
     @property
     def unique_key(self) -> str:
         """Return a unique key for the request."""
-        return str(
-            hash(
-                f"{self.method} {self.url} {self.params} {self.json_data} {self.form_data}"
-            )
-        )
+        key = f"{self.method} {self.url}"
+        if self.params:
+            key += f" {self.params}"
+        if self.form_data:
+            key += f" {self.form_data}"
+        if self.json_data:
+            key += f" {self.json_data}"
+        return key
+
+    @property
+    def url_encoded(self) -> HttpUrl:
+        """Return the URL encoded."""
+        url = str(self.url)
+        if "?" in url or not self.params:
+            return HttpUrl(url)
+
+        if url.endswith("/"):
+            url = url[:-1]
+        return HttpUrl(f"{url}?{urllib.parse.urlencode(self.params)}")  # type: ignore
 
 
 class Response(BaseModel):
