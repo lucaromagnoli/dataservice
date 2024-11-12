@@ -23,6 +23,7 @@ from dataservice.cache import AsyncCache, cache_request
 from dataservice.config import ServiceConfig
 from dataservice.exceptions import (
     DataServiceException,
+    NonRetryableException,
     ParsingException,
     RetryableException,
 )
@@ -184,6 +185,16 @@ class DataWorker:
                 await self._add_to_data_queue(callback_result)
             else:
                 await self._add_to_work_queue(callback_result)
+        except NonRetryableException as e:
+            logger.error(f"Non-Retryable Error Occurred: {e}")
+            self._add_to_failures(
+                {
+                    "request": request,
+                    "message": str(e),
+                    "exception": type(e).__name__,
+                }
+            )
+            return
         except ParsingException as e:
             logger.error(f"Parsing Error Occurred: {e}")
             self._add_to_failures(

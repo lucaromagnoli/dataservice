@@ -10,7 +10,12 @@ from annotated_types import Ge, Le
 from pydantic import HttpUrl
 
 from dataservice.config import PlaywrightConfig
-from dataservice.exceptions import DataServiceException, RetryableException
+from dataservice.exceptions import (
+    DataServiceException,
+    NonRetryableException,
+    RetryableException,
+    TimeoutException,
+)
 from dataservice.models import Request, Response
 
 try:
@@ -23,6 +28,7 @@ try:
     from playwright.async_api import Page as PlaywrightPage
     from playwright.async_api import Request as PlaywrightRequest
     from playwright.async_api import Response as PlaywrightResponse
+    from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
@@ -66,9 +72,15 @@ class HttpXClient:
                     e.response.reason_phrase, status_code=e.response.status_code
                 )
             else:
-                raise DataServiceException(
+                raise NonRetryableException(
                     e.response.reason_phrase, status_code=e.response.status_code
                 )
+
+        except httpx.TimeoutException as e:
+            msg = f"Timeout making request: {e}, {e.__class__.__name__}"
+            logger.debug(msg)
+            raise TimeoutException(msg)
+
         except httpx.HTTPError as e:
             msg = f"HTTP Error making request: {e}, {e.__class__.__name__}"
             logger.debug(msg)
@@ -193,7 +205,7 @@ class PlaywrightClient:
         elif 500 <= response.status < 600 or response.status == 429:
             raise RetryableException(response.status_text, status_code=response.status)
         else:
-            raise DataServiceException(
+            raise NonRetryableException(
                 response.status_text, status_code=response.status
             )
 
@@ -261,31 +273,41 @@ class PlaywrightClient:
             or self.playwright is None
         ):
             raise RuntimeError("Playwright components are not initialized properly")
+        try:
+            pw_response = await self.page.goto(request.url)
+            self._raise_for_status(pw_response)
 
-        pw_response = await self.page.goto(request.url)
-        self._raise_for_status(pw_response)
+            if self.actions is not None:
+                await self.actions(self.page)
 
-        if self.actions is not None:
-            await self.actions(self.page)
+            text = await self.page.content()
+            data = None
+            logger.debug(f"Received response for {request.url}")
 
-        text = await self.page.content()
-        data = None
-        logger.debug(f"Received response for {request.url}")
+            if self._intercepted_requests:
+                data = await self._get_intercepted_requests()
 
-        if self._intercepted_requests:
-            data = await self._get_intercepted_requests()
+            cookies = await self.context.cookies()
+            await self.context.close()
+            await self.browser.close()
+            await self.playwright.stop()
 
-        cookies = await self.context.cookies()
-        await self.context.close()
-        await self.browser.close()
-        await self.playwright.stop()
-
-        return Response(
-            request=request,
-            text=text,
-            data=data,
-            url=HttpUrl(pw_response.url),
-            status_code=pw_response.status,
-            cookies=cookies,
-            headers=pw_response.headers,
-        )
+            return Response(
+                request=request,
+                text=text,
+                data=data,
+                url=HttpUrl(pw_response.url),
+                status_code=pw_response.status,
+                cookies=cookies,
+                headers=pw_response.headers,
+            )
+        except PlaywrightTimeoutError as e:
+            raise TimeoutException(
+                f"Timeout making request: {e}, {e.__class__.__name__}"
+            )
+        except (RetryableException, NonRetryableException) as e:
+            raise e
+        except Exception as e:
+            raise DataServiceException(
+                f"Error making request: {e}, {e.__class__.__name__}"
+            )

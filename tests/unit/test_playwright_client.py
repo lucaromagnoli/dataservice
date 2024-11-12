@@ -1,10 +1,13 @@
 from unittest.mock import AsyncMock
 
 import pytest
+from playwright.async_api import Response as PlaywrightResponse
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from dataservice import DataServiceException, RetryableException
 from dataservice.clients import PlaywrightClient
 from dataservice.config import PlaywrightConfig
+from dataservice.exceptions import NonRetryableException, TimeoutException
 from dataservice.models import Request, Response
 
 
@@ -123,3 +126,62 @@ async def test_init_browser(mock_playwright):
     getattr(mock_playwright, browser_name).launch.assert_called_once_with(headless=True)
     mock_browser.new_context.assert_called_once()
     mock_context.new_page.assert_called_once()
+
+
+@pytest.fixture
+def mock_playwright_timeout(mocker):
+    mock_playwright = AsyncMock()
+    mock_browser = AsyncMock()
+    mock_context = AsyncMock()
+    mock_page = AsyncMock()
+    mocker.patch("dataservice.clients.async_playwright", return_value=mock_playwright)
+    mock_playwright.start.return_value = mock_playwright
+    mock_playwright.chromium.launch.return_value = mock_browser
+    mock_browser.new_context.return_value = mock_context
+    mock_context.new_page.return_value = mock_page
+    mock_page.goto.side_effect = PlaywrightTimeoutError("Timeout occurred")
+    return mock_playwright, mock_browser, mock_context, mock_page
+
+
+@pytest.mark.asyncio
+async def test_playwright_client_timeout_error(mock_playwright_timeout):
+    client = PlaywrightClient()
+    request = get_request(client)
+
+    with pytest.raises(TimeoutException) as excinfo:
+        await client.make_request(request)
+
+    assert "Timeout making request" in str(excinfo.value)
+
+
+@pytest.fixture
+def mock_playwright_response(mocker):
+    mock_response = mocker.create_autospec(PlaywrightResponse, instance=True)
+    return mock_response
+
+
+@pytest.mark.parametrize(
+    "status_code, status_text, expected_exception",
+    [
+        (200, "OK", None),
+        (500, "Internal Server Error", RetryableException),
+        (404, "Not Found", NonRetryableException),
+        (429, "Too Many Requests", RetryableException),
+        (503, "Service Unavailable", RetryableException),
+        (504, "Gateway Timeout", RetryableException),
+    ],
+)
+def test_raise_for_status(
+    mock_playwright_response, status_code, status_text, expected_exception
+):
+    mock_playwright_response.status = status_code
+    mock_playwright_response.status_text = status_text
+    client = PlaywrightClient()
+
+    if expected_exception:
+        with pytest.raises(expected_exception) as excinfo:
+            client._raise_for_status(mock_playwright_response)
+        assert status_text in str(excinfo.value)
+    else:
+        # Should not raise any exception
+        client._raise_for_status(mock_playwright_response)
