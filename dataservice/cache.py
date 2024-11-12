@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
 from anyio import to_thread
-from pydantic import HttpUrl
 
 from dataservice import CacheConfig
 from dataservice.models import Request, Response
@@ -162,7 +161,9 @@ async def cache_request(cache: AsyncCache) -> Callable:
             if key in cache:
                 logger.debug(f"Cache hit for {key}")
                 text, data = await cache.get(key)
-                return Response(request=request, text=text, data=data, url=HttpUrl(key))
+                return Response(
+                    request=request, text=text, data=data, url=request.url_encoded
+                )
             else:
                 logger.debug(f"Cache miss for {key}")
                 response = await request.client(request)
