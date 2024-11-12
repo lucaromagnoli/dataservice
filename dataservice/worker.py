@@ -26,6 +26,7 @@ from dataservice.exceptions import (
     NonRetryableException,
     ParsingException,
     RetryableException,
+    TimeoutException,
 )
 from dataservice.models import (
     FailedRequest,
@@ -295,7 +296,7 @@ class DataWorker:
                 min=self.config.retry.wait_exp_min,
                 max=self.config.retry.wait_exp_max,
             ),
-            retry=retry_if_exception_type(RetryableException),
+            retry=retry_if_exception_type((RetryableException, TimeoutException)),
             before_sleep=before_sleep_log(logger),
             after=after_log(logger),
         )

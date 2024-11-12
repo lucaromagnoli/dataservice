@@ -81,6 +81,11 @@ class AsyncCache(ABC):
         :param interval: The interval in seconds to write the cache.
         """
 
+        if time.time() - self.start_time >= interval:
+            logger.debug(f"Writing cache to disk every at interval {interval}")
+            await self.flush()
+            self.start_time = time.time()
+
 
 class LocalJsonCache(AsyncCache):
     """Simple JSON disk based cache implementation."""
@@ -93,6 +98,7 @@ class LocalJsonCache(AsyncCache):
 
     async def load(self):
         """Load cache data from a JSON file."""
+        logger.debug("Loading cache from disk")
 
         def sync_load():
             with open(self.path) as f:
@@ -103,21 +109,13 @@ class LocalJsonCache(AsyncCache):
 
     async def flush(self):
         """Save cache data to a JSON file."""
+        logger.debug("Saving cache to disk")
 
         def sync_flush():
             with open(self.path, "w") as f:
                 json.dump(self.cache, f)
 
         await to_thread.run_sync(sync_flush)
-
-    async def write_periodically(self, interval: int):
-        """Write the cache to disk periodically.
-
-        :param interval: The interval in seconds to write the cache.
-        """
-        if time.time() - self.start_time >= interval:
-            await self.flush()
-            self.start_time = time.time()
 
 
 class RemoteCache(AsyncCache):
@@ -134,11 +132,13 @@ class RemoteCache(AsyncCache):
         self.load_state = load_state
 
     async def load(self):
-        """Load cache data from Apify State."""
+        """Load cache data from Remote."""
+        logger.debug("Loading cache from Remote")
         self.cache = await self.load_state()
 
     async def flush(self):
-        """Save cache data to Apify State."""
+        """Save cache data to Remote."""
+        logger.debug("Saving cache to Remote")
         await self.save_state(self.cache)
 
 
@@ -184,10 +184,13 @@ class CacheFactory:
     async def init_cache(self) -> AsyncCache | nullcontext[Any]:
         """Create a cache instance based on the cache config."""
         if not self.cache_config.use:
+            logger.debug("Cache disabled")
             return nullcontext()
         if self.cache_config.cache_type == "local":
+            logger.debug("Using local cache")
             cache = LocalJsonCache(Path(self.cache_config.path))
         elif self.cache_config.cache_type == "remote":
+            logger.debug("Using remote cache")
             cache = RemoteCache(  # type: ignore
                 save_state=self.cache_config.save_state,
                 load_state=self.cache_config.load_state,
