@@ -107,10 +107,8 @@ class Request(BaseModel):
     @property
     def unique_key(self) -> str:
         """Return a unique key for the request."""
-        return str(
-            hash(
-                f"{self.method} {self.url} {self.params} {self.json_data} {self.form_data}"
-            )
+        return (
+            f"{self.method} {self.url} {self.params} {self.json_data} {self.form_data}"
         )
 
 
