@@ -23,6 +23,7 @@ from dataservice.cache import AsyncCache, cache_request
 from dataservice.config import ServiceConfig
 from dataservice.exceptions import (
     DataServiceException,
+    NonRetryableException,
     ParsingException,
     RetryableException,
 )
@@ -115,6 +116,30 @@ class DataWorker:
         """
         return self._data_queue.get_nowait()
 
+    def has_no_more_data(self) -> bool:
+        """
+        Check if there are no more data items in the data queue.
+
+        :return: True if there are no more data items, False otherwise.
+        """
+        return self._data_queue.empty()
+
+    def has_jobs(self) -> bool:
+        """
+        Check if there are jobs in the work queue.
+
+        :return: True if there are jobs in the work queue, False otherwise.
+        """
+        return not self._work_queue.empty()
+
+    def get_failures(self) -> dict[str, FailedRequest]:
+        """
+        Return a dictionary of failed requests.
+
+        :return: A tuple of failed requests.
+        """
+        return self._failures
+
     async def _enqueue_start_requests(self) -> None:
         """
         Enqueues the initial set of requests to the work queue.
@@ -184,6 +209,16 @@ class DataWorker:
                 await self._add_to_data_queue(callback_result)
             else:
                 await self._add_to_work_queue(callback_result)
+        except NonRetryableException as e:
+            logger.error(f"Non-Retryable Error Occurred: {e}")
+            self._add_to_failures(
+                {
+                    "request": request,
+                    "message": str(e),
+                    "exception": type(e).__name__,
+                }
+            )
+            return
         except ParsingException as e:
             logger.error(f"Parsing Error Occurred: {e}")
             self._add_to_failures(
@@ -314,27 +349,3 @@ class DataWorker:
                 await asyncio.gather(*tasks)
                 if self.config.cache.use:
                     await cache.write_periodically(self.config.cache.write_interval)
-
-    def has_no_more_data(self) -> bool:
-        """
-        Check if there are no more data items in the data queue.
-
-        :return: True if there are no more data items, False otherwise.
-        """
-        return self._data_queue.empty()
-
-    def has_jobs(self) -> bool:
-        """
-        Check if there are jobs in the work queue.
-
-        :return: True if there are jobs in the work queue, False otherwise.
-        """
-        return not self._work_queue.empty()
-
-    def get_failures(self) -> dict[str, FailedRequest]:
-        """
-        Return a dictionary of failed requests.
-
-        :return: A tuple of failed requests.
-        """
-        return self._failures

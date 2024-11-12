@@ -17,5 +17,13 @@ class ParsingException(DataServiceException):
     """Exception raised when parsing fails."""
 
 
+class NonRetryableException(DataServiceException):
+    """Exception for non retryable exceptions."""
+
+
 class RetryableException(DataServiceException):
     """Base class for all retryable exceptions."""
+
+
+class TimeoutException(DataServiceException):
+    """Exception raised when a request times out."""

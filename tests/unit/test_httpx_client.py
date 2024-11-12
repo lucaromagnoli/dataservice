@@ -1,10 +1,15 @@
 import pytest
-from httpx import HTTPError, HTTPStatusError, TimeoutException
+from httpx import HTTPError, HTTPStatusError
 from httpx import Response as HttpXResponse
+from httpx import TimeoutException as HTTPXTimeoutException
 from pytest_httpx import HTTPXMock
 
 from dataservice.clients import HttpXClient
-from dataservice.exceptions import DataServiceException, RetryableException
+from dataservice.exceptions import (
+    DataServiceException,
+    RetryableException,
+    TimeoutException,
+)
 from dataservice.models import Request
 
 
@@ -124,8 +129,8 @@ async def test_httpx_client_post_request(
             id="429 Retryable",
         ),
         pytest.param(
-            TimeoutException("Error"),
-            DataServiceException,
+            HTTPXTimeoutException("Timeout"),
+            TimeoutException,
             id="Timeout. Dont Retry",
         ),
         pytest.param(
