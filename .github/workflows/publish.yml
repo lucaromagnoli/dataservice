@@ -6,12 +6,12 @@ on:
     types:
       - completed
 
-  pull_request:
+  push:
     branches: [ "main" ]
 
 jobs:
   release:
-    if: ${{ github.event.pull_request.merged }}
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     steps:
