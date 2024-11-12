@@ -92,7 +92,7 @@ class HttpXClient:
         :param request: The request object containing the details of the HTTP request.
         :return: A Response object containing the response data.
         """
-        logger.debug(f"Requesting {request.url}")
+        logger.debug(f"Requesting {request}")
         async with self.async_client(
             headers=request.headers,
             proxy=request.proxy.url if request.proxy else None,
@@ -264,7 +264,7 @@ class PlaywrightClient:
         :return: A Response object containing the response data.
         """
         await self._init_browser(request)
-        logger.debug(f"Requesting {request.url}")
+        logger.debug(f"Requesting {request}")
 
         if (
             self.page is None
