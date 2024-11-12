@@ -81,6 +81,11 @@ class AsyncCache(ABC):
         :param interval: The interval in seconds to write the cache.
         """
 
+        if time.time() - self.start_time >= interval:
+            logger.debug(f"Writing cache to disk every at interval {interval}")
+            await self.flush()
+            self.start_time = time.time()
+
 
 class LocalJsonCache(AsyncCache):
     """Simple JSON disk based cache implementation."""
@@ -111,17 +116,6 @@ class LocalJsonCache(AsyncCache):
                 json.dump(self.cache, f)
 
         await to_thread.run_sync(sync_flush)
-
-    async def write_periodically(self, interval: int):
-        """Write the cache to disk periodically.
-
-        :param interval: The interval in seconds to write the cache.
-        """
-
-        if time.time() - self.start_time >= interval:
-            logger.debug(f"Writing cache to disk every at interval {interval}")
-            await self.flush()
-            self.start_time = time.time()
 
 
 class RemoteCache(AsyncCache):
