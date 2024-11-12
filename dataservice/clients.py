@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from abc import ABC
 from logging import getLogger
 from typing import Annotated, Any, Awaitable, Callable, Literal, NoReturn, Optional
 
@@ -44,11 +45,8 @@ except ImportError:
 logger = getLogger(__name__)
 
 
-class HttpXClient:
-    """Client that uses HTTPX library to make requests."""
-
-    def __init__(self):
-        self.async_client = httpx.AsyncClient
+class BaseClient(ABC):
+    """Base client class."""
 
     def __call__(self, *args, **kwargs):
         """Make a request using the client."""
@@ -62,19 +60,48 @@ class HttpXClient:
         :raises RequestException: If a non-retryable HTTP error occurs.
         :raises RetryableRequestException: If a retryable HTTP error occurs.
         """
+        logger.debug(f"Requesting {request.url_encoded}")
+        return await self._make_request(request)
+
+    async def _make_request(self, request: Request) -> Response | NoReturn:
+        """Make a request using the client. Private method for internal use."""
+        raise NotImplementedError
+
+    @staticmethod
+    def _raise_for_status(status_code: int, status_text: str):
+        """Raise an exception if the response status code is not 2xx.
+
+        :param status_code: The status code of the response.
+        :param status_text: The status text of the response.
+        :raises RetryableException: If the status code is 5xx.
+        :raises DataServiceException: If the status code is not 2xx or 5xx.
+        """
+        if status_code == 200:
+            return
+        elif 500 <= status_code < 600 or status_code in [429, 403]:
+            raise RetryableException(status_text, status_code=status_code)
+        else:
+            raise NonRetryableException(status_text, status_code=status_code)
+
+
+class HttpXClient(BaseClient):
+    """Client that uses HTTPX library to make requests."""
+
+    def __init__(self):
+        self.async_client = httpx.AsyncClient
+
+    async def _make_request(self, request: Request) -> Response:
+        """Make a request using HTTPX. Private method for internal use.
+
+        :param request: The request object containing the details of the HTTP request.
+        :return: A Response object containing the response data.
+        """
         try:
-            return await self._make_request(request)
+            response = await self._get_response(request)
         except httpx.HTTPStatusError as e:
             logger.debug(f"HTTP Status Error making request: {e}")
             status_code: Annotated[int, Ge(400), Le(600)] = e.response.status_code
-            if status_code == 429 or 500 <= status_code < 600:
-                raise RetryableException(
-                    e.response.reason_phrase, status_code=e.response.status_code
-                )
-            else:
-                raise NonRetryableException(
-                    e.response.reason_phrase, status_code=e.response.status_code
-                )
+            self._raise_for_status(status_code, e.response.reason_phrase)
 
         except httpx.TimeoutException as e:
             msg = f"Timeout making request: {e}, {e.__class__.__name__}"
@@ -86,13 +113,13 @@ class HttpXClient:
             logger.debug(msg)
             raise DataServiceException(msg)
 
-    async def _make_request(self, request: Request) -> Response:
-        """Make a request using HTTPX. Private method for internal use.
+        return response
 
+    async def _get_response(self, request) -> Response:
+        """Get the response from the request.
         :param request: The request object containing the details of the HTTP request.
         :return: A Response object containing the response data.
         """
-        logger.debug(f"Requesting {request.url_encoded}")
         async with self.async_client(
             headers=request.headers,
             proxy=request.proxy.url if request.proxy else None,
@@ -122,7 +149,6 @@ class HttpXClient:
             msg += f" - form data {request.form_data}"
         if request.json_data:
             msg += f" - json data {request.json_data}"
-
         logger.debug(msg)
         return Response(
             request=request,
@@ -133,7 +159,7 @@ class HttpXClient:
         )
 
 
-class PlaywrightClient:
+class PlaywrightClient(BaseClient):
     """Client that uses Playwright library to make requests."""
 
     def __init__(
@@ -165,10 +191,6 @@ class PlaywrightClient:
         self.context: BrowserContext | None = None
         self.page: PlaywrightPage | None = None
 
-    def __call__(self, *args, **kwargs):
-        """Make a request using the client."""
-        return self.make_request(*args, **kwargs)
-
     def _get_context_kwargs(self, request: Request) -> dict[str, Any]:
         """Get the context kwargs for the Playwright client.
 
@@ -191,23 +213,6 @@ class PlaywrightClient:
         :raises RetryableRequestException: If a retryable HTTP error occurs.
         """
         return await self._make_request(request)
-
-    @staticmethod
-    def _raise_for_status(response: PlaywrightResponse):
-        """Raise an exception if the response status code is not 2xx.
-
-        :param response: The response object to check.
-        :raises RetryableException: If the status code is 5xx.
-        :raises DataServiceException: If the status code is not 2xx or 5xx.
-        """
-        if response.status == 200:
-            return
-        elif 500 <= response.status < 600 or response.status == 429:
-            raise RetryableException(response.status_text, status_code=response.status)
-        else:
-            raise NonRetryableException(
-                response.status_text, status_code=response.status
-            )
 
     def _intercept_requests(self, request: PlaywrightRequest):
         """Intercept requests and store the data.
@@ -275,7 +280,7 @@ class PlaywrightClient:
             raise RuntimeError("Playwright components are not initialized properly")
         try:
             pw_response = await self.page.goto(request.url)
-            self._raise_for_status(pw_response)
+            self._raise_for_status(pw_response.status, pw_response.status_text)
 
             if self.actions is not None:
                 await self.actions(self.page)
@@ -302,6 +307,7 @@ class PlaywrightClient:
                 headers=pw_response.headers,
             )
         except PlaywrightTimeoutError as e:
+            logger.debug(f"Timeout making request: {e}")
             raise TimeoutException(
                 f"Timeout making request: {e}, {e.__class__.__name__}"
             )
