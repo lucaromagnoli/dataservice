@@ -164,8 +164,9 @@ class AsyncDataService(BaseDataService):
         """Fetches the next data item from the data worker."""
         await self._init_data_worker()
         if not self.data_worker.has_started:
-            logger.info("Data service start fetching.")
+            logger.info("Start fetching.")
             await self._run_data_worker()
+            logger.info("Retrieving data.")
         if self.data_worker.has_no_more_data():
             raise StopAsyncIteration
         return self.data_worker.get_data_item()
