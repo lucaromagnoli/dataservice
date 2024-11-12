@@ -368,6 +368,15 @@ def test_request_unique_key(method, params, form_data, json_data, expected_key):
             ),
             HttpUrl("https://example.com?key1=value1&key2=value2"),
         ),
+        (
+            Request(
+                url="https://example.com/",
+                method="GET",
+                callback=lambda x: x,
+                client=lambda x: x,
+            ),
+            HttpUrl("https://example.com/"),
+        ),
     ],
 )
 def test_request_url_encoded(req, expected):

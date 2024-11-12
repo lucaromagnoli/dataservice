@@ -121,12 +121,11 @@ class Request(BaseModel):
     def url_encoded(self) -> HttpUrl:
         """Return the URL encoded."""
         url = str(self.url)
-        if "?" in url:
+        if "?" in url or not self.params:
             return HttpUrl(url)
 
         if url.endswith("/"):
             url = url[:-1]
-
         return HttpUrl(f"{url}?{urllib.parse.urlencode(self.params)}")  # type: ignore
 
 
