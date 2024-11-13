@@ -148,11 +148,12 @@ async def cache_request(cache: AsyncCache) -> Callable:
     :param cache: The cache to use.
     """
 
-    async def wrapped_request(request: Request) -> Response:
+    async def wrapped_request(request: Request, delay: int | None = None) -> Response:
         """
         Wraps a function to cache its results.
 
         :param request: The request to cache.
+        :param delay: The delay in seconds to wait before making the request.
         """
 
         @wraps(wrapped_request)
@@ -166,6 +167,8 @@ async def cache_request(cache: AsyncCache) -> Callable:
                 )
             else:
                 logger.debug(f"Cache miss for {key}")
+                if delay is not None:
+                    await asyncio.sleep(delay)
                 response = await request.client(request)
                 value = response.text, response.data
                 await cache.set(key, value)

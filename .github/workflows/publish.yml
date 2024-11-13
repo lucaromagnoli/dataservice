@@ -5,12 +5,16 @@ on:
     workflows: ["Run CI"]
     types:
       - completed
+    conclusion:
+      - success
   push:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
   release:
-    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.ref == 'refs/heads/main'
+
     runs-on: ubuntu-latest
 
     steps:

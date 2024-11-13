@@ -40,7 +40,7 @@ def test_service_config_defaults():
     config = ServiceConfig()
     assert config.deduplication is True
     assert config.max_concurrency == 10
-    assert config.random_delay == 0
+    assert config.delay.amount == 0.0
     assert config.retry.max_attempts == 3
 
 
@@ -50,13 +50,13 @@ def test_service_config_custom_values():
         **{
             "deduplication": False,
             "max_concurrency": 20,
-            "random_delay": 100,
+            "delay": {"amount": 1000},
             "retry": retry_config,
         }
     )
     assert config.deduplication is False
     assert config.max_concurrency == 20
-    assert config.random_delay == 100
+    assert config.delay.amount == 1000
     assert config.retry.max_attempts == 5
 
 
@@ -64,7 +64,7 @@ def test_service_config_invalid_values():
     with pytest.raises(ValidationError):
         ServiceConfig(max_concurrency=-1)
     with pytest.raises(ValidationError):
-        ServiceConfig(random_delay=-1)
+        ServiceConfig(delay={"amount": -1})
 
 
 @pytest.fixture
