@@ -42,9 +42,6 @@ def parse_book_details(response: Response):
     return {"title": title, "price": price}
 
 
-@pytest.mark.skip(
-    reason="When running test_pw_intercept.py, this test is skipped, otherwise test_pw_intercept.py will fail. Needs to be investigated."
-)
 def test_scrape_books(data_service):
     data = tuple(data_service)
     assert len(data) == 20
