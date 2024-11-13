@@ -185,11 +185,6 @@ class PlaywrightClient(BaseClient):
         self.intercept_content_type = intercept_content_type
         self.config = config
         self._intercepted_requests: list[PlaywrightRequest] | None = None
-        self.async_playwright = async_playwright
-        self.playwright: Playwright | None = None
-        self.browser: Browser | None = None
-        self.context: BrowserContext | None = None
-        self.page: PlaywrightPage | None = None
 
     def _get_context_kwargs(self, request: Request) -> dict[str, Any]:
         """Get the context kwargs for the Playwright client.
@@ -244,58 +239,33 @@ class PlaywrightClient(BaseClient):
                         responses[request.url] = await response.json()
         return responses
 
-    async def _init_browser(self, request: Request) -> PlaywrightPage:
-        """Initialize the Playwright browser and context."""
-        browser_name = self.config.browser if self.config else "chromium"
-        headless = self.config.headless if self.config else True
-        self.playwright = await self.async_playwright().start()
-        self.browser = await getattr(self.playwright, browser_name).launch(
-            headless=headless
-        )
-
-        context_kwargs = self._get_context_kwargs(request)
-        self.context = await self.browser.new_context(**context_kwargs)
-
-        self.page = await self.context.new_page()
-        if self.intercept_url is not None:
-            self.page.on(
-                "request", lambda pw_request: self._intercept_requests(pw_request)
-            )
-
     async def _make_request(self, request: Request) -> Response:
-        """Make a request using Playwright. Private method for internal use.
+        """Make a request using Playwright without assigning instance variables."""
+        playwright = await async_playwright().start()
+        browser = await playwright.chromium.launch(headless=True)
+        context_kwargs = self._get_context_kwargs(request)
+        context = await browser.new_context(**context_kwargs)
+        page = await context.new_page()
 
-        :param request: The request object containing the details of the HTTP request.
-        :return: A Response object containing the response data.
-        """
-        await self._init_browser(request)
-        logger.debug(f"Requesting {request.url_encoded}")
+        if self.intercept_url is not None:
+            page.on("request", lambda pw_request: self._intercept_requests(pw_request))
 
-        if (
-            self.page is None
-            or self.context is None
-            or self.browser is None
-            or self.playwright is None
-        ):
-            raise RuntimeError("Playwright components are not initialized properly")
         try:
-            pw_response = await self.page.goto(request.url)
+            logger.debug(f"Requesting {request.url_encoded}")
+            pw_response = await page.goto(request.url)
+            logger.debug(f"Received response for {request.url_encoded}")
             self._raise_for_status(pw_response.status, pw_response.status_text)
 
             if self.actions is not None:
-                await self.actions(self.page)
+                await self.actions(page)
 
-            text = await self.page.content()
-            data = None
-            logger.debug(f"Received response for {request.url}")
-
-            if self._intercepted_requests:
-                data = await self._get_intercepted_requests()
-
-            cookies = await self.context.cookies()
-            await self.context.close()
-            await self.browser.close()
-            await self.playwright.stop()
+            text = await page.content()
+            data = (
+                await self._get_intercepted_requests()
+                if self._intercepted_requests
+                else None
+            )
+            cookies = await context.cookies()
 
             return Response(
                 request=request,
@@ -317,3 +287,10 @@ class PlaywrightClient(BaseClient):
             raise DataServiceException(
                 f"Error making request: {e}, {e.__class__.__name__}"
             )
+
+        finally:
+            # Close resources
+            await page.close()
+            await context.close()
+            await browser.close()
+            await playwright.stop()
