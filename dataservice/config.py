@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from typing import Annotated, Any, Awaitable, Callable, Literal, NewType, Optional
 
 from annotated_types import Ge
@@ -59,6 +60,25 @@ class CacheConfig(BaseModel):
         return self
 
 
+class DelayConfig(BaseModel):
+    """Delay configuration for the service."""
+
+    amount: Milliseconds = Field(
+        default=Milliseconds(0),
+        description="The total amount of delay in milliseconds.",
+    )
+
+    type: Literal["constant", "random"] = Field(
+        default="random",
+        description="The type of delay. Either constant or random. Defaults to random.",
+    )
+
+    def get(self):
+        if self.type == "constant":
+            return self.amount / 1000
+        return random.randint(0, self.amount) / 1000
+
+
 class ServiceConfig(BaseModel):
     """Global configuration for the service."""
 
@@ -71,21 +91,15 @@ class ServiceConfig(BaseModel):
     max_concurrency: PositiveInt = Field(
         default=10, description="The maximum number of concurrent requests."
     )
-    random_delay: Milliseconds = Field(
-        default=Milliseconds(0),
-        description="The maximum random delay between requests.",
-    )
-
-    constant_delay: Milliseconds = Field(
-        default=Milliseconds(0),
-        description="Constant delay between requests.",
-    )
 
     limiter: RateLimiterConfig | None = Field(
         description="The rate limiter configuration", default=None
     )
     cache: CacheConfig = Field(
         description="The cache configuration", default_factory=CacheConfig
+    )
+    delay: DelayConfig = Field(
+        description="The delay configuration", default_factory=DelayConfig
     )
 
 

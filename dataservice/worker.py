@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import random
 from collections import abc
 from contextlib import nullcontext
 from typing import Any, AsyncGenerator, Generator, Iterable
@@ -230,6 +229,16 @@ class DataWorker:
                 }
             )
             return
+        except RetryableException as e:
+            logger.error(f"RetryableException re-raised after retrying: {e}")
+            self._add_to_failures(
+                {
+                    "request": request,
+                    "message": str(e),
+                    "exception": type(e).__name__,
+                }
+            )
+            return
         except DataServiceException as e:
             logger.error(f"Data Service Error Occurred: {e}")
             raise e
@@ -252,67 +261,64 @@ class DataWorker:
 
     async def _handle_request(self, request: Request) -> Response:
         """
-        Makes an asynchronous request and retry on 500 status code.
+        Makes an asynchronous request with retry mechanism.
 
         :param request: The request object.
         :return: The response object.
         """
 
-        if self.config.constant_delay:
-            await asyncio.sleep(self.config.constant_delay / 1000)
-        if self.config.random_delay:
-            await asyncio.sleep(random.randint(0, self.config.random_delay) / 1000)
-        return await self._wrap_retry(request)
+        async def _wrap_retry(req: Request):
+            """
+            Wraps the request in a retry mechanism.
 
-    async def _wrap_retry(self, request: Request):
-        """
-        Wraps the request in a retry mechanism.
+            :param req: The request object.
+            :return: The response object.
+            """
 
-        :param request: The request object.
-        :return: The response object.
-        """
+            def before_sleep_log(_logger):
+                def _before_sleep_log(retry_state: RetryCallState):
+                    _logger.debug(
+                        f"Retrying request {req.url}, attempt {retry_state.attempt_number}",
+                    )
 
-        def before_sleep_log(_logger):
-            def _before_sleep_log(retry_state: RetryCallState):
-                _logger.debug(
-                    f"Retrying request {request.url}, attempt {retry_state.attempt_number}",
-                )
+                return _before_sleep_log
 
-            return _before_sleep_log
+            def after_log(_logger):
+                def _after_log(retry_state: RetryCallState):
+                    _logger.debug(
+                        f"Retry attempt {retry_state.attempt_number}. Request {req.url} returned with status {retry_state.outcome}",
+                    )
 
-        def after_log(_logger):
-            def _after_log(retry_state: RetryCallState):
-                _logger.debug(
-                    f"Retry attempt {retry_state.attempt_number}. Request {request.url} returned with status {retry_state.outcome}",
-                )
+                return _after_log
 
-            return _after_log
+            retryer = AsyncRetrying(
+                reraise=True,
+                stop=stop_after_attempt(self.config.retry.max_attempts),
+                wait=wait_exponential(
+                    multiplier=self.config.retry.wait_exp_mul,
+                    min=self.config.retry.wait_exp_min,
+                    max=self.config.retry.wait_exp_max,
+                ),
+                retry=retry_if_exception_type((RetryableException, TimeoutException)),
+                before_sleep=before_sleep_log(logger),
+                after=after_log(logger),
+            )
+            return await retryer(self._make_request, req)
 
-        retryer = AsyncRetrying(
-            reraise=True,
-            stop=stop_after_attempt(self.config.retry.max_attempts),
-            wait=wait_exponential(
-                multiplier=self.config.retry.wait_exp_mul,
-                min=self.config.retry.wait_exp_min,
-                max=self.config.retry.wait_exp_max,
-            ),
-            retry=retry_if_exception_type((RetryableException, TimeoutException)),
-            before_sleep=before_sleep_log(logger),
-            after=after_log(logger),
-        )
-        return await retryer(self._make_request, request)
+        return await _wrap_retry(request)
 
     async def _make_request(self, request) -> Response:
         """
-        Wraps client call.
+        Wraps client call. This is the actual request function. If cache is enabled, it will cache the request.
 
         :param request: The request object.
         :return: The response object.
         """
         if self.config.cache.use:
             cached = await cache_request(self.cache)  # type: ignore
-            return await cached(request)
+            return await cached(request, self.config.delay.get())
         async with self._semaphore, self._limiter:
+            await asyncio.sleep(self.config.delay.get())
             return await request.client(request)
 
     async def _iter_callbacks(
