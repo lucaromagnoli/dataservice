@@ -242,9 +242,11 @@ class PlaywrightClient(BaseClient):
     async def _setup(
         self, request: Request
     ) -> tuple[Browser, BrowserContext, PlaywrightPage, Playwright]:
-        """Setup the Playwright client."""
+        """Set up the Playwright client."""
         playwright = await async_playwright().start()
-        browser = await getattr(playwright, self.config.browser).launch()
+        browser = await getattr(playwright, self.config.browser).launch(
+            headless=self.config.headless
+        )
         context_kwargs = self._get_context_kwargs(request)
         context = await browser.new_context(**context_kwargs)
         page = await context.new_page()
