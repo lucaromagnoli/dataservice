@@ -351,8 +351,14 @@ class DataWorker:
             while self.has_jobs():
                 logger.debug(f"Work queue size: {self._work_queue.qsize()}")
                 logger.debug(f"Data queue size: {self._data_queue.qsize()}")
-                item = self._work_queue.get_nowait()
-                tasks = [task async for task in self._iter_callbacks(item)]
+                items = []
+                for _ in range(
+                    min(self.config.max_concurrency, self._work_queue.qsize())
+                ):
+                    items.append(self._work_queue.get_nowait())
+                tasks = [
+                    task for item in items async for task in self._iter_callbacks(item)
+                ]
                 await asyncio.gather(*tasks)
                 if self.config.cache.use:
                     await cache.write_periodically(self.config.cache.write_interval)
