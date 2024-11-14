@@ -39,7 +39,7 @@ def parse_headers(response: Response):
     return headers
 
 
-def test_scrape_books(data_service, user_agent):
+def test_headers(data_service, user_agent):
     data = tuple(data_service)
     assert len(data) == 1
     assert data[0]["headers"]["User-Agent"] == user_agent
