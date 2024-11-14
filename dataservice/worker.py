@@ -161,8 +161,10 @@ class DataWorker:
         :param item: The item to handle from the work queue.
         """
         if isinstance(item, Request):
-            await self._handle_request_item(item)
+            logger.debug(f"Handling request {item.url}")
+            await asyncio.wait_for(self._handle_request_item(item), 10)
         elif isinstance(item, (abc.MutableMapping, BaseModel)):
+            logger.debug("Handling data item")
             await self._add_to_data_queue(item)
         else:
             raise ValueError(f"Unknown item type {type(item)}")
@@ -356,9 +358,21 @@ class DataWorker:
                     min(self.config.max_concurrency, self._work_queue.qsize())
                 ):
                     items.append(self._work_queue.get_nowait())
-                tasks = [
-                    task for item in items async for task in self._iter_callbacks(item)
-                ]
-                await asyncio.gather(*tasks)
+
+                tasks = []
+                for item in items:
+                    async for task in self._iter_callbacks(item):
+                        tasks.append(task)
+
+                        # Process batch when it reaches the max concurrency limit
+                        if len(tasks) >= self.config.max_concurrency:
+                            await asyncio.gather(*tasks)
+                            tasks = []
+
+                # Process any remaining tasks that didn’t fill a full batch
+                if tasks:
+                    await asyncio.gather(*tasks)
+                    for _ in tasks:
+                        self._work_queue.task_done()
                 if self.config.cache.use:
                     await cache.write_periodically(self.config.cache.write_interval)
