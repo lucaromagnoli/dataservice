@@ -6,6 +6,7 @@ from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from dataservice import DataServiceException, RetryableException
 from dataservice.clients import PlaywrightClient
+from dataservice.config import PlaywrightConfig
 from dataservice.exceptions import NonRetryableException, TimeoutException
 from dataservice.models import Request, Response
 
@@ -154,3 +155,49 @@ def test_raise_for_status(status_code, status_text, expected_exception):
     else:
         # Should not raise any exception
         client._raise_for_status(status_code, status_text)
+
+
+@pytest.fixture
+def mock_playwright_setup(mocker, request):
+    mock_playwright = AsyncMock()
+    mock_browser = AsyncMock()
+    mock_context = AsyncMock()
+    mock_page = AsyncMock()
+    mocker.patch("dataservice.clients.async_playwright", return_value=mock_playwright)
+    mock_playwright.start.return_value = mock_playwright
+    browser_name = request.param
+    getattr(mock_playwright, browser_name).launch.return_value = mock_browser
+    mock_browser.new_context.return_value = mock_context
+    mock_context.new_page.return_value = mock_page
+    return mock_playwright, mock_browser, mock_context, mock_page, browser_name
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "mock_playwright_setup", ["chromium", "firefox", "webkit"], indirect=True
+)
+async def test_setup(mock_playwright_setup):
+    mock_playwright, mock_browser, mock_context, mock_page, browser_name = (
+        mock_playwright_setup
+    )
+    client = PlaywrightClient(config=PlaywrightConfig(browser=browser_name))
+    request = Request(
+        url="http://example.com",
+        method="GET",
+        headers={},
+        params={},
+        form_data=None,
+        json_data=None,
+        content_type="text",
+        proxy=None,
+        timeout=30,
+        callback=lambda x: x,
+        client=client,
+    )
+
+    browser, context, page, playwright = await client._setup(request)
+
+    assert browser == mock_browser
+    assert context == mock_context
+    assert page == mock_page
+    assert playwright == mock_playwright

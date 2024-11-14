@@ -168,7 +168,7 @@ class PlaywrightClient(BaseClient):
         actions: Optional[Callable[[PlaywrightPage], Awaitable[None]]] = None,
         intercept_url: Optional[str] = None,
         intercept_content_type: Optional[Literal["text", "json"]] = "json",
-        config: Optional[PlaywrightConfig] = None,
+        config: PlaywrightConfig = PlaywrightConfig(),
     ):
         """Initialize the PlaywrightClient.
 
@@ -239,13 +239,20 @@ class PlaywrightClient(BaseClient):
                         responses[request.url] = await response.json()
         return responses
 
-    async def _make_request(self, request: Request) -> Response:
-        """Make a request using Playwright without assigning instance variables."""
+    async def _setup(
+        self, request: Request
+    ) -> tuple[Browser, BrowserContext, PlaywrightPage, Playwright]:
+        """Setup the Playwright client."""
         playwright = await async_playwright().start()
-        browser = await playwright.chromium.launch(headless=True)
+        browser = await getattr(playwright, self.config.browser).launch()
         context_kwargs = self._get_context_kwargs(request)
         context = await browser.new_context(**context_kwargs)
         page = await context.new_page()
+        return browser, context, page, playwright
+
+    async def _make_request(self, request: Request) -> Response:
+        """Make a request using Playwright without assigning instance variables."""
+        browser, context, page, playwright = await self._setup(request)
 
         if self.intercept_url is not None:
             page.on("request", lambda pw_request: self._intercept_requests(pw_request))
