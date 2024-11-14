@@ -195,6 +195,8 @@ class PlaywrightClient(BaseClient):
         context_kwargs = {}
         if request.proxy:
             context_kwargs["proxy"] = {"server": request.proxy.url}
+        if request.headers:
+            context_kwargs["extra_http_headers"] = request.headers
         if self.config is not None and self.config.device:
             context_kwargs.update(self.config.device)
         return context_kwargs
