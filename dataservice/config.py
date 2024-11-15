@@ -101,9 +101,6 @@ class ServiceConfig(BaseModel):
     delay: DelayConfig = Field(
         description="The delay configuration", default_factory=DelayConfig
     )
-    timeout: Seconds = Field(
-        default=Seconds(30), description="The timeout for requests in seconds."
-    )
 
 
 class ProxyConfig(BaseModel):

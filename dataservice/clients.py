@@ -263,7 +263,8 @@ class PlaywrightClient(BaseClient):
 
         try:
             logger.debug(f"Requesting {request.url_encoded}")
-            pw_response = await page.goto(request.url)
+            # Playwright page.goto() timeout is in milliseconds
+            pw_response = await page.goto(request.url, timeout=request.timeout * 1000)
             logger.debug(f"Received response for {request.url_encoded}")
             self._raise_for_status(pw_response.status, pw_response.status_text)
 
