@@ -8,7 +8,13 @@ import pytest
 from dataservice.cache import LocalJsonCache
 from dataservice.config import ServiceConfig
 from dataservice.data import BaseDataItem
-from dataservice.exceptions import DataServiceException, RetryableException
+from dataservice.exceptions import (
+    DataServiceException,
+    NonRetryableException,
+    ParsingException,
+    RetryableException,
+    TimeoutException,
+)
 from dataservice.models import Request, Response
 from dataservice.worker import DataWorker
 from tests.unit.conftest import ToyClient
@@ -307,6 +313,80 @@ async def test_retry_logs(
     with expected_behaviour:
         await data_worker._handle_request(request_with_data_callback)
         assert caplog.messages[-1] == expected_logs
+
+
+@pytest.fixture
+def mock_worker():
+    config = ServiceConfig(
+        max_concurrency=5, deduplication=True, retry={"max_retries": 0}
+    )
+    requests = [
+        Request(url="http://example.com", callback=lambda x: x, client=AsyncMock())
+    ]
+    worker = DataWorker(requests=requests, config=config)
+    return worker
+
+
+@pytest.mark.asyncio
+async def test_handle_request_item_successfully(mock_worker, mocker):
+    request = mock_worker._requests[0]
+    mock_worker._is_duplicate_request = mocker.MagicMock(return_value=False)
+    mock_worker._has_request_failed = mocker.MagicMock(return_value=False)
+    mock_worker._handle_request = AsyncMock()
+    mock_worker._handle_callback = AsyncMock(return_value={})
+    mock_worker._add_to_data_queue = AsyncMock()
+
+    await mock_worker._handle_request_item(request)
+
+    mock_worker._handle_request.assert_called_once_with(request)
+    mock_worker._handle_callback.assert_called_once()
+    mock_worker._add_to_data_queue.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "exception, expected, log_message",
+    [
+        (
+            RetryableException("RetryableException"),
+            does_not_raise(),
+            "Re-raised after retrying http://example.com/: RetryableException",
+        ),
+        (
+            TimeoutException("TimeoutException"),
+            does_not_raise(),
+            "Error processing request http://example.com/: TimeoutException",
+        ),
+        (
+            NonRetryableException("NonRetryableException"),
+            does_not_raise(),
+            "Error processing request http://example.com/: NonRetryableException",
+        ),
+        (
+            ParsingException("ParsingException"),
+            does_not_raise(),
+            "Error processing request http://example.com/: ParsingException",
+        ),
+        (
+            DataServiceException("DataServiceException"),
+            pytest.raises(DataServiceException),
+            "Error processing request http://example.com/: DataServiceException",
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_handle_request_item_with_exception(
+    mock_worker, mocker, exception, expected, log_message, caplog
+):
+    request = mock_worker._requests[0]
+    mock_worker._is_duplicate_request = mocker.MagicMock(return_value=False)
+    mock_worker._has_request_failed = mocker.MagicMock(return_value=False)
+    mock_worker._handle_request = AsyncMock(side_effect=exception)
+    mock_worker._add_to_failures = AsyncMock()
+
+    with expected:
+        await mock_worker._handle_request_item(request)
+
+    assert caplog.messages[-1] == log_message
 
 
 @pytest.mark.asyncio
