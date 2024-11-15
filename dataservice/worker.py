@@ -211,28 +211,16 @@ class DataWorker:
                 await self._add_to_data_queue(callback_result)
             else:
                 await self._add_to_work_queue(callback_result)
-        except NonRetryableException as e:
-            logger.error(f"Non-Retryable Error Occurred: {e}")
-            self._add_to_failures(
-                {
-                    "request": request,
-                    "message": str(e),
-                    "exception": type(e).__name__,
-                }
-            )
-            return
-        except ParsingException as e:
-            logger.error(f"Parsing Error Occurred: {e}")
-            self._add_to_failures(
-                {
-                    "request": request,
-                    "message": str(e),
-                    "exception": type(e).__name__,
-                }
-            )
-            return
-        except RetryableException as e:
-            logger.error(f"RetryableException re-raised after retrying: {e}")
+        except (
+            NonRetryableException,
+            ParsingException,
+            TimeoutException,
+            RetryableException,
+        ) as e:
+            msg = f"Error processing request {request.url}: {e}"
+            if isinstance(e, RetryableException):
+                msg = f"Re-raised after retrying {request.url}: {e}"
+            logger.error(msg)
             self._add_to_failures(
                 {
                     "request": request,
@@ -242,7 +230,8 @@ class DataWorker:
             )
             return
         except DataServiceException as e:
-            logger.error(f"Data Service Error Occurred: {e}")
+            msg = f"Error processing request {request.url}: {e}"
+            logger.error(msg)
             raise e
 
     async def _handle_callback(self, request, response):
