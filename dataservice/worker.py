@@ -162,7 +162,7 @@ class DataWorker:
         """
         if isinstance(item, Request):
             logger.debug(f"Handling request {item.url}")
-            await asyncio.wait_for(self._handle_request_item(item), 10)
+            await self._handle_request_item(item)
         elif isinstance(item, (abc.MutableMapping, BaseModel)):
             logger.debug("Handling data item")
             await self._add_to_data_queue(item)
