@@ -10,6 +10,7 @@ from dataservice import (
     {% if use_async_data_service %}AsyncDataService,{% endif -%}
     {% if use_httpx_client%}HttpXClient,{% endif -%}
     {% if use_playwright_client%}PlaywrightClient,{% endif -%}
+    {% if use_playwright_intercept_client%}PlaywrightInterceptClient,{% endif -%}
     {% if use_proxy_config %}ProxyConfig,{% endif -%}
     Request,
     Response,
@@ -36,8 +37,10 @@ def parse_function(response: Response):
 async def main():
     {% if use_httpx_client -%}
     client = HttpXClient()
-    {% else -%}
+    {% elif use_playwright_client -%}
     client = PlaywrightClient()
+    {% elif use_playwright_intercept_client -%}
+    client = PlaywrightInterceptClient(intercept_url="", callback=lambda x: x)
     {% endif -%}
 
     start_requests = [
@@ -48,7 +51,7 @@ async def main():
         )
     ]
     {% if use_service_config %}
-    service_config = ServiceConfig(random_delay=1000, cache={"use": True})
+    service_config = ServiceConfig(delay={"amount": 1000}, cache={"use": True})
     data_service = AsyncDataService(start_requests, service_config)
     {% else %}
     data_service = AsyncDataService(start_requests)
@@ -60,10 +63,12 @@ if __name__ == "__main__":
     asyncio.run(main())
 {% else %}
 def main():
-    {% if use_httpx_client -%}
+{% if use_httpx_client -%}
     client = HttpXClient()
-    {% else -%}
+    {% elif use_playwright_client -%}
     client = PlaywrightClient()
+    {% elif use_playwright_intercept_client -%}
+    client = PlaywrightInterceptClient(intercept_url="", callback=lambda x: x)
     {% endif -%}
 
     start_requests = [
