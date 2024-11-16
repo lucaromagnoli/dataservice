@@ -22,7 +22,6 @@ tenacity = "^9.0.0"
 aiolimiter = "^1.1.0"
 playwright = "^1.48.0"
 jinja2 = "^3.1.4"
-anyio = "^4.6.2.post1"
 
 [tool.poetry.extras]
 playwright = ["playwright"]
@@ -44,7 +43,6 @@ nox = "^2024.4.15"
 nox-poetry = "^1.0.3"
 pytest-playwright = "^0.5.2"
 poetry-plugin-export = "^1.8.0"
-pytest-anyio = "^0.0.0"
 
 
 [tool.poetry.group.docs.dependencies]
