@@ -1,10 +1,13 @@
 from dataservice.clients import (
     HttpXClient,
     PlaywrightClient,
+    PlaywrightInterceptClient,
     PlaywrightPage,
 )
 from dataservice.config import (
     CacheConfig,
+    DelayConfig,
+    PlaywrightConfig,
     ProxyConfig,
     RateLimiterConfig,
     RetryConfig,
@@ -23,9 +26,12 @@ __all__ = [
     "DataService",
     "DataServiceException",
     "DataWrapper",
+    "DelayConfig",
     "FailedRequest",
     "HttpXClient",
     "PlaywrightClient",
+    "PlaywrightConfig",
+    "PlaywrightInterceptClient",
     "PlaywrightPage",
     "ProxyConfig",
     "RateLimiterConfig",
