@@ -4,13 +4,13 @@ Manages the overall data processing service, including initialization, iteration
 
 from __future__ import annotations
 
+import asyncio
 import pathlib
 import signal
 from abc import ABC
 from logging import getLogger
 from typing import AsyncIterator, Iterable, Iterator
 
-import anyio
 from pydantic import BaseModel, validate_call
 
 from dataservice.cache import CacheFactory
@@ -32,7 +32,6 @@ class BaseDataService(ABC):
         self.config: ServiceConfig = config
         self.cache_factory = CacheFactory(config.cache)
         self._data_worker: DataWorker | None = None
-        self._stop_event = anyio.Event()
 
     @property
     def data_worker(self) -> DataWorker:
@@ -49,22 +48,36 @@ class BaseDataService(ABC):
                 requests=self._requests, config=self.config, cache=cache
             )
 
-    def handle_stop_signal(self):
-        logger.info("Received stop signal.")
-        self._stop_event.set()
+    def register_signal_handlers(self):
+        """Register signal handlers for SIGINT and SIGTERM."""
+        loop = asyncio.get_running_loop()
+        loop.add_signal_handler(signal.SIGINT, self._handle_stop_signal)
+        loop.add_signal_handler(signal.SIGTERM, self._handle_stop_signal)
+        logger.info("Signal handlers registered for SIGINT and SIGTERM.")
 
-    async def handle_signals(self):
-        """Handles stop signals."""
-        with anyio.open_signal_receiver(signal.SIGINT, signal.SIGTERM) as signals:
-            async for sig in signals:
-                logger.debug(f"Received signal: {sig!r}")
-                if sig in (signal.SIGTERM, signal.SIGINT):
-                    self.handle_stop_signal()
+    def _handle_stop_signal(self):
+        """Set the stop event when a termination signal is received."""
+        logger.info("Received stop signal. Cancelling remaining tasks.")
+        for task in asyncio.all_tasks():
+            task.cancel()
+
+    def cleanup_signal_handlers(self):
+        """Remove signal handlers."""
+        loop = asyncio.get_running_loop()
+        loop.remove_signal_handler(signal.SIGINT)
+        loop.remove_signal_handler(signal.SIGTERM)
+        logger.info("Signal handlers cleaned up.")
 
     async def _run_data_worker(self) -> None:
         """Runs the data worker to fetch data items."""
         if self.data_worker:
-            await self.data_worker.fetch(self._stop_event)
+            self.register_signal_handlers()
+            try:
+                await self.data_worker.fetch()
+            except asyncio.CancelledError:
+                logger.info("DataService cancelled.")
+            finally:
+                self.cleanup_signal_handlers()
 
     def get_failures(self) -> dict[str, FailedRequest]:
         """
@@ -135,13 +148,13 @@ class DataService(BaseDataService):
 
     def _init_data_worker_sync(self) -> None:
         """Wrapper for the async init_data_worker method."""
-        anyio.run(self._init_data_worker)
+        asyncio.run(self._init_data_worker())
 
     def _run_data_worker_sync(self) -> None:
         """
         Runs the data worker to fetch data items.
         """
-        anyio.run(self._run_data_worker)
+        asyncio.run(self._run_data_worker())
 
 
 class AsyncDataService(BaseDataService):

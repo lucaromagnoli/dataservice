@@ -13,8 +13,6 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional
 
-from anyio import to_thread
-
 from dataservice import CacheConfig
 from dataservice.models import Request, Response
 
@@ -99,16 +97,16 @@ class LocalJsonCache(AsyncCache):
         self.path = path
         self.cache = {}
 
+    def sync_load(self):
+        with open(self.path) as f:
+            self.cache = json.load(f)
+
     async def load(self):
         """Load cache data from a JSON file."""
         logger.debug("Loading cache from disk")
 
-        def sync_load():
-            with open(self.path) as f:
-                self.cache = json.load(f)
-
         if self.path.exists():
-            await to_thread.run_sync(sync_load)
+            await asyncio.to_thread(self.sync_load)
 
     def sync_flush(self):
         """Save cache data to a JSON file."""
@@ -124,7 +122,7 @@ class LocalJsonCache(AsyncCache):
             success = False
             logger.debug("Saving cache to disk")
             async with self.lock:
-                await to_thread.run_sync(self.sync_flush)
+                await asyncio.to_thread(self.sync_flush)
                 success = True  # Mark as successful
         except Exception as e:
             logger.error(f"Error saving cache: {e}")
