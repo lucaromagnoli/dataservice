@@ -27,6 +27,8 @@ class AsyncCache(ABC):
     def __init__(self):
         self.cache = {}
         self.start_time = time.time()
+        self.lock = asyncio.Lock()
+        self.has_written = False
         loop = asyncio.get_running_loop()
         loop.add_signal_handler(
             signal.SIGINT, lambda: asyncio.create_task(self.flush())
@@ -60,10 +62,13 @@ class AsyncCache(ABC):
         raise NotImplementedError("Load function not provided")
 
     async def set(self, key: str, value: Any):
-        self.cache[key] = value
+        async with self.lock:
+            self.cache[key] = value
+            self.has_written = True
 
     async def get(self, key: str) -> Any:
-        return self.cache.get(key)
+        async with self.lock:
+            return self.cache.get(key)
 
     async def delete(self, key):
         del self.cache[key]
@@ -79,9 +84,8 @@ class AsyncCache(ABC):
 
         :param interval: The interval in seconds to write the cache.
         """
-
         if time.time() - self.start_time >= interval:
-            logger.debug(f"Writing cache to disk every at interval {interval}")
+            logger.debug(f"Writing cache to disk at interval: {interval} seconds")
             await self.flush()
             self.start_time = time.time()
 
@@ -106,15 +110,27 @@ class LocalJsonCache(AsyncCache):
         if self.path.exists():
             await to_thread.run_sync(sync_load)
 
-    async def flush(self):
+    def sync_flush(self):
         """Save cache data to a JSON file."""
-        logger.debug("Saving cache to disk")
+        with open(self.path, "w") as f:
+            json.dump(self.cache, f)
 
-        def sync_flush():
-            with open(self.path, "w") as f:
-                json.dump(self.cache, f)
-
-        await to_thread.run_sync(sync_flush)
+    async def flush(self):
+        """Save cache data to a JSON file. Async wrapper for sync_flush."""
+        if not self.has_written:
+            logger.debug("No writes to cache, skipping flush")
+            return
+        try:
+            success = False
+            logger.debug("Saving cache to disk")
+            async with self.lock:
+                await to_thread.run_sync(self.sync_flush)
+                success = True  # Mark as successful
+        except Exception as e:
+            logger.error(f"Error saving cache: {e}")
+        finally:
+            if success:
+                logger.debug("Cache saved")
 
 
 class RemoteCache(AsyncCache):

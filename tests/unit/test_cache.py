@@ -91,6 +91,7 @@ async def test_write_periodically_writes_when_interval_passed(tmp_path, mocker):
     cache = LocalJsonCache(tmp_path / "cache.json")
     await cache.load()
     cache.start_time = time.time() - 3600  # Simulate 1 hour has passed
+    await cache.set("key", "value")
     mock_flush = mocker.patch.object(cache, "flush", mocker.AsyncMock())
     await cache.write_periodically(1800)
     mock_flush.assert_awaited_once()
@@ -104,6 +105,7 @@ async def test_write_periodically_does_not_write_when_interval_not_passed(
     await cache.load()
     cache.start_time = time.time()  # No time has passed
     mock_flush = mocker.patch.object(cache, "flush", mocker.AsyncMock())
+    await cache.set("key", "value")
     await cache.write_periodically(1800)
     mock_flush.assert_not_awaited()
 
@@ -114,13 +116,26 @@ async def test_write_periodically_resets_start_time_after_writing(tmp_path, mock
     cache.start_time = time.time() - 3600  # Simulate 1 hour has passed
 
     mock_flush = mocker.patch.object(cache, "flush", mocker.AsyncMock())
-
+    await cache.set("key", "value")
     # Call the method and check if `write` was awaited
     await cache.write_periodically(1800)
     mock_flush.assert_awaited_once()  # Ensure `write` was called as expected
 
     # Verify that `start_time` has been reset correctly
     assert abs(cache.start_time - time.time()) < 1
+
+
+@pytest.mark.anyio
+async def test_write_periodically_doesnt_write_on_no_writes_yet(tmp_path, mocker):
+    cache = LocalJsonCache(tmp_path / "cache.json")
+    await cache.load()
+    cache.has_written = False
+    cache.start_time = time.time() - 1
+
+    mock_sync_flush = mocker.patch.object(cache, "sync_flush")
+    await cache.write_periodically(1)
+
+    assert mock_sync_flush.call_count == 0  # Ensure `sync_flush` was not called
 
 
 @pytest.mark.anyio
