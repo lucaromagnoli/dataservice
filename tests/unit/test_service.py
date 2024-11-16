@@ -1,16 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import signal
 import uuid
 from contextlib import nullcontext as does_not_raise
 
-import anyio
 import pytest
 
 from dataservice.data import BaseDataItem
 from dataservice.models import Request, Response
 from dataservice.service import AsyncDataService, DataService
-from dataservice.worker import DataWorker
 from tests.unit.conftest import ToyClient
 
 
@@ -98,105 +97,38 @@ def test_write_args_validation(file_path, results, expected_behaviour, data_serv
         data_service.write(file_path, results)
 
 
-@pytest.mark.anyio
-async def test_handles_stop_signals_correctly(mocker):
-    # Mock the signal receiver to yield a signal
-    async def mock_signals():
-        yield signal.SIGINT
-
-    mock_signal_receiver = mocker.MagicMock()
-    mock_signal_receiver.__enter__.return_value = mock_signals()
-    mock_signal_receiver.__exit__ = mocker.MagicMock()
-
-    # Patch `anyio.open_signal_receiver`
-    mocker.patch("anyio.open_signal_receiver", return_value=mock_signal_receiver)
-
-    # Initialize the service
+@pytest.mark.asyncio
+async def test_run_data_worker(mocker):
     service = AsyncDataService([])
-    mocker.patch.object(service, "handle_stop_signal", mocker.AsyncMock())
+    mocker.patch.object(service, "_data_worker", new_callable=mocker.AsyncMock)
+    mocker.patch.object(service, "register_signal_handlers")
+    mocker.patch.object(service, "cleanup_signal_handlers")
 
-    # Run the signal handling method
-    await service.handle_signals()
+    service.data_worker.fetch = mocker.AsyncMock()
+    service.data_worker.has_started = False
 
-    # Assert that the stop signal handler was called
-    service.handle_stop_signal.assert_called_once()
+    await service._run_data_worker()
+
+    service.register_signal_handlers.assert_called_once()
+    service.data_worker.fetch.assert_awaited_once()
+    service.cleanup_signal_handlers.assert_called_once()
 
 
-@pytest.mark.anyio
-async def test_does_not_handle_unrelated_signals(mocker):
-    # Mock the signal receiver to yield a signal
-    async def mock_signals():
-        yield signal.SIGUSR1
-
-    mock_signal_receiver = mocker.MagicMock()
-    mock_signal_receiver.__enter__.return_value = mock_signals()
-    mock_signal_receiver.__exit__ = mocker.MagicMock()
-
-    # Patch `anyio.open_signal_receiver`
-    mocker.patch("anyio.open_signal_receiver", return_value=mock_signal_receiver)
-
-    # Initialize the service
+@pytest.mark.asyncio
+async def test_registers_signal_handlers_correctly(mocker):
+    mocker.patch("asyncio.get_running_loop", return_value=mocker.Mock())
     service = AsyncDataService([])
-    mocker.patch.object(service, "handle_stop_signal", mocker.AsyncMock())
-
-    # Run the signal handling method
-    await service.handle_signals()
-
-    # Assert that the stop signal handler was called
-    service.handle_stop_signal.assert_not_called()
+    service.register_signal_handlers()
+    loop = asyncio.get_running_loop()
+    loop.add_signal_handler.assert_any_call(signal.SIGINT, service._handle_stop_signal)
+    loop.add_signal_handler.assert_any_call(signal.SIGTERM, service._handle_stop_signal)
 
 
-@pytest.mark.anyio
-async def test_service_handles_stop_signal(mocker):
-    """Test that the service gracefully stops when a signal is sent."""
-
-    # Mock request and callback
-    mock_request = Request(
-        url="https://example.com", callback=mocker.AsyncMock(), client=ToyClient()
-    )
-    mock_requests = [mock_request]
-
-    # Mock configuration
-    mock_config = mocker.Mock()
-    mock_config.cache = mocker.Mock()
-    mock_config.cache.use = False
-    mock_config.max_concurrency = 1
-    mock_config.limiter = None
-
-    # Mock DataWorker
-    class MockDataWorker(DataWorker):
-        async def fetch(self, stop_event: anyio.Event) -> None:
-            # Simulate processing
-            for _ in range(5):
-                if stop_event.is_set():
-                    break
-                await anyio.sleep(0.1)  # Simulated work
-
-    # Replace DataWorker with MockDataWorker
-    AsyncDataService.data_worker = property(
-        lambda self: MockDataWorker(mock_requests, config=mock_config)
-    )
-
-    # Initialize the service
-    service = AsyncDataService(mock_requests, config=mock_config)
-
-    async def mock_signals():
-        yield signal.SIGINT
-
-    mock_signal_receiver = mocker.MagicMock()
-    mock_signal_receiver.__enter__.return_value = mock_signals()
-    mock_signal_receiver.__exit__ = mocker.MagicMock()
-
-    # Patch `anyio.open_signal_receiver`
-    mocker.patch("anyio.open_signal_receiver", return_value=mock_signal_receiver)
-
-    # Run the service and verify behavior
-    async with anyio.create_task_group() as tg:
-        tg.start_soon(service.handle_signals)  # Start signal handling
-        tg.start_soon(service._run_data_worker)  # Start the worker
-
-    # Ensure the stop event was set
-    assert service._stop_event.is_set()
-
-    # Verify that the worker stopped gracefully
-    mock_request.callback.assert_not_called()  # Mock callback shouldn't be processed fully
+@pytest.mark.asyncio
+async def test_cleans_up_signal_handlers_correctly(mocker):
+    mocker.patch("asyncio.get_running_loop", return_value=mocker.Mock())
+    service = AsyncDataService([])
+    service.cleanup_signal_handlers()
+    loop = asyncio.get_running_loop()
+    loop.remove_signal_handler.assert_any_call(signal.SIGINT)
+    loop.remove_signal_handler.assert_any_call(signal.SIGTERM)
