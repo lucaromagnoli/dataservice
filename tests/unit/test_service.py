@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import signal
 import uuid
 from contextlib import nullcontext as does_not_raise
 
@@ -93,3 +95,40 @@ async def test_toy_async_service(async_data_service):
 def test_write_args_validation(file_path, results, expected_behaviour, data_service):
     with expected_behaviour:
         data_service.write(file_path, results)
+
+
+@pytest.mark.asyncio
+async def test_run_data_worker(mocker):
+    service = AsyncDataService([])
+    mocker.patch.object(service, "_data_worker", new_callable=mocker.AsyncMock)
+    mocker.patch.object(service, "register_signal_handlers")
+    mocker.patch.object(service, "cleanup_signal_handlers")
+
+    service.data_worker.fetch = mocker.AsyncMock()
+    service.data_worker.has_started = False
+
+    await service._run_data_worker()
+
+    service.register_signal_handlers.assert_called_once()
+    service.data_worker.fetch.assert_awaited_once()
+    service.cleanup_signal_handlers.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_registers_signal_handlers_correctly(mocker):
+    mocker.patch("asyncio.get_running_loop", return_value=mocker.Mock())
+    service = AsyncDataService([])
+    service.register_signal_handlers()
+    loop = asyncio.get_running_loop()
+    loop.add_signal_handler.assert_any_call(signal.SIGINT, service._handle_stop_signal)
+    loop.add_signal_handler.assert_any_call(signal.SIGTERM, service._handle_stop_signal)
+
+
+@pytest.mark.asyncio
+async def test_cleans_up_signal_handlers_correctly(mocker):
+    mocker.patch("asyncio.get_running_loop", return_value=mocker.Mock())
+    service = AsyncDataService([])
+    service.cleanup_signal_handlers()
+    loop = asyncio.get_running_loop()
+    loop.remove_signal_handler.assert_any_call(signal.SIGINT)
+    loop.remove_signal_handler.assert_any_call(signal.SIGTERM)

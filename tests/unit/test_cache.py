@@ -6,14 +6,14 @@ from dataservice import CacheConfig
 from dataservice.cache import CacheFactory, LocalJsonCache, RemoteCache
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_cache_initialization_creates_empty_cache(tmp_path):
     cache = LocalJsonCache(tmp_path / "cache.json")
     await cache.load()
     assert len(cache) == 0
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_cache_initialization_loads_existing_cache(tmp_path):
     cache_file = tmp_path / "cache.json"
     cache_file.write_text('{"key": "value"}')
@@ -22,7 +22,7 @@ async def test_cache_initialization_loads_existing_cache(tmp_path):
     assert await cache.get("key") == "value"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_cache_set_and_get_value(tmp_path):
     cache = LocalJsonCache(tmp_path / "cache.json")
     await cache.load()
@@ -30,7 +30,7 @@ async def test_cache_set_and_get_value(tmp_path):
     assert await cache.get("key") == "value"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_cache_delete_value(tmp_path):
     cache = LocalJsonCache(tmp_path / "cache.json")
     await cache.set("key", "value")
@@ -38,7 +38,7 @@ async def test_cache_delete_value(tmp_path):
     assert await cache.get("key") is None
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_cache_clear_all_values(tmp_path):
     cache = LocalJsonCache(tmp_path / "cache.json")
     await cache.set("key1", "value1")
@@ -47,7 +47,7 @@ async def test_cache_clear_all_values(tmp_path):
     assert len(cache) == 0
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_cache_flush_persists_data(tmp_path):
     cache_file = tmp_path / "cache.json"
     cache = LocalJsonCache(cache_file)
@@ -59,7 +59,7 @@ async def test_cache_flush_persists_data(tmp_path):
     assert await new_cache.get("key") == "value"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_cache_contains_key(tmp_path):
     cache = LocalJsonCache(tmp_path / "cache.json")
     await cache.load()
@@ -67,7 +67,7 @@ async def test_cache_contains_key(tmp_path):
     assert "key" in cache
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_cache_length(tmp_path):
     cache = LocalJsonCache(tmp_path / "cache.json")
     await cache.load()
@@ -76,7 +76,7 @@ async def test_cache_length(tmp_path):
     assert len(cache) == 2
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_cache_iteration(tmp_path):
     cache = LocalJsonCache(tmp_path / "cache.json")
     await cache.load()
@@ -86,17 +86,18 @@ async def test_cache_iteration(tmp_path):
     assert keys == ["key1", "key2"]
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_write_periodically_writes_when_interval_passed(tmp_path, mocker):
     cache = LocalJsonCache(tmp_path / "cache.json")
     await cache.load()
     cache.start_time = time.time() - 3600  # Simulate 1 hour has passed
+    await cache.set("key", "value")
     mock_flush = mocker.patch.object(cache, "flush", mocker.AsyncMock())
     await cache.write_periodically(1800)
     mock_flush.assert_awaited_once()
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_write_periodically_does_not_write_when_interval_not_passed(
     tmp_path, mocker
 ):
@@ -104,17 +105,18 @@ async def test_write_periodically_does_not_write_when_interval_not_passed(
     await cache.load()
     cache.start_time = time.time()  # No time has passed
     mock_flush = mocker.patch.object(cache, "flush", mocker.AsyncMock())
+    await cache.set("key", "value")
     await cache.write_periodically(1800)
     mock_flush.assert_not_awaited()
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_write_periodically_resets_start_time_after_writing(tmp_path, mocker):
     cache = LocalJsonCache(tmp_path / "cache.json")
     cache.start_time = time.time() - 3600  # Simulate 1 hour has passed
 
     mock_flush = mocker.patch.object(cache, "flush", mocker.AsyncMock())
-
+    await cache.set("key", "value")
     # Call the method and check if `write` was awaited
     await cache.write_periodically(1800)
     mock_flush.assert_awaited_once()  # Ensure `write` was called as expected
@@ -123,7 +125,20 @@ async def test_write_periodically_resets_start_time_after_writing(tmp_path, mock
     assert abs(cache.start_time - time.time()) < 1
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
+async def test_write_periodically_doesnt_write_on_no_writes_yet(tmp_path, mocker):
+    cache = LocalJsonCache(tmp_path / "cache.json")
+    await cache.load()
+    cache.has_written = False
+    cache.start_time = time.time() - 1
+
+    mock_sync_flush = mocker.patch.object(cache, "sync_flush")
+    await cache.write_periodically(1)
+
+    assert mock_sync_flush.call_count == 0  # Ensure `sync_flush` was not called
+
+
+@pytest.mark.asyncio
 async def test_cache_factory_init_local_json_cache(tmp_path):
     cache_file = tmp_path / "cache.json"
     cache_file.write_text('{"key": "value"}')
@@ -136,7 +151,7 @@ async def test_cache_factory_init_local_json_cache(tmp_path):
     assert await cache.get("key") == "value"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_cache_factory_init_remote_cache(mocker):
     cache_config = CacheConfig(
         use=True,

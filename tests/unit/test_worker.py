@@ -397,7 +397,9 @@ async def test_data_worker_with_local_cache_write_periodically(mocker, tmp_path)
         cache, "write_periodically", mocker.AsyncMock()
     )
     requests = [request_with_data_callback]
-    config = ServiceConfig(cache={"use": True, "write_interval": 1}, constant_delay=1)
+    config = ServiceConfig(
+        cache={"use": True, "write_interval": 1}, delay={"amount": 1}
+    )
     data_worker = DataWorker(requests, config=config, cache=cache)
     await data_worker.fetch()
     assert mocked_write_periodically.await_count == 1

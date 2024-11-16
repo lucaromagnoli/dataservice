@@ -64,7 +64,6 @@ class DataWorker:
         self._failures: dict[str, FailedRequest] = {}
         self._seen_requests: set = set()
         self._started: bool = False
-
         self._semaphore: asyncio.Semaphore = asyncio.Semaphore(
             self.config.max_concurrency
         )
@@ -361,7 +360,6 @@ class DataWorker:
                 # Process any remaining tasks that didn’t fill a full batch
                 if tasks:
                     await asyncio.gather(*tasks)
-                    for _ in tasks:
-                        self._work_queue.task_done()
+
                 if self.config.cache.use:
                     await cache.write_periodically(self.config.cache.write_interval)
