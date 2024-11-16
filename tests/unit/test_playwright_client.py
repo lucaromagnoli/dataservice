@@ -5,7 +5,7 @@ from playwright.async_api import Response as PlaywrightResponse
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from dataservice import DataServiceException, RetryableException
-from dataservice.clients import PlaywrightClient
+from dataservice.clients import PlaywrightClient, _pw_set_up
 from dataservice.config import PlaywrightConfig
 from dataservice.exceptions import NonRetryableException, TimeoutException
 from dataservice.models import Request, Response
@@ -180,7 +180,7 @@ async def test_setup(mock_playwright_setup):
     mock_playwright, mock_browser, mock_context, mock_page, browser_name = (
         mock_playwright_setup
     )
-    client = PlaywrightClient(config=PlaywrightConfig(browser=browser_name))
+    config = PlaywrightConfig(browser=browser_name)
     request = Request(
         url="http://example.com",
         method="GET",
@@ -192,10 +192,10 @@ async def test_setup(mock_playwright_setup):
         proxy=None,
         timeout=30,
         callback=lambda x: x,
-        client=client,
+        client=lambda x: x,
     )
 
-    browser, context, page, playwright = await client._setup(request)
+    browser, context, page, playwright = await _pw_set_up(request, config)
 
     assert browser == mock_browser
     assert context == mock_context

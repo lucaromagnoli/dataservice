@@ -205,11 +205,14 @@ class DataWorker:
 
         try:
             response = await self._handle_request(request)
-            callback_result = await self._handle_callback(request, response)
-            if isinstance(callback_result, (abc.MutableMapping, BaseModel)):
-                await self._add_to_data_queue(callback_result)
+            if isinstance(response, list) and all(
+                isinstance(r, Response) for r in response
+            ):
+                # Handle multiple responses returned from a single request, i.e. PlaywrightInterceptClient
+                for resp in response:
+                    await self._handle_callback_result(resp.request, resp)
             else:
-                await self._add_to_work_queue(callback_result)
+                await self._handle_callback_result(request, response)
         except (
             NonRetryableException,
             ParsingException,
@@ -232,6 +235,17 @@ class DataWorker:
             msg = f"Error processing request {request.url}: {e}"
             logger.error(msg)
             raise e
+
+    async def _handle_callback_result(self, request, response):
+        """Handles the callback result of a request.
+        :param request: The request object.
+        :param response: The response object.
+        """
+        callback_result = await self._handle_callback(request, response)
+        if isinstance(callback_result, (abc.MutableMapping, BaseModel)):
+            await self._add_to_data_queue(callback_result)
+        else:
+            await self._add_to_work_queue(callback_result)
 
     async def _handle_callback(self, request, response):
         """
