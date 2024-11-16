@@ -5,6 +5,7 @@ Manages the overall data processing service, including initialization, iteration
 from __future__ import annotations
 
 import pathlib
+import signal
 from abc import ABC
 from logging import getLogger
 from typing import AsyncIterator, Iterable, Iterator
@@ -31,6 +32,7 @@ class BaseDataService(ABC):
         self.config: ServiceConfig = config
         self.cache_factory = CacheFactory(config.cache)
         self._data_worker: DataWorker | None = None
+        self._stop_event = anyio.Event()
 
     @property
     def data_worker(self) -> DataWorker:
@@ -47,10 +49,22 @@ class BaseDataService(ABC):
                 requests=self._requests, config=self.config, cache=cache
             )
 
+    def handle_stop_signal(self):
+        logger.info("Received stop signal.")
+        self._stop_event.set()
+
+    async def handle_signals(self):
+        """Handles stop signals."""
+        with anyio.open_signal_receiver(signal.SIGINT, signal.SIGTERM) as signals:
+            async for sig in signals:
+                logger.debug(f"Received signal: {sig!r}")
+                if sig in (signal.SIGTERM, signal.SIGINT):
+                    self.handle_stop_signal()
+
     async def _run_data_worker(self) -> None:
         """Runs the data worker to fetch data items."""
         if self.data_worker:
-            await self.data_worker.fetch()
+            await self.data_worker.fetch(self._stop_event)
 
     def get_failures(self) -> dict[str, FailedRequest]:
         """

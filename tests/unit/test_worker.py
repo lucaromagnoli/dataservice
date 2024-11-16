@@ -3,6 +3,7 @@ import logging
 from contextlib import nullcontext as does_not_raise
 from unittest.mock import AsyncMock, patch
 
+import anyio
 import pytest
 
 from dataservice.cache import LocalJsonCache
@@ -29,6 +30,11 @@ class Foo(BaseDataItem):
 @pytest.fixture
 def config():
     return ServiceConfig()
+
+
+@pytest.fixture
+def stop_event():
+    return anyio.Event()
 
 
 request_with_data_callback = Request(
@@ -86,17 +92,19 @@ def queue_item(request):
         ([request_with_data_item_callback], Foo(parsed="data")),
     ],
 )
-async def test_data_worker_handles_request_correctly(requests, expected, config):
+async def test_data_worker_handles_request_correctly(
+    requests, expected, config, stop_event
+):
     data_worker = DataWorker(requests, config=config)
-    await data_worker.fetch()
+    await data_worker.fetch(stop_event)
     assert data_worker.get_data_item() == expected
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("data_worker_with_params", [{"requests": []}], indirect=True)
-async def test_data_worker_handles_empty_queue(data_worker_with_params):
+async def test_data_worker_handles_empty_queue(data_worker_with_params, stop_event):
     with pytest.raises(ValueError, match="No requests to process"):
-        await data_worker_with_params.fetch()
+        await data_worker_with_params.fetch(stop_event)
 
 
 @pytest.mark.asyncio
@@ -155,7 +163,7 @@ async def test_is_duplicate_request_returns_false_for_new_request(
         (ServiceConfig(**{"deduplication": False, "max_workers": 1}), 2),
     ],
 )
-async def test_deduplication(config, expected, mocker):
+async def test_deduplication(config, expected, mocker, stop_event):
     mocked_handle_request = mocker.patch(
         "dataservice.worker.DataWorker._handle_request",
         side_effect=[
@@ -176,7 +184,7 @@ async def test_deduplication(config, expected, mocker):
     data_worker = DataWorker(
         requests=[request_with_data_callback, request_with_data_callback], config=config
     )
-    await data_worker.fetch()
+    await data_worker.fetch(stop_event)
     assert mocked_handle_request.call_count == expected
 
 
@@ -390,16 +398,20 @@ async def test_handle_request_item_with_exception(
 
 
 @pytest.mark.asyncio
-async def test_data_worker_with_local_cache_write_periodically(mocker, tmp_path):
+async def test_data_worker_with_local_cache_write_periodically(
+    mocker, tmp_path, stop_event
+):
     cache = LocalJsonCache(tmp_path / "cache.json")
     await cache.load()
     mocked_write_periodically = mocker.patch.object(
         cache, "write_periodically", mocker.AsyncMock()
     )
     requests = [request_with_data_callback]
-    config = ServiceConfig(cache={"use": True, "write_interval": 1}, constant_delay=1)
+    config = ServiceConfig(
+        cache={"use": True, "write_interval": 1}, delay={"amount": 1}
+    )
     data_worker = DataWorker(requests, config=config, cache=cache)
-    await data_worker.fetch()
+    await data_worker.fetch(stop_event)
     assert mocked_write_periodically.await_count == 1
 
 

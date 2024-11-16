@@ -8,6 +8,7 @@ from collections import abc
 from contextlib import nullcontext
 from typing import Any, AsyncGenerator, Generator, Iterable
 
+import anyio
 from aiolimiter import AsyncLimiter
 from pydantic import BaseModel
 from tenacity import (
@@ -332,14 +333,18 @@ class DataWorker:
         else:
             raise ValueError(f"Unknown item type {type(callback)}")
 
-    async def fetch(self) -> None:
+    async def fetch(self, stop_event: anyio.Event) -> None:
         """
         Fetches data items by processing the work queue.
+        :param stop_event: The event to stop the worker.
         """
         if not self._started:
             await self._enqueue_start_requests()
         async with self.cache as cache:
             while self.has_jobs():
+                if stop_event.is_set():
+                    logger.debug("Stopping data worker on signal.")
+                    break
                 logger.debug(f"Work queue size: {self._work_queue.qsize()}")
                 logger.debug(f"Data queue size: {self._data_queue.qsize()}")
                 items = []
