@@ -566,3 +566,35 @@ async def test_make_request_uses_cache(data_worker_with_cache, mocker):
     mock_cache_request.assert_called_once_with(mock_cache)
     assert result.text == "cached response"
     assert result.data == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "write_periodically, expected_call_count",
+    [
+        (True, 1),
+        (False, 0),
+    ],
+)
+async def test_data_worker_with_cache_write_periodically(
+    mocker, tmp_path, write_periodically, expected_call_count
+):
+    cache = JsonCache(tmp_path / "cache.json")
+    await cache.load()
+    mocked_write_periodically = mocker.patch.object(
+        cache, "write_periodically", AsyncMock()
+    )
+    requests = [
+        Request(url="http://example.com", callback=lambda x: x, client=ToyClient())
+    ]
+    config = ServiceConfig(
+        cache={
+            "use": True,
+            "write_periodically": write_periodically,
+            "write_interval": 1,
+        },
+        delay={"amount": 1},
+    )
+    data_worker = DataWorker(requests, config=config, cache=cache)
+    await data_worker.fetch()
+    assert mocked_write_periodically.await_count == expected_call_count

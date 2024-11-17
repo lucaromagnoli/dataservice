@@ -375,5 +375,5 @@ class DataWorker:
                 if tasks:
                     await asyncio.gather(*tasks)
 
-                if self.config.cache.use:
+                if self.config.cache.use and self.config.cache.write_periodically:
                     await cache.write_periodically(self.config.cache.write_interval)
