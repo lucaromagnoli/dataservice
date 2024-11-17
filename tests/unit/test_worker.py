@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from dataservice.cache import LocalJsonCache
+from dataservice.cache import JsonCache
 from dataservice.config import ServiceConfig
 from dataservice.data import BaseDataItem
 from dataservice.exceptions import (
@@ -391,7 +391,7 @@ async def test_handle_request_item_with_exception(
 
 @pytest.mark.asyncio
 async def test_data_worker_with_local_cache_write_periodically(mocker, tmp_path):
-    cache = LocalJsonCache(tmp_path / "cache.json")
+    cache = JsonCache(tmp_path / "cache.json")
     await cache.load()
     mocked_write_periodically = mocker.patch.object(
         cache, "write_periodically", mocker.AsyncMock()
@@ -553,7 +553,7 @@ async def test_make_request_uses_cache(data_worker_with_cache, mocker):
         request=request, text="cached response", data={}, url="http://example.com"
     )
 
-    mock_cache = mocker.AsyncMock(spec=LocalJsonCache)
+    mock_cache = mocker.AsyncMock(spec=JsonCache)
     data_worker_with_cache.cache = mock_cache
 
     mock_cache_request = mocker.patch(

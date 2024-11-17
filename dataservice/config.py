@@ -31,8 +31,8 @@ class RateLimiterConfig(BaseModel):
 
 class CacheConfig(BaseModel):
     use: bool = Field(default=False, description="Whether to cache requests.")
-    cache_type: Literal["local", "remote"] = Field(
-        default="local", description="The type of cache to use."
+    cache_type: Literal["json", "pickle", "remote"] = Field(
+        default="json", description="The type of cache to use."
     )
     path: FilePath | NewPath = Field(
         default="cache.json",
@@ -41,6 +41,10 @@ class CacheConfig(BaseModel):
     write_interval: PositiveInt = Field(
         default=20 * 60,
         description="The interval to write the cache in seconds. Defaults to 20 minutes.",
+    )
+    write_periodically: bool = Field(
+        default=True,
+        description="Whether to write the cache to disk periodically. Defaults to True.",
     )
     save_state: Optional[Callable[[dict], Awaitable[None]]] = Field(
         description="A function to save the cache state. Only used for remote cache.",
@@ -57,6 +61,17 @@ class CacheConfig(BaseModel):
             raise ValueError(
                 "Remote cache requires save_state and load_state functions."
             )
+        if self.cache_type == "json" and str(self.path).split(".")[1] not in (
+            "json",
+            "jsonl",
+            "json.gz",
+        ):
+            raise ValueError("JSON cache requires a .json file.")
+        if self.cache_type == "pickle" and str(self.path).split(".")[1] not in (
+            "pkl",
+            "pickle",
+        ):
+            raise ValueError("Pickle cache requires a .pkl file.")
         return self
 
 

@@ -1,9 +1,11 @@
 import json
 import os
+import pickle
 
 import pytest
 from pydantic import ValidationError
 
+from dataservice import CacheConfig
 from dataservice.config import ProxyConfig, RetryConfig, ServiceConfig
 
 
@@ -68,16 +70,22 @@ def test_service_config_invalid_values():
 
 
 @pytest.fixture
-def cache_path(tmp_path):
-    cache_path = tmp_path / "cache.json"
-    with open(cache_path, "w") as f:
-        json.dump({"foo": "bar"}, f)
+def cache_path(tmp_path, request):
+    cache_path = tmp_path / request.param
+    if request.param.endswith(".json"):
+        with open(cache_path, "w") as f:
+            json.dump({"foo": "bar"}, f)
+    else:
+        with open(cache_path, "wb") as f:
+            pickle.dump({"foo": "bar"}, f)
     yield cache_path
     os.remove(cache_path)
 
 
+@pytest.mark.parametrize("cache_path", ["cache.json", "cache.pkl"], indirect=True)
 def test_cache_config_write(cache_path):
-    ServiceConfig(cache={"use": True, "path": cache_path})
+    cache_type = "json" if cache_path.suffix == ".json" else "pickle"
+    ServiceConfig(cache=CacheConfig(path=cache_path, use=True, cache_type=cache_type))
 
 
 @pytest.mark.parametrize(
