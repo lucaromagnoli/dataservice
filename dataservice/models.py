@@ -129,6 +129,19 @@ class Request(BaseModel):
         return HttpUrl(f"{url}?{urllib.parse.urlencode(self.params)}")  # type: ignore
 
 
+class InterceptRequest(Request):
+    """Intercept request model."""
+
+    parent: Request = Field(description="The parent request object.")
+    callback: CallbackType = Field(
+        description="The callback function to process the intercepted response."
+    )
+    client: ClientCallable = Field(
+        description="Override base class.",
+        default=None,
+    )
+
+
 class Response(BaseModel):
     """Response model."""
 
@@ -146,7 +159,9 @@ class Response(BaseModel):
         description="The cookies of the response.", default=None
     )
     text: str = Field(description="The text of the response.", default="")
-    data: dict | None = Field(description="The data of the response.", default=None)
+    data: dict | list[dict] | None = Field(
+        description="The data of the response.", default=None
+    )
     __html: BeautifulSoup | None = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -165,6 +180,10 @@ class Response(BaseModel):
         if self.__html is None:
             self.__html = BeautifulSoup(self.text, "html5lib")
         return self.__html
+
+
+class InterceptResponse(Response):
+    """Intercept response model."""
 
 
 class FailedRequest(TypedDict):

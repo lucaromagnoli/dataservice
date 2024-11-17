@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import warnings
 from abc import ABC
 from logging import getLogger
-from typing import Annotated, Any, Awaitable, Callable, Literal, NoReturn, Optional
+from typing import Annotated, Any, Awaitable, Callable, NoReturn, Optional, Sequence
 
 import httpx
 from annotated_types import Ge, Le
@@ -17,7 +18,13 @@ from dataservice.exceptions import (
     RetryableException,
     TimeoutException,
 )
-from dataservice.models import Request, Response
+from dataservice.models import (
+    CallbackType,
+    InterceptRequest,
+    InterceptResponse,
+    Request,
+    Response,
+)
 
 try:
     from playwright.async_api import (
@@ -48,23 +55,15 @@ logger = getLogger(__name__)
 class BaseClient(ABC):
     """Base client class."""
 
-    def __call__(self, *args, **kwargs):
+    async def __call__(
+        self, *args, **kwargs
+    ) -> Response | Sequence[Response] | NoReturn:
         """Make a request using the client."""
-        return self.make_request(*args, **kwargs)
+        return await self.make_request(*args, **kwargs)
 
-    async def make_request(self, request: Request) -> Response | NoReturn:
-        """Make a request and handle exceptions.
-
-        :param request: The request object containing the details of the HTTP request.
-        :return: A Response object if the request is successful.
-        :raises RequestException: If a non-retryable HTTP error occurs.
-        :raises RetryableRequestException: If a retryable HTTP error occurs.
-        """
-        logger.debug(f"Requesting {request.url_encoded}")
-        return await self._make_request(request)
-
-    async def _make_request(self, request: Request) -> Response | NoReturn:
-        """Make a request using the client. Private method for internal use."""
+    async def make_request(
+        self, request: Request
+    ) -> Response | Sequence[Response] | NoReturn:
         raise NotImplementedError
 
     @staticmethod
@@ -90,13 +89,14 @@ class HttpXClient(BaseClient):
     def __init__(self):
         self.async_client = httpx.AsyncClient
 
-    async def _make_request(self, request: Request) -> Response | NoReturn:
-        """Make a request using HTTPX. Private method for internal use.
+    async def make_request(self, request: Request) -> Response | NoReturn:
+        """Make a request using HTTPX.
 
         :param request: The request object containing the details of the HTTP request.
         :return: A Response object containing the response data.
         """
         try:
+            logger.info(f"Requesting {request.url}")
             return await self._get_response(request)
         except httpx.HTTPStatusError as e:
             logger.debug(f"HTTP Status Error making request: {e}")
@@ -167,13 +167,13 @@ class PlaywrightClient(BaseClient):
         *,
         actions: Optional[Callable[[PlaywrightPage], Awaitable[None]]] = None,
         intercept_url: Optional[str] = None,
-        intercept_content_type: Optional[Literal["text", "json"]] = "json",
         config: PlaywrightConfig = PlaywrightConfig(),
     ):
         """Initialize the PlaywrightClient.
 
         :param actions: Optional coroutine with actions to perform on the page before returning the response.
         :param intercept_url: Optional URL to intercept and get data from.
+        :param config: PlaywrightConfig object.
         """
         if not PLAYWRIGHT_AVAILABLE:
             raise ImportError(
@@ -182,34 +182,61 @@ class PlaywrightClient(BaseClient):
 
         self.actions = actions
         self.intercept_url = intercept_url
-        self.intercept_content_type = intercept_content_type
         self.config = config
-        self._intercepted_requests: list[PlaywrightRequest] | None = None
+        self._intercepted_requests: list[PlaywrightRequest] = []
 
-    def _get_context_kwargs(self, request: Request) -> dict[str, Any]:
+        if self.intercept_url:
+            warnings.warn(
+                "Please consider using PlaywrightInterceptClient to intercept requests. "
+                "In future releases, PlaywrightClient will not support intercepting requests."
+            )
+
+    def _get_context_kwargs(
+        self, request: Request, config: PlaywrightConfig
+    ) -> dict[str, Any]:
         """Get the context kwargs for the Playwright client.
 
         :param request: The request object containing the details of the HTTP request.
+        :param config: The Playwright configuration object.
         :return: A dictionary containing the context kwargs.
         """
         context_kwargs = {}
+
         if request.proxy:
             context_kwargs["proxy"] = {"server": request.proxy.url}
         if request.headers:
             context_kwargs["extra_http_headers"] = request.headers
-        if self.config is not None and self.config.device:
-            context_kwargs.update(self.config.device)
+        if config is not None and config.device:
+            context_kwargs.update(config.device)
         return context_kwargs
 
-    async def make_request(self, request: Request) -> Response | NoReturn:
-        """Make a request and handle exceptions.
-
+    async def _set_up(
+        self, request: Request, config: PlaywrightConfig
+    ) -> tuple[Browser, BrowserContext, PlaywrightPage, Playwright]:
+        """Set up the Playwright client.
         :param request: The request object containing the details of the HTTP request.
-        :return: A Response object if the request is successful.
-        :raises RequestException: If a non-retryable HTTP error occurs.
-        :raises RetryableRequestException: If a retryable HTTP error occurs.
+        :param config: The Playwright configuration object.
         """
-        return await self._make_request(request)
+        playwright = await async_playwright().start()
+        browser = await getattr(playwright, config.browser).launch(
+            headless=config.headless
+        )
+        context_kwargs = self._get_context_kwargs(request, config)
+        context = await browser.new_context(**context_kwargs)
+        page = await context.new_page()
+        return browser, context, page, playwright
+
+    async def _clean_up(self, browser, context, page, playwright):
+        """Close the Playwright resources.
+        :param browser: The Playwright browser object.
+        :param context: The Playwright context object.
+        :param page: The Playwright page object.
+        :param playwright: The Playwright object.
+        """
+        await page.close()
+        await context.close()
+        await browser.close()
+        await playwright.stop()
 
     def _intercept_requests(self, request: PlaywrightRequest):
         """Intercept requests and store the data.
@@ -220,7 +247,7 @@ class PlaywrightClient(BaseClient):
         if self.intercept_url in request.url and request.url not in seen:
             logger.debug(f"Intercepted request: {request.url}")
             seen.add(request.url)
-            if self._intercepted_requests is not None:
+            if self._intercepted_requests:
                 self._intercepted_requests.append(request)
             else:
                 self._intercepted_requests = [request]
@@ -235,28 +262,18 @@ class PlaywrightClient(BaseClient):
             for request in self._intercepted_requests:
                 if request.url not in responses:
                     response = await request.response()
-                    if self.intercept_content_type == "text":
-                        responses[request.url] = await response.text()
-                    elif self.intercept_content_type == "json":
+                    content_type = response.headers.get("content-type", "")
+                    if "application/json" in content_type:
                         responses[request.url] = await response.json()
+                    else:
+                        responses[request.url] = await response.text()
         return responses
 
-    async def _setup(
-        self, request: Request
-    ) -> tuple[Browser, BrowserContext, PlaywrightPage, Playwright]:
-        """Set up the Playwright client."""
-        playwright = await async_playwright().start()
-        browser = await getattr(playwright, self.config.browser).launch(
-            headless=self.config.headless
-        )
-        context_kwargs = self._get_context_kwargs(request)
-        context = await browser.new_context(**context_kwargs)
-        page = await context.new_page()
-        return browser, context, page, playwright
-
-    async def _make_request(self, request: Request) -> Response:
-        """Make a request using Playwright without assigning instance variables."""
-        browser, context, page, playwright = await self._setup(request)
+    async def make_request(self, request: Request) -> Response:
+        """Make a request using Playwright without assigning instance variables.
+        :param request: The request object containing the details of the HTTP request.
+        """
+        browser, context, page, playwright = await self._set_up(request, self.config)
 
         if self.intercept_url is not None:
             page.on("request", lambda pw_request: self._intercept_requests(pw_request))
@@ -302,7 +319,117 @@ class PlaywrightClient(BaseClient):
 
         finally:
             # Close resources
-            await page.close()
-            await context.close()
-            await browser.close()
-            await playwright.stop()
+            await self._clean_up(browser, context, page, playwright)
+
+
+class PlaywrightInterceptClient(PlaywrightClient):
+    """Client that uses Playwright library to make requests and intercept responses."""
+
+    def __init__(
+        self,
+        *,
+        intercept_url: str,
+        callback: CallbackType,
+        return_html: bool = True,
+        actions: Optional[Callable[[PlaywrightPage], Awaitable[None]]] = None,
+        config: PlaywrightConfig = PlaywrightConfig(),
+    ):
+        """Initialize the PlaywrightInterceptClient.
+
+        :param intercept_url: The URL to intercept and get data from.
+        :param callback: The callback function to process the intercepted response.
+        :param return_html: Whether to return the HTML content of the page.
+        :param actions: Optional coroutine with actions to perform on the page before returning the response.
+        :param config: PlaywrightConfig object.
+        """
+        if not PLAYWRIGHT_AVAILABLE:
+            raise ImportError(
+                "Playwright optional dependency is not installed. Please install it with `pip install python-dataservice[playwright]`."
+            )
+
+        super().__init__(actions=actions, config=config)
+
+        self.intercept_url = intercept_url
+        self.callback = callback
+        self.return_html = return_html
+        self._intercepted_requests: list[PlaywrightRequest] = []
+
+    async def make_request(self, request: Request) -> Sequence[Response]:  # type: ignore
+        """Make a request and intercept Fetch/XHR responses.
+
+        :param request: The request object containing the details of the HTTP request.
+        :return: A list of ResponseObjects.
+        :raises RequestException: If a non-retryable HTTP error occurs.
+        :raises RetryableRequestException: If a retryable HTTP error occurs.
+        """
+        browser, context, page, playwright = await self._set_up(request, self.config)
+        page.on("request", lambda pw_request: self._intercept_requests(pw_request))
+        responses = []
+        try:
+            logger.debug(f"Requesting {request.url_encoded}")
+            # Playwright page.goto() timeout is in milliseconds
+            pw_response = await page.goto(request.url, timeout=request.timeout * 1000)
+            logger.debug(f"Received response for {request.url_encoded}")
+            self._raise_for_status(pw_response.status, pw_response.status_text)
+
+            if self.actions is not None:
+                await self.actions(page)
+
+            if self.return_html:
+                text = await page.content()
+                cookies = await context.cookies()
+
+                html_response = Response(
+                    request=request,
+                    text=text,
+                    data=None,
+                    url=HttpUrl(pw_response.url),
+                    status_code=pw_response.status,
+                    cookies=cookies,
+                    headers=pw_response.headers,
+                )
+
+                responses.append(html_response)
+            for pw_request in self._intercepted_requests:
+                pw_response = await pw_request.response()
+                data, text = None, ""
+                pw_response_headers = pw_response.headers
+                content_type = pw_response_headers.get("content-type", "")
+                if "application/json" in content_type:
+                    data = await pw_response.json()
+                else:
+                    text = await pw_response.text()
+                request = InterceptRequest(
+                    parent=request,
+                    url=pw_request.url,
+                    headers=pw_request.headers,
+                    method=pw_request.method,
+                    json_data=pw_request.post_data_json,
+                    callback=self.callback,
+                )
+                responses.append(
+                    InterceptResponse(
+                        request=request,
+                        text=text,
+                        data=data,
+                        url=HttpUrl(pw_response.url),
+                        status_code=pw_response.status,
+                        headers=pw_response.headers,
+                    )
+                )
+            return responses
+
+        except PlaywrightTimeoutError as e:
+            logger.debug(f"Timeout making request: {e}")
+            raise TimeoutException(
+                f"Timeout making request: {e}, {e.__class__.__name__}"
+            )
+        except (RetryableException, NonRetryableException) as e:
+            raise e
+        except Exception as e:
+            raise DataServiceException(
+                f"Error making request: {e}, {e.__class__.__name__}"
+            )
+        finally:
+            # Close resources
+            await self._clean_up(browser, context, page, playwright)

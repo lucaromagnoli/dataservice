@@ -32,7 +32,7 @@ def main():
     parser.add_argument(
         "--client",
         help="The name of the client to use. Default is HttpXClient.",
-        choices=["httpx", "playwright"],
+        choices=["httpx", "playwright", "playwright-intercept"],
         default="httpx",
     )
 
@@ -44,6 +44,7 @@ def main():
     script_name = filename.split(".")[0]
     use_httpx_client = args.client == "httpx"
     use_playwright_client = args.client == "playwright"
+    use_playwright_intercept_client = args.client == "playwright-intercept"
     use_async_data_service = args.async_service
     use_data_service = not use_async_data_service
 
@@ -60,6 +61,7 @@ def main():
         use_service_config=args.service_config,
         use_httpx_client=use_httpx_client,
         use_playwright_client=use_playwright_client,
+        use_playwright_intercept_client=use_playwright_intercept_client,
         use_data_service=use_data_service,
         use_async_data_service=use_async_data_service,
     )

@@ -63,7 +63,7 @@ async def test_httpx_client_get_request(
         content_type=content_type,
         client=HttpXClient,
     )
-    response = await httpx_client._make_request(request)
+    response = await httpx_client.make_request(request)
     assert response.text == expected_text
     assert response.data == expected_data
 
@@ -97,7 +97,7 @@ async def test_httpx_client_post_request(
         content_type=content_type,
         client=HttpXClient,
     )
-    response = await httpx_client._make_request(request)
+    response = await httpx_client.make_request(request)
     assert response.data == json_resp
 
 
