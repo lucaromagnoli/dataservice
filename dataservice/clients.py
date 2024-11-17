@@ -404,6 +404,7 @@ class PlaywrightInterceptClient(PlaywrightClient):
                     url=pw_request.url,
                     headers=pw_request.headers,
                     method=pw_request.method,
+                    json_data=pw_request.post_data_json,
                     callback=self.callback,
                 )
                 responses.append(
@@ -416,7 +417,7 @@ class PlaywrightInterceptClient(PlaywrightClient):
                         headers=pw_response.headers,
                     )
                 )
-                return responses
+            return responses
 
         except PlaywrightTimeoutError as e:
             logger.debug(f"Timeout making request: {e}")
