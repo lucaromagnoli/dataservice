@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import pickle
 import signal
 import time
 from abc import ABC
@@ -88,8 +89,8 @@ class AsyncCache(ABC):
             self.start_time = time.time()
 
 
-class LocalJsonCache(AsyncCache):
-    """Simple JSON disk based cache implementation."""
+class LocalCache(AsyncCache):
+    """Simple disk based cache implementation."""
 
     def __init__(self, path: Path):
         """Initialize the DictCache."""
@@ -98,20 +99,18 @@ class LocalJsonCache(AsyncCache):
         self.cache = {}
 
     def sync_load(self):
-        with open(self.path) as f:
-            self.cache = json.load(f)
+        raise NotImplementedError
 
     async def load(self):
-        """Load cache data from a JSON file."""
+        """Load cache data from a file."""
         logger.debug("Loading cache from disk")
 
         if self.path.exists():
-            await asyncio.to_thread(self.sync_load)
+            await asyncio.to_thread(self.__class__.sync_load, self)
 
     def sync_flush(self):
-        """Save cache data to a JSON file."""
-        with open(self.path, "w") as f:
-            json.dump(self.cache, f)
+        """Save cache data to file."""
+        raise NotImplementedError
 
     async def flush(self):
         """Save cache data to a JSON file. Async wrapper for sync_flush."""
@@ -122,13 +121,41 @@ class LocalJsonCache(AsyncCache):
             success = False
             logger.debug("Saving cache to disk")
             async with self.lock:
-                await asyncio.to_thread(self.sync_flush)
+                await asyncio.to_thread(self.__class__.sync_flush, self)
                 success = True  # Mark as successful
         except Exception as e:
             logger.error(f"Error saving cache: {e}")
         finally:
             if success:
                 logger.debug("Cache saved")
+
+
+class JsonCache(LocalCache):
+    """Simple JSON disk based cache implementation."""
+
+    def sync_load(self):
+        """Load cache data from a JSON file."""
+        with open(self.path) as f:
+            self.cache = json.load(f)
+
+    def sync_flush(self):
+        """Save cache data to a JSON file."""
+        with open(self.path, "w") as f:
+            json.dump(self.cache, f)
+
+
+class PickleCache(LocalCache):
+    """Simple Pickle disk based cache implementation."""
+
+    def sync_load(self):
+        """Load cache data from a Pickle file."""
+        with open(self.path, "rb") as f:
+            self.cache = pickle.load(f)
+
+    def sync_flush(self):
+        """Save cache data to a Pickle file."""
+        with open(self.path, "wb") as f:
+            pickle.dump(self.cache, f)
 
 
 class RemoteCache(AsyncCache):
@@ -204,9 +231,12 @@ class CacheFactory:
         if not self.cache_config.use:
             logger.debug("Cache disabled")
             return nullcontext()
-        if self.cache_config.cache_type == "local":
+        if self.cache_config.cache_type == "json":
             logger.debug("Using local cache")
-            cache = LocalJsonCache(Path(self.cache_config.path))
+            cache = JsonCache(Path(self.cache_config.path))  # type: ignore
+        elif self.cache_config.cache_type == "pickle":
+            logger.debug("Using pickle cache")
+            cache = PickleCache(Path(self.cache_config.path))  # type: ignore
         elif self.cache_config.cache_type == "remote":
             logger.debug("Using remote cache")
             cache = RemoteCache(  # type: ignore

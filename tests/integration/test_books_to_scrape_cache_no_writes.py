@@ -4,7 +4,7 @@ from urllib.parse import urljoin
 import pytest
 
 from dataservice import AsyncDataService, CacheConfig, HttpXClient, ServiceConfig
-from dataservice.cache import LocalJsonCache
+from dataservice.cache import JsonCache, PickleCache
 from dataservice.models import Request, Response
 
 
@@ -25,23 +25,47 @@ def start_requests(client):
 
 
 @pytest.fixture
-def cache_path(shared_datadir):
-    return shared_datadir / "cache.json"
+def json_cache_path(shared_datadir):
+    return shared_datadir / "json_c.json"
 
 
 @pytest.fixture
-def mock_cache(cache_path, mocker):
-    c = mocker.MagicMock(spec=LocalJsonCache)
+def pickle_cache_path(shared_datadir):
+    return shared_datadir / "pickle_c.pkl"
+
+
+@pytest.fixture
+def mock_json_cache(json_cache_path, mocker):
+    c = mocker.MagicMock(spec=JsonCache)
+    c.sync_flush = mocker.MagicMock()
+    return c
+
+
+@pytest.fixture
+def mock_pickle_cache(pickle_cache_path, mocker):
+    c = mocker.MagicMock(spec=PickleCache)
     c.sync_flush = mocker.MagicMock()
     return c
 
 
 @pytest.mark.asyncio
 @pytest.fixture
-async def mock_init_cache(mock_cache, mocker):
+async def mock_init_json_cache(mock_json_cache, mocker):
     async def _mock_init_cache():
-        await mock_cache.load()
-        return mock_cache
+        await mock_json_cache.load()
+        return mock_json_cache
+
+    mocker.patch(
+        "dataservice.service.CacheFactory.init_cache", side_effect=_mock_init_cache
+    )
+
+
+@pytest.mark.asyncio
+@pytest.fixture
+async def mock_init_pickle_cache(mock_pickle_cache, mocker):
+    async def _mock_init_cache():
+        await mock_pickle_cache.load()
+        return mock_pickle_cache
 
     mocker.patch(
         "dataservice.service.CacheFactory.init_cache", side_effect=_mock_init_cache
@@ -49,16 +73,34 @@ async def mock_init_cache(mock_cache, mocker):
 
 
 @pytest.fixture
-def cache_config(cache_path):
-    return CacheConfig(cache_type="local", path=cache_path, use=True)
+def json_cache_config(json_cache_path):
+    return CacheConfig(cache_type="json", path=json_cache_path, use=True)
 
 
 @pytest.fixture
-def data_service(start_requests, cache_config, mock_cache):
-    return AsyncDataService(
-        requests=start_requests,
-        config=ServiceConfig(max_concurrency=1, cache=cache_config),
-    )
+def pickle_cache_config(pickle_cache_path):
+    return CacheConfig(cache_type="pickle", path=pickle_cache_path, use=True)
+
+
+@pytest.fixture
+def data_service(
+    request,
+    start_requests,
+    json_cache_config,
+    pickle_cache_config,
+    mock_json_cache,
+    mock_pickle_cache,
+):
+    if request.param == "json":
+        return AsyncDataService(
+            requests=start_requests,
+            config=ServiceConfig(max_concurrency=1, cache=json_cache_config),
+        ), mock_json_cache
+    elif request.param == "pickle":
+        return AsyncDataService(
+            requests=start_requests,
+            config=ServiceConfig(max_concurrency=1, cache=pickle_cache_config),
+        ), mock_pickle_cache
 
 
 def parse_books_page(
@@ -97,8 +139,8 @@ def parse_book_details(response: Response):
 
 
 @pytest.mark.asyncio
-async def test_scrape_books_with_cache_does_not_write_to_disk(
-    data_service, mock_cache, mock_init_cache
-):
+@pytest.mark.parametrize("data_service", ["json", "pickle"], indirect=True)
+async def test_scrape_books_with_cache_does_not_write_to_disk(data_service):
+    data_service, mock_cache = data_service
     _ = [data async for data in data_service]
     mock_cache.sync_flush.assert_not_called()
